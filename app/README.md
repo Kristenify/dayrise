@@ -49,20 +49,29 @@ liste ordonnée de **Tâches** (relation mère-fille — voir
   saison.
 - **"Aller se coucher"** — enlève les vêtements (retire plusieurs
   calques d'un coup, `retire: true`) → range/sale → dents → histoire →
-  coucher.
+  coucher. **Débloquée par l'heure** (`disponibleApresHeure: 18`), pas
+  par les autres routines — volontairement sortie du chaînage séquentiel
+  (cf. plus bas, "Menu de la journée").
 
 Séquence :
 
 1. **Menu de la journée** — liste des routines. Seule la première non
    validée est cliquable ; les suivantes sont grisées/verrouillées (🔒)
-   tant que la précédente n'est pas validée. L'avatar y est affiché dans
-   son état réel du moment (habillé ou non selon ce qui est déjà fait),
-   avec une jauge de journée (une étoile par routine validée), et une
-   horloge (jour + heure, `#horloge`/`majHorloge()`, purement
-   informative). Un bouton voiture 🚗 distinct ("Partir à l'aventure")
-   ouvre `screen-missions` (actuellement vide, pas encore de mission)
-   **seulement si** "Se préparer à partir" est validée — sinon il ramène
-   directement dans cette routine (`allerVersDepart()`).
+   tant que **toutes** les précédentes ne sont pas validées (pas
+   seulement l'immédiatement précédente — sinon relancer une routine du
+   milieu depuis l'espace parent peut laisser une routine plus loin
+   débloquée à tort, cf. `construireMenu()`, `toutPrecedentValide`). Une
+   routine peut sortir de ce chaînage et se débloquer par l'heure plutôt
+   que par les précédentes (`disponibleApresHeure`, cf. "Aller se
+   coucher" plus haut) — icône 🕒 au lieu de 🔒, message vocal dédié tant
+   que l'heure n'est pas là. L'avatar y est affiché dans son état réel du
+   moment (habillé ou non selon ce qui est déjà fait), avec une jauge de
+   journée (une étoile par routine validée), et une horloge (jour +
+   heure, `#horloge`/`majHorloge()`, purement informative). Un bouton
+   voiture 🚗 distinct ("Partir à l'aventure") ouvre `screen-missions`
+   (actuellement vide, pas encore de mission) **seulement si** "Se
+   préparer à partir" est validée — sinon il ramène directement dans
+   cette routine (`allerVersDepart()`).
 2. **Écran de routine** (générique, alimenté par la routine choisie) —
    liste récapitulative complète toujours visible (l'enfant mesure ce
    qu'il reste à faire), ordre imposé (une seule tâche actionnable à la
@@ -253,9 +262,13 @@ le mécanisme principal.
   qu'avant : `zone` doit correspondre à un élément `.zone-cible` dans
   `index.html`, `calque` révèle un sprite existant dans `assets/avatar/`
   via `data-calque`, `badge` affiche un emoji via `data-badge` si aucun
-  sprite n'existe encore). Ajouter une routine = ajouter une entrée ici ;
-  elle apparaît automatiquement au menu, verrouillée jusqu'à ce que la
-  précédente soit validée.
+  sprite n'existe encore), et `disponibleApresHeure` optionnel (nombre,
+  0-23) : si présent, la routine sort du chaînage séquentiel et se
+  débloque à partir de cette heure au lieu d'attendre que les précédentes
+  soient validées (cf. "Aller se coucher"). Ajouter une routine = ajouter
+  une entrée ici ; elle apparaît automatiquement au menu, verrouillée
+  jusqu'à ce que la précédente soit validée (sauf si elle a
+  `disponibleApresHeure`).
 - `REPAS` (`app.js`) — tableau plat `{ id, nom, emoji }`, purement
   informatif pour l'écran "Ma journée" (pas de tâches, pas d'horaire).
 - `AVENTURES` (`app.js`) — tableau d'aventures, chacune avec `lieu`,

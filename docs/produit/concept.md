@@ -23,6 +23,19 @@ fois ; les autres sont grisées tant que la précédente n'est pas finie.
 **L'ordre et les dépendances entre routines/missions sont paramétrables
 par les parents** — pas un enchaînement figé dans le code.
 
+Toutes les routines ne se prêtent pas à ce chaînage : "Aller se
+coucher" n'a **aucun rapport** avec "S'habiller"/"Se préparer à
+partir" — l'enchaîner quand même créait un vrai risque, découvert en
+ajoutant "Relancer une routine" (espace parent) : un parent corrigeant
+une routine de journée en soirée se retrouvait avec le coucher
+verrouillé juste avant l'heure de dormir. Le coucher se débloque donc
+par **l'heure**, pas par les autres routines — et réciproquement, c'est
+justement cette notion d'heure qui empêche l'autre risque (un enfant
+sautant direct au coucher, donc au déshabillage, sans avoir rien fait
+d'autre de sa journée). Un rappel qu'une dépendance entre deux routines
+doit avoir un vrai rapport de cause à effet, pas juste suivre l'ordre où
+elles ont été codées.
+
 ## Récompense : étoiles par routine → jauge de journée
 
 - Chaque routine terminée rapporte une **étoile**.

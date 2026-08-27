@@ -80,6 +80,18 @@ const ROUTINES = [
     emoji: "🌙",
     lieu: "chambre",
     felicitation: "Bravo Léon, tu es prêt à dormir !",
+    // Volontairement PAS chaînée après "S'habiller"/"Se préparer à
+    // partir" (contrairement aux autres routines, cf. construireMenu()) :
+    // le coucher n'a rien à voir avec le fait d'être habillé pour sortir,
+    // et les enchaîner créait un vrai risque — si un parent relance
+    // "S'habiller" en soirée (cf. espace parent), "Aller se coucher" se
+    // serait retrouvée verrouillée juste avant le coucher. À la place,
+    // débloquée par l'heure : avant `disponibleApresHeure`, elle reste
+    // inaccessible (pour éviter l'autre risque inverse — un enfant qui
+    // irait se déshabiller pour "aller se coucher" en pleine journée sans
+    // avoir rien fait d'autre), après, elle l'est, indépendamment de
+    // l'état des autres routines.
+    disponibleApresHeure: 18,
     taches: [
       { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👕", zone: "zone-torse",
         calque: ["calque-haut", "calque-pantalon", "calque-chaussettes", "calque-chaussures", "calque-manteau"],
@@ -414,14 +426,32 @@ function construireMenu() {
   // dans la liste réapparaîtrait débloquée juste parce que celle qui la
   // précède immédiatement est restée validée, en sautant celle qu'on
   // vient de relancer.
+  //
+  // Une routine avec `disponibleApresHeure` (ex. "Aller se coucher")
+  // sort volontairement de ce chaînage : ni bloquée par les précédentes,
+  // ni prise en compte pour bloquer une éventuelle suivante — débloquée
+  // par l'heure plutôt que par les autres routines (cf. sa définition
+  // dans ROUTINES pour le pourquoi).
   const liste = document.getElementById("liste-routines");
   liste.innerHTML = "";
   let toutPrecedentValide = true;
   ROUTINES.forEach(r => {
     const etatR = etat.routines[r.id];
-    const debloquee = toutPrecedentValide && !etatR.valide;
     const carte = document.createElement("div");
     carte.dataset.id = r.id;
+
+    if (r.disponibleApresHeure !== undefined) {
+      const heureAtteinte = new Date().getHours() >= r.disponibleApresHeure;
+      const debloquee = heureAtteinte && !etatR.valide;
+      carte.className = "carte-routine" + (etatR.valide ? " faite" : (!heureAtteinte ? " verrouillee" : ""));
+      carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (heureAtteinte ? "" : "🕒")}</div>`;
+      if (debloquee) carte.onclick = () => demarrerRoutine(r.id);
+      else if (!etatR.valide) carte.onclick = () => dire("Ce n'est pas encore l'heure pour « " + r.nom + " ».");
+      liste.appendChild(carte);
+      return;
+    }
+
+    const debloquee = toutPrecedentValide && !etatR.valide;
     // "verrouillee" ne s'applique qu'à une routine PAS ENCORE validée —
     // sinon une routine déjà faite (ex. "Se préparer à partir") peut se
     // retrouver visuellement "verrouillée" après qu'un parent a relancé

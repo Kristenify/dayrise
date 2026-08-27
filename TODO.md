@@ -253,6 +253,23 @@ prototype actuel.
         ou aventures depuis l'app reste à faire (aujourd'hui, toujours en
         dur dans `ROUTINES`/`AVENTURES`, `app.js`). Prochaine étape
         logique une fois ce premier jet revu.
+- [x] **"Aller se coucher" débloquée par l'heure, plus par les autres
+      routines** (demandé explicitement, suite à "Relancer une routine")
+      — cette routine sortait mal de son chaînage séquentiel avec
+      "S'habiller"/"Se préparer à partir" : un parent relançant
+      "S'habiller" en soirée (ex. l'enfant s'est redéshabillé) se
+      retrouvait avec le coucher verrouillé juste avant l'heure de
+      dormir, alors que les deux n'ont aucun rapport. Solution :
+      `disponibleApresHeure: 18` sur la routine "soir" (`ROUTINES`) —
+      débloquée dès cette heure passée, **indépendamment** de l'état des
+      autres routines (ni bloquée par elles, ni prise en compte pour en
+      bloquer une suivante, cf. `construireMenu()`). Empêche aussi le
+      risque inverse signalé : sans une notion d'heure, un enfant aurait
+      pu passer directement à "Aller se coucher" (donc se déshabiller,
+      première tâche) à n'importe quel moment de la journée sans avoir
+      rien fait d'autre. Icône dédiée (🕒 au lieu de 🔒) et message vocal
+      distinct ("Ce n'est pas encore l'heure pour...") pour ne pas laisser
+      croire qu'une autre routine doit être finie avant.
 - [x] Exploration direction artistique : générateur procédural (avatars
       Colette/Léon, chambre de Léon), packs Bitglow téléchargés (salle de
       bain, chambre, salon/cuisine — licence perso/commercial ok, cf.
