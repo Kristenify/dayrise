@@ -9,6 +9,17 @@ navigateur bloque le chargement de `styles.css`/`app.js` en `file://`.
 pendant que le reste de l'app se construit — voir `TODO.md` à la racine
 et `docs/produit/` pour le modèle qui a guidé cette version.
 
+**Déploiement/installation sur la tablette de Léon** : l'app est publiée
+sur GitHub Pages (URL stable, HTTPS, indépendante de toute machine
+perso — cf. "Gestion des branches" dans le README racine). Ouvrir cette
+URL une fois dans le navigateur de la tablette, puis "Ajouter à l'écran
+d'accueil" : `manifest.json` fournit l'icône, `sw.js` (service worker)
+met l'app en cache pour qu'elle marche ensuite **hors-ligne**, sans
+dépendre d'aucun serveur. Un serveur de dev local (`python3 -m
+http.server`, ou l'équivalent utilisé pendant le développement) reste
+utile pour tester en cours de route, mais n'est jamais ce que la
+tablette de Léon doit charger au quotidien.
+
 ## Ce qui est couvert
 
 Un seul enfant (Léon), un seul jour type. Modèle : une **Routine** a une
@@ -245,3 +256,9 @@ le mécanisme principal.
   (pas de détourage réel) puis teinté au filtre CSS
   (`grayscale`+`sepia`+`hue-rotate`) façon profil gravé. Values ajustées
   à l'œil pour ce sprite précis — à recalculer si le sprite change.
+- `A_METTRE_EN_CACHE` (`sw.js`) — liste des fichiers mis en cache pour le
+  fonctionnement hors-ligne. **Si tu ajoutes un asset référencé par
+  `index.html`/`styles.css`** (nouvelle image, nouvelle scène...),
+  ajoute-le ici aussi, sinon il ne sera pas disponible hors-ligne.
+  Incrémenter `CACHE_NAME` (ex. `dayrise-v2`) force le renouvellement du
+  cache d'un appareil déjà installé au prochain chargement en ligne.

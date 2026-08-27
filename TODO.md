@@ -190,6 +190,28 @@ prototype actuel.
       Léon (l'utilisateur doit ouvrir l'URL une fois dans le navigateur
       et choisir "Ajouter à l'écran d'accueil" — pas automatisable
       depuis le code).
+- [x] **Service worker hors-ligne** (`app/sw.js`, enregistré depuis
+      `app.js`) — met en cache l'app shell (HTML/CSS/JS/manifest +
+      images) au premier chargement, stratégie stale-while-revalidate
+      (sert le cache tout de suite, le rafraîchit en tâche de fond dès
+      qu'un réseau est là). Rend l'app **vraiment indépendante d'un
+      serveur particulier** après le premier chargement — répond
+      directement au besoin d'installer sur la tablette de Léon sans
+      dépendre du Mac de son parent. Nécessite HTTPS ou `localhost` (les
+      navigateurs n'activent pas les service workers sur du http:// brut,
+      ex. une IP locale) — encore une raison d'héberger sur une vraie
+      URL (GitHub Pages) plutôt qu'un serveur de dev.
+- [x] **Dépôt Git + déploiement GitHub Pages** — `main` (stable, ce qui
+      est déployé) / `dev` (travail en cours), cf. section "Gestion des
+      branches" du README racine. Poussé sur GitHub, `app/` publié via
+      GitHub Pages (cf. `.github/workflows/` s'il existe, sinon branche
+      `gh-pages`) pour une URL stable, HTTPS, indépendante de toute
+      machine perso — c'est cette URL que la tablette de Léon doit
+      ouvrir une fois puis "Ajouter à l'écran d'accueil". `assets/external/`
+      (packs Bitglow) volontairement exclu du dépôt : la licence interdit
+      la redistribution en fichiers autonomes, incompatible avec un repo
+      public (cf. `.gitignore`) — ces assets restent en local uniquement,
+      l'app déployée ne les utilise pas de toute façon.
 - [x] Exploration direction artistique : générateur procédural (avatars
       Colette/Léon, chambre de Léon), packs Bitglow téléchargés (salle de
       bain, chambre, salon/cuisine — licence perso/commercial ok, cf.

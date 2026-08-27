@@ -1152,6 +1152,18 @@ document.getElementById("btn-arrive").onclick = allerValidationArrivee;
 document.getElementById("btn-cest-parti").onclick = partirEnActivite;
 protegerParAppuiLong(document.getElementById("btn-recommencer"), reinitialiserTout);
 
+// Service worker : rend l'app utilisable hors-ligne après un premier
+// chargement, indépendamment de la disponibilité d'un serveur particulier
+// ensuite (cf. sw.js). Échoue silencieusement sur http:// simple (une IP
+// locale par ex.) — les navigateurs n'activent les service workers que
+// sur HTTPS ou localhost ; l'app fonctionne quand même, juste sans cache
+// hors-ligne dans ce cas.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+
 // point d'entrée : menu de la journée (le réveil, écran 01 du handoff,
 // reste sauté pour ce prototype). Filet de sécurité : si quoi que ce
 // soit plante ici (ex. un état corrompu malgré `etatRepare()`), on
