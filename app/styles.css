@@ -1,0 +1,414 @@
+:root {
+  --bg: #1E2740;
+  --bg-alt: #212B47;
+  --deep: #141C33;
+  --outline: #0E1424;
+  --surface: #263050;
+  --surface-raised: #2A3556;
+  --surface-active: #33406A;
+  --surface-high: #4A5880;
+  --accent: #F0952F;
+  --accent-shadow: #8A4E1C;
+  --accent-dark: #C97622;
+  --accent-edge: #FFF6E8;
+  --text: #E8EDF7;
+  --text-soft: #C3CEE6;
+  --text-mute: #A9B6D4;
+  --text-faint: #8C9BBC;
+  --skin: #D8A37A;
+  --hair: #2B2321;
+  --shadow-hard: 4px 4px 0 var(--outline);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; border-radius: 0; }
+html, body {
+  margin: 0; padding: 0; min-height: 100%; width: 100%; overflow-x: hidden;
+  background: var(--bg); color: var(--text);
+  font-family: "Atkinson Hyperlegible", "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-user-select: none; user-select: none; overscroll-behavior: none;
+}
+/* Taille de base fluide : optimisée tablette (viewport ~600-900px en
+   portrait sur une 11"), tout en restant raisonnable sur un écran plus
+   étroit. Tout le reste du fichier est en px, dérivés de cette base via
+   des tailles explicitement augmentées plutôt que des em en cascade. */
+html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
+#app { max-width: 620px; margin: 0 auto; position: relative; min-height: 100vh; }
+
+.screen {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  opacity: 0; pointer-events: none; transition: opacity .2s ease; padding: 18px 18px 24px;
+}
+.screen.active { opacity: 1; pointer-events: auto; position: relative; }
+.hidden { display: none !important; }
+
+.barre-haut {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 4px 16px; flex-shrink: 0;
+}
+.prenom-actif { font-size: 25px; font-weight: 800; }
+.bloc-nom { display: flex; flex-direction: column; gap: 2px; }
+#nom-piece { font-size: 14px; font-weight: 700; color: var(--text-faint); letter-spacing: .5px; }
+
+/* barre de progression segmentée (un segment par étape) : plus lisible
+   d'un coup d'œil qu'un compteur "3/10" pour un enfant qui ne compte pas
+   encore vite. */
+#barre-etapes { display: flex; gap: 2px; flex-wrap: nowrap; flex-shrink: 0; }
+#barre-etapes > div {
+  width: 9px; height: 22px; background: var(--surface); border: 2px solid var(--surface-high);
+  transition: background .2s ease, border-color .2s ease;
+}
+#barre-etapes > div.fait { background: var(--accent); border-color: var(--accent-edge); }
+.btn-voix {
+  width: 60px; height: 60px; font-size: 26px; background: var(--accent);
+  border: 3px solid var(--accent-edge); box-shadow: var(--shadow-hard); color: var(--deep);
+}
+.btn-voix:active { transform: translate(2px, 2px); box-shadow: none; }
+
+/* Retour discret (échappatoire pour un tap accidentel sur la mauvaise
+   routine) : volontairement moins voyant que .btn-voix — un enfant qui
+   a fini une étape ne doit pas confondre les deux. */
+.btn-retour-ecran {
+  width: 48px; height: 48px; font-size: 22px; font-weight: 800; background: var(--surface-active);
+  border: 3px solid var(--surface-high); color: var(--text-soft); flex-shrink: 0;
+}
+.btn-retour-ecran:active { transform: translate(2px, 2px); box-shadow: none; }
+
+/* ---------- Scène routine (avatar + zones) ---------- */
+#scene {
+  position: relative; height: 260px; flex-shrink: 0; margin-bottom: 12px;
+  background: linear-gradient(180deg, var(--bg-alt) 0%, var(--bg-alt) 62%, var(--deep) 62%, var(--deep) 100%);
+  border: 3px solid var(--surface-high);
+  transition: background .4s ease;
+}
+/* pièce "salon" : même palette, teinte plus claire/chaude pour signaler un
+   autre lieu sans vrai décor (pas de DA à ce stade) */
+#scene.scene-salon {
+  background: linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-raised) 62%, var(--surface) 62%, var(--surface) 100%);
+}
+/* .avatar-wrap : partagée entre le menu (#avatar-wrap-menu) et l'écran de
+   routine (#avatar-wrap) — même sprite, deux emplacements. */
+.avatar-wrap { position: absolute; left: 50%; bottom: 14px; width: 122px; height: 190px; transform: translateX(-50%); }
+.avatar-wrap.pop { animation: popPerso .3s ease; }
+@keyframes popPerso { 0%{transform:translateX(-50%) scale(1);} 40%{transform:translateX(-50%) scale(1.12);} 100%{transform:translateX(-50%) scale(1);} }
+
+.avatar-calque {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  image-rendering: pixelated; pointer-events: none; opacity: 1;
+  transition: opacity .25s ease, transform .25s ease; transform: scale(1);
+}
+/* les calques identifiés (haut, pantalon, chaussettes, chaussures, manteau)
+   ne se révèlent qu'une fois la tâche correspondante faite ; le calque de
+   base (pyjama, sans attribut) reste toujours visible en dessous. */
+.avatar-calque[data-calque] { opacity: 0; transform: scale(.94); }
+.avatar-calque[data-calque].visible { opacity: 1; transform: scale(1); }
+
+.badge-zone {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 30px; opacity: 0; transition: opacity .15s ease, transform .2s ease; transform: scale(.4);
+}
+.badge-zone.visible { opacity: 1; transform: scale(1); }
+.badge-visage { font-size: 18px; top: 6px; bottom: auto; height: 20px; }
+.badge-dos {
+  position: absolute; top: 90px; left: calc(50% + 46px); width: 34px; height: 34px; font-size: 26px;
+}
+
+/* ---------- Menu de la journée ---------- */
+/* `.bloc-monnaies` est un <button> (accès à l'écran "Mes récompenses",
+   cf. app.js) déguisé en simple bloc d'affichage — reset du chrome
+   natif du bouton. */
+.bloc-monnaies {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0;
+  background: none; border: none; padding: 0; font: inherit; cursor: pointer;
+}
+.bloc-monnaies:active { opacity: .7; }
+#jauge-jour { display: flex; gap: 4px; flex-shrink: 0; }
+.etoile-jauge { font-size: 26px; opacity: .3; filter: grayscale(1); transition: opacity .2s ease, filter .2s ease; }
+.etoile-jauge.gagnee { opacity: 1; filter: none; }
+/* pièces : monnaie distincte des étoiles, ne se remet pas à zéro chaque
+   jour (cf. app.js) — reste discrète, n'affiche rien tant qu'il n'y en a
+   aucune (pas de "0 🪙" en permanence sous les yeux). */
+#pieces-total { font-size: 16px; font-weight: 800; color: var(--text-mute); }
+
+#scene-menu {
+  position: relative; height: 220px; flex-shrink: 0; margin-bottom: 14px;
+  background: linear-gradient(180deg, var(--bg-alt) 0%, var(--bg-alt) 62%, var(--deep) 62%, var(--deep) 100%);
+  border: 3px solid var(--surface-high);
+}
+#scene-menu .avatar-wrap { width: 104px; height: 162px; bottom: 10px; }
+
+#horloge { text-align: center; font-size: 15px; color: var(--text-faint); margin-bottom: 10px; }
+
+#titre-menu { text-align: center; font-size: 21px; font-weight: 700; margin-bottom: 12px; }
+
+#liste-routines { display: flex; flex-direction: column; gap: 12px; }
+.carte-routine {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 64px; padding: 12px 18px; background: var(--surface-active);
+  border: 3px solid var(--surface-high); box-shadow: var(--shadow-hard);
+}
+.carte-routine-nom { font-size: 19px; font-weight: 700; }
+.carte-routine-etat { font-size: 22px; }
+.carte-routine.faite { background: rgba(240,149,47,.14); border-color: var(--accent); box-shadow: none; opacity: .85; }
+.carte-routine.verrouillee { opacity: .45; box-shadow: none; }
+/* attire l'attention sur la routine à faire avant de partir, sans
+   naviguer de force (l'enfant a pu appuyer sur la voiture par erreur) */
+.carte-routine.clignote { animation: clignoterCarte .6s ease-in-out 3; }
+@keyframes clignoterCarte {
+  0%, 100% { border-color: var(--surface-high); box-shadow: var(--shadow-hard); }
+  50% { border-color: var(--accent-edge); box-shadow: 0 0 0 4px rgba(240,149,47,.5); }
+}
+
+/* Bouton "partir à l'aventure" : volontairement différent des cartes de
+   routine (plus grand, centré, coloré) — c'est un vrai portail de sortie,
+   pas une simple ligne de liste, façon écran de niveau d'un jeu. */
+#btn-depart {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  margin: 20px auto 0; padding: 16px 28px; background: var(--accent);
+  border: 3px solid var(--accent-edge); box-shadow: var(--shadow-hard); color: var(--deep);
+}
+#btn-depart:active { transform: translate(2px, 2px); box-shadow: none; }
+#depart-icone { font-size: 44px; }
+#depart-texte { font-size: 17px; font-weight: 800; }
+
+/* Bouton secondaire générique : accès à un écran de consultation
+   (ex. "Ma journée"), moins mis en avant que le portail #btn-depart. */
+.btn-secondaire {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin: 10px auto 0; padding: 12px 20px; background: var(--surface-active);
+  border: 3px solid var(--surface-high); color: var(--text); font-size: 15px; font-weight: 700;
+}
+.btn-secondaire:active { transform: translate(2px, 2px); }
+
+#missions-emoji { font-size: 80px; }
+#missions-liste { display: flex; flex-direction: column; gap: 12px; width: 100%; margin-top: 8px; }
+
+.zone-cible {
+  position: absolute; border: 3px dashed transparent; pointer-events: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.zone-cible.active { border-color: var(--accent); background: rgba(240, 149, 47, .18); }
+#zone-visage  { left: 50%; margin-left: -46px; top: 3px;   width: 92px;  height: 48px; }
+#zone-torse   { left: 50%; margin-left: -62px; top: 57px;  width: 124px; height: 80px; }
+#zone-bassin  { left: 50%; margin-left: -46px; top: 118px; width: 92px;  height: 46px; }
+#zone-jambes  { left: 50%; margin-left: -51px; top: 146px; width: 102px; height: 42px; }
+#zone-pieds   { left: 50%; margin-left: -56px; top: 168px; width: 112px; height: 36px; }
+#zone-dos     { left: 50%; margin-left: 31px;  top: 73px;  width: 50px;  height: 50px; }
+
+#etape-courante {
+  text-align: center; font-size: 23px; font-weight: 700; min-height: 32px; margin-bottom: 10px;
+}
+
+#btn-reset-test {
+  position: fixed; top: 8px; right: 8px; z-index: 999; width: 30px; height: 30px;
+  background: var(--surface-high); color: var(--text-soft); border: 2px solid var(--outline);
+  font-size: 15px; font-weight: 700; opacity: .5; overflow: hidden;
+}
+/* remplissage progressif pendant l'appui long, pour rendre visible qu'il
+   se passe quelque chose avant que le reset se déclenche vraiment */
+#btn-reset-test::after {
+  content: ""; position: absolute; inset: auto 0 0 0; height: 0%;
+  background: var(--accent); opacity: .8; transition: none;
+}
+#btn-reset-test.maintien { opacity: 1; }
+#btn-reset-test.maintien::after { height: 100%; transition: height .9s linear; }
+
+.btn-continuer.maintien { background: var(--accent-shadow); }
+
+#chemin { padding-bottom: 20px; overflow-y: auto; flex: 1; }
+.noeud {
+  display: flex; align-items: center; gap: 14px; min-height: 58px; margin-bottom: 9px;
+  padding: 7px 16px 7px 11px; background: var(--surface); border: 2px solid var(--surface-high);
+  opacity: .8; transition: background .2s ease, border-color .2s ease, opacity .2s ease;
+}
+.noeud.fait { background: rgba(240,149,47,.14); border-color: var(--accent); opacity: 1; }
+/* étape en cours : pas cliquable (seule l'icône l'est, cf. .pastille-glissable
+   ci-dessous) — évite que l'enfant hésite entre taper la ligne et glisser
+   l'icône. La ligne grandit pour laisser la place à l'icône agrandie. */
+.noeud.en-cours { border-color: var(--accent-edge); border-width: 3px; opacity: 1; min-height: 88px; }
+/* relecture/correction parent : toutes les tâches sont cliquables (pas
+   seulement celle en cours comme pendant la routine), pour décocher ce
+   qui n'a pas été réellement fait avant de valider. */
+.noeud.correctible { opacity: 1; cursor: pointer; }
+.noeud.correctible:not(.fait) { border-color: var(--surface-high); }
+.pastille-mini { width: 38px; height: 38px; min-width: 38px; background: var(--surface-active); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+.noeud.fait .pastille-mini { background: var(--accent); }
+/* icône de l'étape en cours : seule chose à glisser, nettement agrandie
+   par rapport aux pastilles inertes des autres lignes (retour de terrain :
+   trop petite, l'enfant tapait la ligne au lieu de glisser). Le texte
+   reste affiché à côté pendant le glisser (lecture globale). */
+.pastille-glissable {
+  width: 72px; height: 72px; min-width: 72px; font-size: 38px;
+  box-shadow: var(--shadow-hard); touch-action: none; cursor: grab;
+}
+.pastille-glissable.en-cours-glisse { box-shadow: 8px 10px 0 rgba(0,0,0,.3); }
+.texte-etape { font-size: 17px; font-weight: 600; flex: 1; color: var(--text-mute); }
+.noeud.fait .texte-etape { color: var(--accent-edge); }
+.coche-mini { font-size: 20px; color: var(--accent); opacity: 0; transition: opacity .2s ease; }
+.noeud.fait .coche-mini { opacity: 1; }
+
+/* ---------- Scènes centrées (coffre / fin) ---------- */
+.scene-centree { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; gap: 10px; position: relative; }
+#coffre-emoji { font-size: 96px; }
+#coffre-emoji.pop-ouverture { animation: popOuverture .5s ease; }
+@keyframes popOuverture { 0%{transform:scale(1);} 45%{transform:scale(1.35) rotate(-4deg);} 100%{transform:scale(1);} }
+
+#bravo-routine-emoji { font-size: 80px; animation: rebond 1s ease infinite; }
+#bravo-routine-titre { font-size: 24px; font-weight: 800; padding: 0 12px; }
+
+/* ---------- Validation parent / correction ---------- */
+#correction-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 1; overflow-y: auto; }
+#correction-note { text-align: center; font-size: 15px; color: var(--text-faint); }
+#correction-liste { width: 100%; }
+
+#coffre-particules { position: absolute; top: 50%; left: 50%; width: 0; height: 0; pointer-events: none; }
+.confetti {
+  position: absolute; top: 0; left: 0; font-size: 26px; opacity: 0;
+  animation: envolConfetti .9s ease-out forwards;
+}
+@keyframes envolConfetti {
+  0%   { transform: translate(-50%, -50%) scale(.4); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.1); opacity: 0; }
+}
+#coffre-statut {
+  font-family: monospace; font-size: 16px; letter-spacing: 2px; font-weight: 800;
+  background: var(--deep); border: 2px solid var(--surface-high); padding: 7px 18px; color: var(--text-mute);
+}
+.texte-consigne { text-align: center; font-size: 21px; font-weight: 600; margin: 12px 0; color: var(--text-soft); }
+
+#pavecode-wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+#pavecode-cases { display: flex; gap: 12px; }
+.case-code {
+  width: 42px; height: 42px; border: 3px solid var(--surface-high); background: var(--surface);
+}
+.case-code.rempli { background: var(--outline); border-color: var(--accent); }
+#pavecode-clavier { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 280px; }
+.touche-code {
+  min-height: 64px; font-size: 24px; font-weight: 800; background: var(--surface-active);
+  border: 3px solid var(--surface-high); color: var(--text); box-shadow: var(--shadow-hard);
+}
+.touche-code:active { transform: translate(2px, 2px); box-shadow: none; }
+.texte-erreur { color: #E8867A; font-size: 16px; font-weight: 700; min-height: 22px; }
+
+#coffre-recompense { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: 10px; }
+#coffre-recompense-texte { font-size: 22px; font-weight: 800; color: var(--accent-edge); }
+
+.btn-continuer {
+  background: var(--accent); color: var(--deep); border: 3px solid var(--accent-edge);
+  font-size: 21px; font-weight: 800; padding: 17px 34px; box-shadow: var(--shadow-hard);
+  margin-top: 8px;
+}
+.btn-continuer:active { transform: translate(2px, 2px); box-shadow: none; }
+
+/* ---------- Trajet ---------- */
+#scene-trajet {
+  height: 220px; border: 3px solid var(--surface-high); background: var(--surface);
+  position: relative; overflow: hidden; flex-shrink: 0; margin-bottom: 8px;
+}
+#fenetre-voiture {
+  position: absolute; inset: 0;
+  background: url("assets/scenes/fenetre-voiture.jpg") center / cover;
+}
+/* Léon vu de l'intérieur, tête de profil au premier plan devant la
+   fenêtre — silhouette plutôt qu'un sprite détaillé : à contre-jour
+   devant la vitre, un aplat sombre suffit et évite de dessiner un
+   nouveau visage de profil. */
+#silhouette-leon {
+  position: absolute; left: -14px; bottom: -10px; width: 150px; height: 200px;
+  fill: var(--outline);
+}
+/* trajet retour (vers la maison) : silhouette retournée, seul indice
+   visuel du changement de sens (cf. app.js, sensTrajet). */
+#scene-trajet.retour #silhouette-leon { left: auto; right: -14px; transform: scaleX(-1); }
+.label-trajet { font-size: 14px; letter-spacing: 1.5px; font-weight: 800; color: var(--text-faint); margin-bottom: 8px; }
+.note-bas { text-align: center; font-size: 15px; color: var(--text-faint); margin-bottom: 10px; }
+
+/* ---------- Arrivée ---------- */
+#scene-arrivee {
+  height: 180px; border: 3px solid var(--surface-high); background: var(--surface-raised);
+  display: flex; align-items: flex-end; justify-content: center; gap: 40px; padding-bottom: 14px;
+  flex-shrink: 0; margin-bottom: 8px;
+}
+.sprite-simple { font-size: 56px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.sprite-simple span { font-size: 14px; font-weight: 700; color: var(--text-mute); }
+/* Léon en vrai sprite (pas un emoji) sur l'écran d'arrivée : `.avatar-wrap`
+   est pensé pour un décor en `position:relative` de pleine hauteur
+   (#scene / #scene-menu) — ici il vit dans un `.sprite-simple` flex, donc
+   on retire le positionnement absolu et on réduit la taille en
+   conséquence plutôt que de dupliquer le composant. */
+#scene-arrivee .avatar-wrap { position: relative; left: auto; bottom: auto; transform: none; width: 90px; height: 148px; }
+.carte-programme { border: 3px solid var(--surface-high); background: var(--surface); padding: 14px; margin-bottom: 14px; }
+.ligne-programme { font-size: 18px; font-weight: 600; padding: 6px 0; color: var(--text-soft); }
+
+/* ---------- Ma journée (planning chronologique) ---------- */
+#journee-contenu { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; flex: 1; padding-bottom: 12px; }
+.groupe-journee-titre { font-size: 14px; letter-spacing: 1.5px; font-weight: 800; color: var(--text-faint); margin-bottom: 8px; }
+.liste-planning { display: flex; flex-direction: column; }
+.ligne-journee {
+  display: flex; align-items: center; gap: 12px; min-height: 48px; margin-bottom: 8px;
+  padding: 10px 16px; background: var(--surface); border: 2px solid var(--surface-high);
+  font-size: 17px; font-weight: 600; color: var(--text-soft);
+}
+.emoji-journee { font-size: 22px; }
+.texte-journee { flex: 1; }
+
+/* Mode édition (protégé par le code parent, cf. app.js) : petits
+   boutons de réordonnancement/suppression accolés à chaque ligne, et
+   catalogue d'ajout en bas de liste. */
+.controles-edition-journee { display: flex; gap: 6px; flex-shrink: 0; }
+.btn-mini-edition {
+  width: 34px; height: 34px; font-size: 15px; font-weight: 800;
+  background: var(--surface-active); border: 2px solid var(--surface-high); color: var(--text);
+}
+.btn-mini-edition:disabled { opacity: .3; }
+.btn-mini-edition:active:not(:disabled) { transform: translate(1px, 1px); }
+.btn-retirer { color: #E8867A; }
+.grille-ajout-planning { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn-ajout-planning {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  background: var(--surface-active); border: 2px solid var(--surface-high); color: var(--text);
+  font-size: 15px; font-weight: 700;
+}
+.btn-ajout-planning:active { transform: translate(1px, 1px); }
+
+/* ---------- Mes récompenses (étoiles + pièces à collectionner) ---------- */
+#recompenses-contenu { display: flex; flex-direction: column; gap: 26px; overflow-y: auto; flex: 1; padding-bottom: 12px; }
+.recompenses-vide { font-size: 15px; color: var(--text-faint); }
+.grille-recompenses { display: flex; flex-wrap: wrap; gap: 14px; }
+.recompense-item { width: 84px; height: 84px; cursor: pointer; }
+.recompense-item .visuel {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  font-size: 52px; animation: tourner 9s linear infinite;
+}
+/* toucher une récompense la fait briller (glow), sans interrompre sa
+   rotation continue — deux animations séparées sur des propriétés
+   différentes (transform / filter) pour ne pas se marcher dessus. */
+.recompense-item.briller .visuel { animation: tourner 9s linear infinite, briller .7s ease; }
+@keyframes tourner { to { transform: rotate(360deg); } }
+@keyframes briller {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent) brightness(1); }
+  40% { filter: drop-shadow(0 0 14px var(--accent)) brightness(1.6); }
+}
+/* Portrait de Léon sur la pièce : recadrage simple (pas de nouvel
+   asset) du sprite avatar existant sur la zone du visage, via un
+   positionnement approximatif plutôt qu'un détourage précis. Petit et
+   teinté dans le ton de la pièce (façon profil gravé, type tête sur une
+   pièce d'or) plutôt qu'une photo couleur qui prendrait toute la place. */
+.piece-visage {
+  width: 100%; height: 100%; border-radius: 50%; overflow: hidden; position: relative;
+  background: var(--accent); border: 3px solid var(--accent-dark);
+}
+.piece-visage img {
+  position: absolute; top: 20px; left: 9px; width: 66px; height: auto; image-rendering: pixelated;
+  filter: grayscale(1) brightness(1.25) sepia(1) saturate(4) hue-rotate(-15deg) contrast(1.1);
+  mix-blend-mode: multiply;
+}
+
+/* ---------- Fin ---------- */
+#screen-fin h1 { font-size: 26px; margin: 0; padding: 0 12px; }
+#fin-emoji { font-size: 96px; animation: rebond 1s ease infinite; }
+@keyframes rebond { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-14px);} }
+#fin-etoiles { font-size: 28px; font-weight: 800; color: var(--accent); margin: 6px 0 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, #fin-emoji, .pop { animation: none !important; }
+}

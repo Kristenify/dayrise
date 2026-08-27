@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Dayrise — prototype de parcours (Léon)</title>
+<link rel="stylesheet" href="styles.css">
+<!-- Installable en icône d'écran d'accueil ("Ajouter à l'écran d'accueil")
+     plutôt qu'un onglet/favori de navigateur classique — un lancement
+     plus stable dans le temps (même origine à chaque fois), utile depuis
+     l'incident de réinitialisation (cf. TODO.md). -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1E2740">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dayrise">
+</head>
+<body>
+<div id="app">
+
+  <!-- Bouton discret, visible sur tous les écrans, protégé par appui long
+       (~900ms) pour éviter qu'un enfant l'efface par accident. Utile en
+       usage réel si la journée doit être recommencée. -->
+  <button id="btn-reset-test" title="Maintenir pour recommencer la journée">↺</button>
+
+  <!-- ============ 0. Menu de la journée ============ -->
+  <div id="screen-menu" class="screen active">
+    <div class="barre-haut">
+      <div class="prenom-actif">Léon</div>
+      <button id="btn-mes-recompenses" class="bloc-monnaies" aria-label="Voir mes récompenses">
+        <div id="jauge-jour"></div>
+        <div id="pieces-total"></div>
+      </button>
+    </div>
+
+    <div id="horloge"></div>
+
+    <div id="scene-menu">
+      <div id="avatar-wrap-menu" class="avatar-wrap">
+        <img class="avatar-calque" src="assets/avatar/leon-base.png" alt="">
+        <img class="avatar-calque" data-calque="calque-calecon" src="assets/avatar/leon-calecon.png" alt="">
+        <img class="avatar-calque" data-calque="calque-haut" src="assets/avatar/leon-haut.png" alt="">
+        <img class="avatar-calque" data-calque="calque-pantalon" src="assets/avatar/leon-pantalon.png" alt="">
+        <img class="avatar-calque" data-calque="calque-chaussettes" src="assets/avatar/leon-chaussettes.png" alt="">
+        <img class="avatar-calque" data-calque="calque-chaussures" src="assets/avatar/leon-chaussures.png" alt="">
+        <img class="avatar-calque" data-calque="calque-manteau" src="assets/avatar/leon-manteau.png" alt="">
+        <div class="badge-zone badge-dos" data-badge="dos"></div>
+        <div class="badge-zone badge-visage" data-badge="visage"></div>
+      </div>
+    </div>
+
+    <div id="titre-menu">Qu'est-ce qu'on fait ?</div>
+    <div id="liste-routines"></div>
+
+    <!-- Porte de sortie vers les aventures/missions : n'ouvre que si
+         "Se préparer à partir" est validée, sinon ramène directement à
+         cette routine (cf. app.js, allerVersDepart()). -->
+    <button id="btn-depart" aria-label="Partir à l'aventure">
+      <span id="depart-icone">🚗</span>
+      <span id="depart-texte">Partir à l'aventure</span>
+    </button>
+
+    <button id="btn-journee" class="btn-secondaire" aria-label="Afficher ma journée">
+      <span>🗓️</span>
+      <span>Afficher ma journée</span>
+    </button>
+  </div>
+
+  <!-- ============ Aventures / missions du jour ============ -->
+  <div id="screen-missions" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Les sorties du jour</div>
+      <div></div>
+    </div>
+    <div class="scene-centree">
+      <div id="missions-emoji">🚗</div>
+      <div id="missions-texte" class="texte-consigne">Rien de prévu aujourd'hui !</div>
+      <div id="missions-liste"></div>
+      <button class="btn-continuer" id="btn-retour-menu">Retour</button>
+    </div>
+  </div>
+
+  <!-- ============ Ma journée (planning chronologique) ============ -->
+  <div id="screen-journee" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Ma journée</div>
+      <button class="btn-voix" id="btn-modifier-journee" aria-label="Modifier la journée">✏️</button>
+      <div></div>
+    </div>
+    <div id="journee-contenu"></div>
+    <button class="btn-continuer" id="btn-retour-menu-journee">Retour</button>
+  </div>
+
+  <!-- ============ Mes récompenses (étoiles + pièces à collectionner) ============ -->
+  <div id="screen-recompenses" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Mes récompenses</div>
+      <div></div>
+    </div>
+    <div id="recompenses-contenu"></div>
+    <button class="btn-continuer" id="btn-retour-menu-recompenses">Retour</button>
+  </div>
+
+  <!-- ============ 1. Écran d'une routine (générique, alimenté par ROUTINES) ============ -->
+  <div id="screen-routine" class="screen">
+    <div class="barre-haut">
+      <!-- Pour un tap accidentel sur la mauvaise routine au menu — pas
+           protégé par appui long comme le reset : revenir en arrière ne
+           perd rien (la progression déjà cochée reste enregistrée,
+           cf. app.js). -->
+      <button class="btn-retour-ecran" id="btn-retour-routine" aria-label="Retour au menu">←</button>
+      <div class="bloc-nom">
+        <div class="prenom-actif">Léon</div>
+        <div id="nom-routine"></div>
+      </div>
+      <button class="btn-voix" id="btn-voix-routine" aria-label="Réécouter">🔊</button>
+      <div id="barre-etapes"></div>
+    </div>
+
+    <div id="scene">
+      <div id="avatar-wrap" class="avatar-wrap">
+        <img class="avatar-calque" src="assets/avatar/leon-base.png" alt="">
+        <img class="avatar-calque" data-calque="calque-calecon" src="assets/avatar/leon-calecon.png" alt="">
+        <img class="avatar-calque" data-calque="calque-haut" src="assets/avatar/leon-haut.png" alt="">
+        <img class="avatar-calque" data-calque="calque-pantalon" src="assets/avatar/leon-pantalon.png" alt="">
+        <img class="avatar-calque" data-calque="calque-chaussettes" src="assets/avatar/leon-chaussettes.png" alt="">
+        <img class="avatar-calque" data-calque="calque-chaussures" src="assets/avatar/leon-chaussures.png" alt="">
+        <img class="avatar-calque" data-calque="calque-manteau" src="assets/avatar/leon-manteau.png" alt="">
+        <div class="badge-zone badge-dos" data-badge="dos"></div>
+        <div class="badge-zone badge-visage" data-badge="visage"></div>
+      </div>
+
+      <div class="zone-cible" id="zone-visage"></div>
+      <div class="zone-cible" id="zone-torse"></div>
+      <div class="zone-cible" id="zone-bassin"></div>
+      <div class="zone-cible" id="zone-jambes"></div>
+      <div class="zone-cible" id="zone-pieds"></div>
+      <div class="zone-cible" id="zone-dos"></div>
+    </div>
+
+    <div id="etape-courante"></div>
+
+    <div id="chemin"></div>
+  </div>
+
+  <!-- ============ 2. Fin de routine : félicitations + appel au parent ============ -->
+  <div id="screen-bravo-routine" class="screen">
+    <div class="scene-centree">
+      <div id="bravo-routine-emoji">🎉</div>
+      <div id="bravo-routine-titre"></div>
+      <div id="bravo-routine-soustitre" class="texte-consigne"></div>
+      <button class="btn-continuer" id="btn-un-parent">Un parent est avec moi</button>
+    </div>
+  </div>
+
+  <!-- ============ 3. Validation parent (code + relecture/correction) ============ -->
+  <div id="screen-validation" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Un parent valide</div>
+      <div></div>
+    </div>
+    <div id="validation-sous-titre" class="texte-consigne"></div>
+
+    <div id="pavecode-wrap">
+      <div id="pavecode-cases">
+        <div class="case-code"></div>
+        <div class="case-code"></div>
+        <div class="case-code"></div>
+        <div class="case-code"></div>
+      </div>
+      <div id="pavecode-clavier"></div>
+      <div id="pavecode-erreur" class="texte-erreur"></div>
+    </div>
+
+    <div id="correction-wrap" class="hidden">
+      <div id="correction-note">Décoche ce qui n'a pas vraiment été fait, puis valide.</div>
+      <div id="correction-liste"></div>
+      <button class="btn-continuer" id="btn-valider-routine">Valider — donner l'étoile ⭐</button>
+    </div>
+  </div>
+
+  <!-- ============ 4. Récompense de fin de journée ============ -->
+  <div id="screen-coffre" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Bravo Léon !</div>
+      <button class="btn-voix" id="btn-voix-coffre" aria-label="Réécouter">🔊</button>
+      <div></div>
+    </div>
+    <div class="scene-centree">
+      <div id="coffre-particules"></div>
+      <div id="coffre-emoji">🎁</div>
+    </div>
+    <div id="coffre-texte" class="texte-consigne"></div>
+    <div id="coffre-recompense">
+      <div id="coffre-recompense-texte"></div>
+      <button class="btn-continuer" id="btn-continuer-coffre">Terminé !</button>
+    </div>
+  </div>
+
+  <!-- ============ 3. Le trajet ============ -->
+  <div id="screen-trajet" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Le trajet</div>
+      <button class="btn-voix" id="btn-voix-trajet" aria-label="Réécouter">🔊</button>
+      <div></div>
+    </div>
+    <div id="scene-trajet">
+      <div id="fenetre-voiture"></div>
+      <svg id="silhouette-leon" viewBox="0 0 120 160" aria-hidden="true">
+        <path d="
+          M15,160 L15,105
+          Q15,90 32,85 L32,55
+          Q35,25 55,17 Q60,14 65,17 Q75,15 80,20
+          Q88,22 85,28 Q90,30 88,35 Q92,40 88,45
+          L92,50 Q96,55 98,60 Q92,64 90,66 Q94,70 90,72
+          L85,80 Q80,86 78,88 L75,100
+          Q90,105 100,120 L105,160
+          Z
+        "/>
+      </svg>
+    </div>
+    <div class="texte-consigne" id="trajet-texte">On roule vers chez Pauline.</div>
+    <div class="note-bas">C'est un temps d'attente : rien à faire, rien à toucher. Quand on est arrivés, un parent appuie ici.</div>
+    <button class="btn-continuer" id="btn-arrive">On est arrivés ✅</button>
+  </div>
+
+  <!-- ============ 4. Arrivée chez la praticienne ============ -->
+  <div id="screen-arrivee" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif" id="arrivee-lieu">Chez Pauline</div>
+      <button class="btn-voix" id="btn-voix-arrivee" aria-label="Réécouter">🔊</button>
+      <div></div>
+    </div>
+    <div id="scene-arrivee">
+      <div class="sprite-simple" id="sprite-leon">
+        <div id="avatar-wrap-arrivee" class="avatar-wrap">
+          <img class="avatar-calque" src="assets/avatar/leon-base.png" alt="">
+          <img class="avatar-calque" data-calque="calque-calecon" src="assets/avatar/leon-calecon.png" alt="">
+          <img class="avatar-calque" data-calque="calque-haut" src="assets/avatar/leon-haut.png" alt="">
+          <img class="avatar-calque" data-calque="calque-pantalon" src="assets/avatar/leon-pantalon.png" alt="">
+          <img class="avatar-calque" data-calque="calque-chaussettes" src="assets/avatar/leon-chaussettes.png" alt="">
+          <img class="avatar-calque" data-calque="calque-chaussures" src="assets/avatar/leon-chaussures.png" alt="">
+          <img class="avatar-calque" data-calque="calque-manteau" src="assets/avatar/leon-manteau.png" alt="">
+          <div class="badge-zone badge-dos" data-badge="dos"></div>
+          <div class="badge-zone badge-visage" data-badge="visage"></div>
+        </div>
+        <span>Léon</span>
+      </div>
+      <div class="sprite-simple hidden" id="sprite-personne"></div>
+    </div>
+    <div class="texte-consigne" id="arrivee-texte">Pauline est là. Orthophoniste, une demi-heure.</div>
+    <div class="carte-programme">
+      <div class="label-trajet">CE QUI VA SE PASSER</div>
+      <div id="arrivee-programme"></div>
+    </div>
+    <button class="btn-continuer" id="btn-cest-parti">C'est parti</button>
+  </div>
+
+  <!-- ============ 5. Fin de journée ============ -->
+  <div id="screen-fin" class="screen">
+    <div class="scene-centree">
+      <div id="fin-emoji">🎉</div>
+      <h1>Journée terminée, Léon !</h1>
+      <div id="fin-etoiles"></div>
+      <button class="btn-continuer" id="btn-recommencer" title="Maintenir pour recommencer la journée">Maintenir pour recommencer</button>
+    </div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
