@@ -229,6 +229,13 @@ const PLANNING_DEFAUT = [
 ];
 function planningParDefaut() {
   const items = PLANNING_DEFAUT.map(ref => ({ ...ref }));
+  // Routines créées par un parent : absentes de PLANNING_DEFAUT (qui ne
+  // connaît que le catalogue en dur), donc ajoutées ici en plus, à la
+  // fin — récurrentes tous les jours comme les autres routines,
+  // contrairement aux aventures qui ne reviennent que si programmées.
+  chargerRoutinesPerso().forEach(r => {
+    if (!items.some(it => it.type === "routine" && it.id === r.id)) items.push({ type: "routine", id: r.id });
+  });
   aventuresDuJour().forEach(a => {
     const entree = { type: "aventure", id: a.id };
     const pos = a.apres ? items.findIndex(it => it.type === a.apres.type && it.id === a.apres.id) : -1;
@@ -256,7 +263,7 @@ function cleJour() {
 }
 function etatParDefaut() {
   const routines = {};
-  ROUTINES.forEach(r => { routines[r.id] = { fait: [], valide: false }; });
+  toutesLesRoutines().forEach(r => { routines[r.id] = { fait: [], valide: false }; });
   return { jour: cleJour(), routines, etoiles: 0, journeeFaite: false, planning: planningParDefaut() };
 }
 // Répare un état du jour dont la forme est incomplète (ex. un champ
@@ -272,7 +279,7 @@ function etatParDefaut() {
 function etatRepare(etat) {
   if (!etat || typeof etat !== "object" || etat.jour !== cleJour()) return null;
   if (!etat.routines || typeof etat.routines !== "object") return null;
-  ROUTINES.forEach(r => {
+  toutesLesRoutines().forEach(r => {
     if (!etat.routines[r.id] || !Array.isArray(etat.routines[r.id].fait)) {
       etat.routines[r.id] = { fait: [], valide: false };
     }
@@ -297,7 +304,7 @@ function archiverJournee(etat) {
     historique.push({
       jour: etat.jour,
       etoiles: etat.etoiles || 0,
-      routinesValidees: ROUTINES.filter(r => etat.routines[r.id] && etat.routines[r.id].valide).map(r => r.id),
+      routinesValidees: toutesLesRoutines().filter(r => etat.routines[r.id] && etat.routines[r.id].valide).map(r => r.id),
       journeeFaite: !!etat.journeeFaite,
     });
     while (historique.length > 90) historique.shift();
@@ -321,7 +328,20 @@ function chargerEtat() {
 function sauverEtat(etat) {
   try { localStorage.setItem("leon_journee", JSON.stringify(etat)); } catch (e) {}
 }
-function routineParId(id) { return ROUTINES.find(r => r.id === id); }
+// Routines créées par un parent (cf. creerNouvelleRoutine()) — même
+// principe que chargerAventuresPerso()/toutesLesAventures() : persistées
+// à part de ROUTINES (catalogue en dur), jamais remises à zéro,
+// fusionnées partout où le code cherche/liste des routines pour que le
+// reste ne distingue pas d'où une routine donnée vient.
+function chargerRoutinesPerso() {
+  try { return JSON.parse(localStorage.getItem("leon_routines_perso") || "[]"); } catch (e) { return []; }
+}
+function sauverRoutinesPerso(liste) {
+  try { localStorage.setItem("leon_routines_perso", JSON.stringify(liste)); } catch (e) {}
+}
+function toutesLesRoutines() { return ROUTINES.concat(chargerRoutinesPerso()); }
+
+function routineParId(id) { return toutesLesRoutines().find(r => r.id === id); }
 
 // Pièces : monnaie gagnée en aventure, distincte des étoiles de routine.
 // Stockée à part de `leon_journee` et JAMAIS remise à zéro au changement
@@ -347,7 +367,7 @@ function ajouterPieces(n) {
 // l'avatar reste cohérent (habits déjà mis) sur tous les écrans
 function tachesFaitesPartout(etat) {
   const s = new Set();
-  ROUTINES.forEach(r => (etat.routines[r.id].fait || []).forEach(id => s.add(id)));
+  toutesLesRoutines().forEach(r => (etat.routines[r.id].fait || []).forEach(id => s.add(id)));
   return s;
 }
 
@@ -397,7 +417,7 @@ function synchroniserAvatar(etat) {
   const faites = tachesFaitesPartout(etat);
   const calques = new Set();
   const badges = {};
-  ROUTINES.forEach(r => r.taches.forEach(t => {
+  toutesLesRoutines().forEach(r => r.taches.forEach(t => {
     if (!faites.has(t.id)) return;
     if (t.calque) {
       const liste = Array.isArray(t.calque) ? t.calque : [t.calque];
@@ -426,7 +446,7 @@ function construireMenu() {
   // le code parent protège l'entrée en édition, pas juste un aller simple.
   journeeEnEdition = false;
 
-  if (ROUTINES.every(r => etat.routines[r.id].valide) && !etat.journeeFaite) {
+  if (toutesLesRoutines().every(r => etat.routines[r.id].valide) && !etat.journeeFaite) {
     allerFinDeJournee();
     return;
   }
@@ -436,7 +456,7 @@ function construireMenu() {
   // jauge de journée : une étoile par routine, gagnée une fois validée
   const jauge = document.getElementById("jauge-jour");
   jauge.innerHTML = "";
-  ROUTINES.forEach(r => {
+  toutesLesRoutines().forEach(r => {
     const etoile = document.createElement("div");
     etoile.className = "etoile-jauge" + (etat.routines[r.id].valide ? " gagnee" : "");
     etoile.textContent = "⭐";
@@ -463,7 +483,7 @@ function construireMenu() {
   const liste = document.getElementById("liste-routines");
   liste.innerHTML = "";
   let toutPrecedentValide = true;
-  ROUTINES.forEach(r => {
+  toutesLesRoutines().forEach(r => {
     const etatR = etat.routines[r.id];
     const carte = document.createElement("div");
     carte.dataset.id = r.id;
@@ -681,7 +701,7 @@ function construireAjoutPlanning(etat) {
 
   const dejaLa = new Set(etat.planning.map(it => it.type + ":" + it.id));
   const candidats = [
-    ...ROUTINES.map(r => ({ type: "routine", id: r.id, emoji: r.emoji, nom: r.nom })),
+    ...toutesLesRoutines().map(r => ({ type: "routine", id: r.id, emoji: r.emoji, nom: r.nom })),
     ...toutesLesAventures().map(a => ({ type: "aventure", id: a.id, emoji: a.emoji, nom: a.lieu })),
     ...REPAS.map(r => ({ type: "repas", id: r.id, emoji: r.emoji, nom: r.nom })),
   ].filter(c => !dejaLa.has(c.type + ":" + c.id));
@@ -1105,14 +1125,14 @@ function construireEspaceParent() {
       action: () => { demarrerChangementCode(); },
     },
     {
-      emoji: "➕", titre: "Nouvelle activité",
-      soustitre: "Créer une sortie, elle s'ajoute directement à aujourd'hui",
-      action: () => { ouvrirNouvelleAventure(); },
+      emoji: "🗺️", titre: "Activités",
+      soustitre: "Voir toutes les sorties, ou en créer une nouvelle",
+      action: () => { construireParentActivites(); afficherEcran("screen-parent-activites"); },
     },
     {
-      emoji: "🧩", titre: "Nouvelle routine",
-      soustitre: "Bientôt — modifiable dans le code (app.js) pour l'instant",
-      action: null,
+      emoji: "🧩", titre: "Routines",
+      soustitre: "Voir toutes les routines, ou en créer une nouvelle",
+      action: () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); },
     },
   ];
   options.forEach(o => {
@@ -1132,7 +1152,7 @@ function construireParentRoutines() {
   const etat = chargerEtat();
   const liste = document.getElementById("parent-routines-liste");
   liste.innerHTML = "";
-  ROUTINES.forEach(r => {
+  toutesLesRoutines().forEach(r => {
     const etatR = etat.routines[r.id];
     const etatTexte = etatR.valide
       ? "✓ validée"
@@ -1223,15 +1243,61 @@ function demarrerChangementCode() {
   afficherEcran("screen-validation");
 }
 
-// Nouvelle activité : formulaire minimal (pas de création libre de
-// routine pour l'instant, ça demande de savoir associer des tâches à
-// des zones/calques de l'avatar — cf. carte "Nouvelle routine" du hub).
-// Une nouvelle aventure n'a ni `personne` ni `date` fixe : elle est
-// ajoutée directement au planning du jour à la création (voir
-// `creerNouvelleAventure()`), c'est ça qui la rend accessible dans
-// "Partir à l'aventure" plutôt qu'un champ date à remplir.
+// Liste de toutes les activités (catalogue en dur + créées par un
+// parent) — accès + création, cf. carte "Activités" du hub. Toucher une
+// activité l'ajoute/la retire du planning du jour, donc de "Partir à
+// l'aventure" (même logique que le catalogue de "Ma journée", ici
+// recentré sur les seules activités).
+function construireParentActivites() {
+  const etat = chargerEtat();
+  const planifiees = new Set(etat.planning.filter(it => it.type === "aventure").map(it => it.id));
+  const liste = document.getElementById("parent-activites-liste");
+  liste.innerHTML = "";
+  toutesLesAventures().forEach(a => {
+    const programmee = planifiees.has(a.id);
+    const carte = document.createElement("div");
+    carte.className = "carte-routine" + (programmee ? " faite" : "");
+    carte.innerHTML =
+      `<div class="carte-routine-nom">${a.emoji} ${a.lieu}</div><div class="carte-routine-etat">${programmee ? "✓ aujourd'hui" : ""}</div>`;
+    carte.onclick = () => basculerActivitePlanning(a.id);
+    liste.appendChild(carte);
+  });
+}
+
+function basculerActivitePlanning(id) {
+  const etat = chargerEtat();
+  const pos = etat.planning.findIndex(it => it.type === "aventure" && it.id === id);
+  if (pos === -1) etat.planning.push({ type: "aventure", id }); else etat.planning.splice(pos, 1);
+  sauverEtat(etat);
+  construireParentActivites();
+}
+
+// Nouvelle activité : formulaire minimal. Une nouvelle aventure n'a ni
+// `personne` ni `date` fixe : elle est ajoutée directement au planning
+// du jour à la création (voir `creerNouvelleAventure()`), c'est ça qui
+// la rend accessible dans "Partir à l'aventure" plutôt qu'un champ date
+// à remplir.
 const EMOJI_ACTIVITE = ["🏊","🚲","🎨","🎪","🍕","🌳","⚽","🎬","🏥","🛒","🎵","🧩","🎡","🐶","🎳","🍦"];
 let emojiChoisiActivite = EMOJI_ACTIVITE[0];
+
+// Grille de choix d'emoji, générique (réutilisée par les formulaires
+// activité ET routine) : `conteneur` reçoit les boutons, `actuel` marque
+// celui sélectionné, `onChoix(e)` est rappelé au clic — à l'appelant de
+// mettre à jour sa variable et de reconstruire la grille.
+function construireGrilleEmoji(conteneur, liste, actuel, onChoix) {
+  conteneur.innerHTML = "";
+  liste.forEach(e => {
+    const b = document.createElement("button");
+    b.className = "emoji-choix-btn" + (e === actuel ? " choisi" : "");
+    b.textContent = e;
+    b.onclick = () => onChoix(e);
+    conteneur.appendChild(b);
+  });
+}
+function construireGrilleEmojiActivite() {
+  construireGrilleEmoji(document.getElementById("na-emoji-grille"), EMOJI_ACTIVITE, emojiChoisiActivite,
+    (e) => { emojiChoisiActivite = e; construireGrilleEmojiActivite(); });
+}
 
 function ouvrirNouvelleAventure() {
   ["na-nom", "na-trajet", "na-arrivee", "na-etape1", "na-etape2", "na-etape3"]
@@ -1239,20 +1305,8 @@ function ouvrirNouvelleAventure() {
   document.getElementById("na-piece").checked = false;
   document.getElementById("na-erreur").textContent = "";
   emojiChoisiActivite = EMOJI_ACTIVITE[0];
-  construireGrilleEmoji();
+  construireGrilleEmojiActivite();
   afficherEcran("screen-parent-nouvelle-aventure");
-}
-
-function construireGrilleEmoji() {
-  const grille = document.getElementById("na-emoji-grille");
-  grille.innerHTML = "";
-  EMOJI_ACTIVITE.forEach(e => {
-    const b = document.createElement("button");
-    b.className = "na-emoji-btn" + (e === emojiChoisiActivite ? " choisi" : "");
-    b.textContent = e;
-    b.onclick = () => { emojiChoisiActivite = e; construireGrilleEmoji(); };
-    grille.appendChild(b);
-  });
 }
 
 // Pré-remplit trajet/arrivée à partir du nom dès qu'il quitte le champ —
@@ -1305,8 +1359,116 @@ function creerNouvelleAventure() {
   sauverEtat(etat);
 
   dire("Nouvelle activité créée : " + nom + ".");
-  construireEspaceParent();
-  afficherEcran("screen-parent");
+  construireParentActivites();
+  afficherEcran("screen-parent-activites");
+}
+
+// Catalogue des routines (accès + création, carte "Routines" du hub).
+// Contrairement aux activités, une routine n'a pas d'interrupteur
+// jour par jour — elle fait partie du parcours tous les jours dès
+// qu'elle existe (cf. `toutesLesRoutines()`, `planningParDefaut()`).
+// Liste donc en lecture seule (mêmes lignes que l'historique, pas des
+// cartes tapables) plutôt qu'un bascule comme pour les activités — pour
+// corriger une routine précise, "Relancer une routine" reste l'écran
+// dédié.
+function construireRoutinesCatalogue() {
+  const etat = chargerEtat();
+  const liste = document.getElementById("parent-routines-catalogue-liste");
+  liste.innerHTML = "";
+  toutesLesRoutines().forEach(r => {
+    const etatR = etat.routines[r.id];
+    const etatTexte = etatR.valide
+      ? "✓ validée"
+      : (etatR.fait.length > 0 ? etatR.fait.length + "/" + r.taches.length : "pas commencée");
+    const ligne = document.createElement("div");
+    ligne.className = "ligne-journee";
+    ligne.innerHTML =
+      `<span class="emoji-journee">${r.emoji}</span><span class="texte-journee">${r.nom}</span><span class="carte-routine-etat">${etatTexte}</span>`;
+    liste.appendChild(ligne);
+  });
+}
+
+// Nouvelle routine : contrairement à une activité, une routine a un
+// nombre variable de tâches, chacune ciblant une zone précise de
+// l'avatar (`.zone-cible` dans index.html) — jusqu'à 5 lignes de tâche
+// fixes dans le formulaire, les vides sont simplement ignorées (au
+// moins une requise). Pas de `calque` proposé (ça demanderait un sprite
+// existant pour chaque nouveau vêtement/objet) : chaque tâche a son
+// propre emoji, affiché tel quel, sans effet persistant sur l'avatar —
+// comme "Range tes vêtements"/"On lit l'histoire" dans "Aller se
+// coucher" aujourd'hui.
+const EMOJI_ROUTINE = ["🪥","🛁","🧦","🧸","📚","🍽️","🧴","✏️","🧹","🚿","🎒","👕","🧼","⏰","🌟","🧦"];
+const ZONE_PAR_DEFAUT_ROUTINE = "zone-torse";
+let emojiChoisiRoutine = EMOJI_ROUTINE[0];
+let lieuChoisiRoutine = "chambre";
+
+function construireGrilleEmojiRoutine() {
+  construireGrilleEmoji(document.getElementById("nr-emoji-grille"), EMOJI_ROUTINE, emojiChoisiRoutine,
+    (e) => { emojiChoisiRoutine = e; construireGrilleEmojiRoutine(); });
+}
+
+function choisirLieuRoutine(lieu) {
+  lieuChoisiRoutine = lieu;
+  document.getElementById("nr-lieu-chambre").classList.toggle("choisi", lieu === "chambre");
+  document.getElementById("nr-lieu-salon").classList.toggle("choisi", lieu === "salon");
+}
+
+function ouvrirNouvelleRoutine() {
+  document.getElementById("nr-nom").value = "";
+  for (let i = 1; i <= 5; i++) {
+    document.getElementById("nr-t" + i + "-texte").value = "";
+    document.getElementById("nr-t" + i + "-emoji").value = "";
+    document.getElementById("nr-t" + i + "-zone").value = ZONE_PAR_DEFAUT_ROUTINE;
+  }
+  document.getElementById("nr-erreur").textContent = "";
+  emojiChoisiRoutine = EMOJI_ROUTINE[0];
+  construireGrilleEmojiRoutine();
+  choisirLieuRoutine("chambre");
+  afficherEcran("screen-parent-nouvelle-routine");
+}
+
+function creerNouvelleRoutine() {
+  const nom = document.getElementById("nr-nom").value.trim();
+  const taches = [];
+  for (let i = 1; i <= 5; i++) {
+    const texte = document.getElementById("nr-t" + i + "-texte").value.trim();
+    if (!texte) continue;
+    const emoji = document.getElementById("nr-t" + i + "-emoji").value.trim() || "✅";
+    const zone = document.getElementById("nr-t" + i + "-zone").value;
+    taches.push({ id: "t" + i, texte, emoji, zone });
+  }
+
+  if (!nom || taches.length === 0) {
+    document.getElementById("nr-erreur").textContent = "Donne un nom et remplis au moins une tâche avant de créer la routine.";
+    return;
+  }
+
+  const nouvelle = {
+    id: "routine-perso-" + Date.now(),
+    nom,
+    emoji: emojiChoisiRoutine,
+    lieu: lieuChoisiRoutine,
+    felicitation: "Bravo Léon, tu as fini : " + nom + " !",
+    taches,
+  };
+
+  const perso = chargerRoutinesPerso();
+  perso.push(nouvelle);
+  sauverRoutinesPerso(perso);
+
+  // Ajoutée tout de suite à l'état du jour (etat.routines) et au
+  // planning d'aujourd'hui — sinon `toutesLesRoutines()` la connaîtrait
+  // déjà, mais un `etat.routines`/`etat.planning` chargé avant sa
+  // création ne l'aurait pas. `planningParDefaut()` s'occupe des jours
+  // suivants (routine récurrente, cf. sa définition).
+  const etat = chargerEtat();
+  etat.routines[nouvelle.id] = { fait: [], valide: false };
+  etat.planning.push({ type: "routine", id: nouvelle.id });
+  sauverEtat(etat);
+
+  dire("Nouvelle routine créée : " + nom + ".");
+  construireRoutinesCatalogue();
+  afficherEcran("screen-parent-routines-catalogue");
 }
 
 // ---------------------------------------------------------------------
@@ -1533,7 +1695,17 @@ document.getElementById("btn-retour-parent-historique").onclick = () => { constr
 
 document.getElementById("na-nom").addEventListener("blur", suggererTextesActivite);
 document.getElementById("btn-creer-aventure").onclick = creerNouvelleAventure;
-document.getElementById("btn-retour-parent-nouvelle-aventure").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("btn-retour-parent-nouvelle-aventure").onclick = () => { construireParentActivites(); afficherEcran("screen-parent-activites"); };
+
+document.getElementById("btn-nouvelle-activite").onclick = ouvrirNouvelleAventure;
+document.getElementById("btn-retour-parent-activites").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+
+document.getElementById("btn-nouvelle-routine").onclick = ouvrirNouvelleRoutine;
+document.getElementById("btn-retour-parent-routines-catalogue").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("nr-lieu-chambre").onclick = () => choisirLieuRoutine("chambre");
+document.getElementById("nr-lieu-salon").onclick = () => choisirLieuRoutine("salon");
+document.getElementById("btn-creer-routine").onclick = creerNouvelleRoutine;
+document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); };
 
 // Le bouton "Terminé !" du coffre ne va pas toujours au même endroit
 // (fin de journée vs retour d'aventure) : `coffreRetour` est fixé par

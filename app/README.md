@@ -147,19 +147,31 @@ Séquence :
      (généralisé, cf. "Points d'entrée" plus bas).
    - **Planning du jour** — lien direct vers le mode édition de "Ma
      journée" existant, sans redemander le code.
-   - **Nouvelle activité** — formulaire (nom, icône, texte du trajet,
-     texte de l'arrivée, 3 étapes sur place, pièce à la fin oui/non).
-     Ajoutée directement au planning du jour à la création
+   - **Activités** — liste toutes les activités (`toutesLesAventures()`),
+     chacune tapable pour l'ajouter/retirer du planning du jour
+     (`basculerActivitePlanning()`) — donc de "Partir à l'aventure".
+     Bouton "+ Nouvelle activité" → formulaire (nom, icône, texte du
+     trajet, texte de l'arrivée, 3 étapes sur place, pièce à la fin
+     oui/non), ajoutée directement au planning du jour à la création
      (`creerNouvelleAventure()`) — c'est ce qui la rend accessible dans
-     "Partir à l'aventure" tout de suite, pas un champ date à
-     renseigner. Persistée à part (`leon_aventures_perso`), fusionnée
-     avec le catalogue en dur `AVENTURES` via `toutesLesAventures()`
-     partout où le code cherche une aventure — pas de distinction entre
-     les deux sources ailleurs dans l'app.
-   - **Nouvelle routine** — pas encore construit ("Bientôt" dans le
-     hub) : une routine a des tâches liées à des zones/calques précis de
-     l'avatar, plus complexe qu'un formulaire libre. Reste à faire dans
-     `app.js` pour l'instant.
+     "Partir à l'aventure" tout de suite, pas un champ date à renseigner.
+     Persistée à part (`leon_aventures_perso`), fusionnée avec le
+     catalogue en dur `AVENTURES` via `toutesLesAventures()` partout où
+     le code cherche une aventure — pas de distinction entre les deux
+     sources ailleurs dans l'app.
+   - **Routines** — liste toutes les routines (`toutesLesRoutines()`)
+     avec leur état du jour, en **lecture seule** (contrairement aux
+     activités, pas de bascule planning : une routine fait partie du
+     parcours tous les jours dès qu'elle existe, pas d'interrupteur jour
+     par jour). Bouton "+ Nouvelle routine" → formulaire (nom, icône,
+     lieu chambre/salon, jusqu'à 5 tâches — texte + emoji + zone parmi
+     les 6 `.zone-cible`). Pas de `calque` proposé (demanderait un sprite
+     existant) : chaque tâche a son propre emoji, sans effet persistant
+     sur l'avatar. Persistée à part (`leon_routines_perso`), fusionnée
+     avec `ROUTINES` via `toutesLesRoutines()`, utilisée partout où
+     `app.js` cherchait `ROUTINES` directement (menu, avatar, jauge,
+     planning...) pour qu'une routine créée se comporte identiquement à
+     une du catalogue en dur.
 
 Voix : synthèse vocale native du navigateur (`SpeechSynthesis`, `fr-FR`),
 annoncée automatiquement à chaque nouvelle étape, rejouable via le bouton
@@ -257,6 +269,15 @@ cherche/liste des aventures (`aventureParId()`, le catalogue "Ajouter à
 la journée"...), jamais `AVENTURES` seul, sous peine d'ignorer les
 activités créées depuis l'app.
 
+Les **routines créées par un parent** suivent exactement le même
+principe dans une sixième clé, `leon_routines_perso` (même format que
+les entrées de `ROUTINES`), fusionnée via `toutesLesRoutines()` =
+`ROUTINES` + ce tableau. **`ROUTINES` seul ne doit quasiment jamais être
+utilisé directement dans le code** (menu, avatar, jauge, planning,
+historique...) — toujours `toutesLesRoutines()`, sous peine qu'une
+routine créée depuis l'app se comporte différemment de celles du
+catalogue en dur.
+
 **Important si tu changes la forme de `leon_journee`** :
 `chargerEtat()` appelle `etatRepare()`, qui **complète en place** les
 champs manquants d'un état dont le jour est bon plutôt que de tout jeter
@@ -283,10 +304,12 @@ le mécanisme principal.
   sprite n'existe encore), et `disponibleApresHeure` optionnel (nombre,
   0-23) : si présent, la routine sort du chaînage séquentiel et se
   débloque à partir de cette heure au lieu d'attendre que les précédentes
-  soient validées (cf. "Aller se coucher"). Ajouter une routine = ajouter
-  une entrée ici ; elle apparaît automatiquement au menu, verrouillée
-  jusqu'à ce que la précédente soit validée (sauf si elle a
-  `disponibleApresHeure`).
+  soient validées (cf. "Aller se coucher"). Ajouter une routine en dur =
+  ajouter une entrée ici ; pour une routine créée par un parent depuis
+  l'app, cf. `leon_routines_perso`/`toutesLesRoutines()` plus haut — même
+  format, juste dans l'autre tableau. Une routine apparaît automatiquement
+  au menu, verrouillée jusqu'à ce que la précédente soit validée (sauf si
+  elle a `disponibleApresHeure`).
 - `REPAS` (`app.js`) — tableau plat `{ id, nom, emoji }`, purement
   informatif pour l'écran "Ma journée" (pas de tâches, pas d'horaire).
 - `AVENTURES` (`app.js`) — tableau d'aventures, chacune avec `lieu`,

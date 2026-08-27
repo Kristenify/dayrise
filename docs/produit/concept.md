@@ -78,13 +78,11 @@ Premier pas concret vers le principe déjà posé plus haut ("Ordre et
 blocage, paramétrables par les parents") : un **mode édition protégé par
 le code parent** permet de réordonner et retirer les items du jour, et
 d'en ajouter d'autres — soit en piochant dans ce qui existe déjà
-(routines/aventures/repas déjà définis), soit, pour les activités
-(missions/sorties), en **créant une page entièrement nouvelle** depuis
-l'espace parent ("Nouvelle activité"). Ça reste un paramétrage
-**du contenu limité aux activités** — créer une nouvelle routine (des
-tâches liées à des zones précises de l'avatar) demande encore d'éditer
-`app.js`, cf. `TODO.md`. Ce mode édition est maintenant repris tel quel
-comme une des options de l'espace parent, ci-dessous.
+(routines/aventures/repas déjà définis), soit en **créant une page
+entièrement nouvelle** depuis l'espace parent, pour une activité comme
+pour une routine ("Activités"/"Routines", cf. section dédiée
+ci-dessous). Ce mode édition est maintenant repris tel quel comme une
+des options de l'espace parent.
 
 **Le planning est la seule source de vérité pour ce qui est accessible
 aujourd'hui** : une activité apparaît dans "Partir à l'aventure" si et
@@ -115,6 +113,17 @@ décoche ce qui n'est plus vrai, la routine redevient à faire pour
 l'enfant. L'étoile déjà donnée est reprise (pas donnée deux fois), pas
 un blocage/une punition — cohérent avec "le parent valide toujours au
 final" déjà posé plus bas.
+
+**"Activités" et "Routines"** (accès à tout ce qui existe + création)
+suivent le même principe de fond mais pas la même interaction, pour une
+vraie raison de modèle de données et pas juste par cohérence de façade :
+une activité a un interrupteur jour par jour (le planning décide si elle
+est proposée aujourd'hui, cf. plus haut), donc toucher une activité
+existante bascule sa présence dans le planning. Une routine, elle, fait
+partie du parcours tous les jours dès qu'elle existe — il n'y a pas
+d'interrupteur équivalent à proposer, donc la liste des routines reste
+en lecture seule ; "Relancer une routine" (ci-dessus) reste l'écran dédié
+pour agir sur une routine précise.
 
 ## Correction parent avant validation
 

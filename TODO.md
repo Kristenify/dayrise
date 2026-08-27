@@ -248,22 +248,25 @@ prototype actuel.
         lien direct vers le mode édition de "Ma journée" déjà existant
         (entre directement en édition, sans redemander le code — déjà
         authentifié dans l'espace parent).
-  - [x] **Nouvelle activité** (demandé explicitement : créer des pages
-        d'activité pour qu'ajoutées au planning, elles soient accessibles
-        dans "Partir à l'aventure") — formulaire (nom, icône parmi 16
-        emoji, texte du trajet, texte de l'arrivée, 3 étapes sur place,
-        pièce à la fin oui/non). Pas de champ date/heure ni de choix
-        d'emplacement dans le planning : à la création, l'activité est
-        **ajoutée directement au planning d'aujourd'hui**
+  - [x] **Activités** (demandé explicitement, en deux temps : d'abord un
+        formulaire de création directe, puis reformulé en un vrai menu
+        d'accès + création) — liste **toutes** les activités
+        (`toutesLesAventures()` : catalogue en dur + créées par un
+        parent), chacune tapable pour l'**ajouter/retirer du planning du
+        jour** (`basculerActivitePlanning()`) — donc de "Partir à
+        l'aventure" (cf. lien ci-dessous). Bouton "+ Nouvelle activité"
+        en bas → formulaire (nom, icône parmi 16 emoji, texte du trajet,
+        texte de l'arrivée, 3 étapes sur place, pièce à la fin oui/non),
+        ajoutée directement au planning d'aujourd'hui à la création
         (`creerNouvelleAventure()`), toujours juste après "Se préparer à
         partir" comme "Le magasin de bricolage" (même raison : impossible
         de partir en aventure avant d'être habillé/prêt). Trajet/arrivée
         pré-remplis à partir du nom dès qu'il quitte le champ (suggestion
         éditable, grammaire pas garantie — ex. "à le" au lieu de "au").
         Persistée à part (`leon_aventures_perso`, jamais remise à zéro),
-        **fusionnée avec le catalogue en dur** `AVENTURES` partout où on
-        cherche une aventure (`toutesLesAventures()`) — le reste du code
-        ne distingue pas d'où elle vient.
+        fusionnée avec le catalogue en dur `AVENTURES` partout où on
+        cherche une aventure — le reste du code ne distingue pas d'où
+        elle vient.
         - [x] **Lien planning ↔ "Partir à l'aventure"** (la vraie
               demande derrière celle-ci) — jusqu'ici, "Partir à
               l'aventure" listait les aventures par leur champ `date`
@@ -275,15 +278,36 @@ prototype actuel.
               sorties du jour du planning (`etat.planning`) plutôt que du
               champ `date`, qui ne sert plus qu'à l'ensemencement d'une
               nouvelle journée (`planningParDefaut()`). Ajouter/retirer
-              une aventure du planning (via "Ajouter à la journée" ou une
-              nouvelle activité) l'ajoute/la retire maintenant bien de
-              "Partir à l'aventure".
-  - [ ] **Nouvelle routine** — carte présente dans le hub mais non
-        cliquable ("Bientôt") : contrairement à une activité, une routine
-        a des tâches liées à des zones/calques précis de l'avatar — un
-        formulaire libre demande plus de réflexion (quelles zones/calques
-        proposer sans sprite existant ?). Prochaine étape logique une
-        fois ce premier jet revu.
+              une aventure du planning (Activités, "Ajouter à la
+              journée", ou une nouvelle activité) l'ajoute/la retire
+              maintenant bien de "Partir à l'aventure".
+  - [x] **Routines** (demandé explicitement, même principe que les
+        activités) — liste **toutes** les routines
+        (`toutesLesRoutines()` : catalogue en dur + créées par un
+        parent) avec leur état du jour, **en lecture seule** cette fois
+        (pas de bascule planning : contrairement à une activité, une
+        routine fait partie du parcours tous les jours dès qu'elle
+        existe, il n'y a pas d'interrupteur jour par jour à proposer —
+        pour corriger une routine précise, "Relancer une routine" reste
+        l'écran dédié). Bouton "+ Nouvelle routine" → formulaire (nom,
+        icône, lieu chambre/salon, jusqu'à 5 tâches — texte + emoji +
+        zone parmi les 6 `.zone-cible` existantes). Pas de `calque`
+        proposé (demanderait un sprite existant pour chaque nouveau
+        vêtement/objet) : chaque tâche a son propre emoji, sans effet
+        persistant sur l'avatar, comme "Range tes vêtements"/"On lit
+        l'histoire" dans "Aller se coucher" aujourd'hui. Persistée à part
+        (`leon_routines_perso`), fusionnée avec `ROUTINES` via
+        `toutesLesRoutines()` — remplace la vingtaine d'usages directs de
+        `ROUTINES` dans `app.js` (menu, avatar, jauge, planning...) pour
+        qu'une routine créée se comporte identiquement à une routine du
+        catalogue en dur partout, y compris le chaînage séquentiel du
+        menu (ajoutée à la fin de l'ordre). Récurrente tous les jours dès
+        la création (`planningParDefaut()` inclut désormais aussi les
+        routines perso, pas seulement `PLANNING_DEFAUT`), contrairement
+        aux activités qui ne reviennent que si programmées. Testé de bout
+        en bout : création → apparaît dans le menu enfant, verrouillage
+        séquentiel correct, glisser-déposer fonctionnel, félicitations,
+        validation parent, étoile.
 - [x] **"Aller se coucher" débloquée par l'heure, plus par les autres
       routines** (demandé explicitement, suite à "Relancer une routine")
       — cette routine sortait mal de son chaînage séquentiel avec

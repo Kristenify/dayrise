@@ -216,6 +216,124 @@
     <button class="btn-continuer" id="btn-retour-parent-historique">Retour</button>
   </div>
 
+  <!-- ============ Espace parent : activités ============ -->
+  <div id="screen-parent-activites" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Activités</div>
+      <div></div>
+    </div>
+    <div class="texte-consigne">Touche une activité pour l'ajouter ou la retirer d'aujourd'hui.</div>
+    <div id="parent-activites-liste"></div>
+    <button class="btn-continuer" id="btn-nouvelle-activite">➕ Nouvelle activité</button>
+    <button class="btn-secondaire" id="btn-retour-parent-activites">Retour</button>
+  </div>
+
+  <!-- ============ Espace parent : catalogue des routines ============ -->
+  <div id="screen-parent-routines-catalogue" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Routines</div>
+      <div></div>
+    </div>
+    <div id="parent-routines-catalogue-liste"></div>
+    <button class="btn-continuer" id="btn-nouvelle-routine">➕ Nouvelle routine</button>
+    <button class="btn-secondaire" id="btn-retour-parent-routines-catalogue">Retour</button>
+  </div>
+
+  <!-- ============ Espace parent : nouvelle routine ============ -->
+  <div id="screen-parent-nouvelle-routine" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Nouvelle routine</div>
+      <div></div>
+    </div>
+    <div id="nouvelle-routine-contenu">
+      <label class="champ-parent">
+        <span>Nom de la routine</span>
+        <input type="text" id="nr-nom" placeholder="Ex : Le bain" maxlength="40">
+      </label>
+      <div class="champ-parent">
+        <span>Icône</span>
+        <div id="nr-emoji-grille"></div>
+      </div>
+      <div class="champ-parent">
+        <span>Lieu (teinte du décor)</span>
+        <div class="nr-lieu-choix">
+          <button type="button" class="nr-lieu-btn choisi" id="nr-lieu-chambre">Chambre</button>
+          <button type="button" class="nr-lieu-btn" id="nr-lieu-salon">Salon</button>
+        </div>
+      </div>
+      <div class="texte-consigne" style="margin: 8px 0 0;">Remplis au moins une tâche (dans l'ordre). « Zone » = où glisser l'icône sur Léon.</div>
+
+      <div class="tache-parent">
+        <span class="tache-parent-num">1</span>
+        <input type="text" class="tache-parent-texte" id="nr-t1-texte" placeholder="Ex : Brosse-toi les dents.">
+        <input type="text" class="tache-parent-emoji" id="nr-t1-emoji" placeholder="🪥" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t1-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div class="tache-parent">
+        <span class="tache-parent-num">2</span>
+        <input type="text" class="tache-parent-texte" id="nr-t2-texte" placeholder="Ex : Entre dans le bain.">
+        <input type="text" class="tache-parent-emoji" id="nr-t2-emoji" placeholder="🛁" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t2-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div class="tache-parent">
+        <span class="tache-parent-num">3</span>
+        <input type="text" class="tache-parent-texte" id="nr-t3-texte" placeholder="Ex : Lave-toi.">
+        <input type="text" class="tache-parent-emoji" id="nr-t3-emoji" placeholder="🧼" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t3-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div class="tache-parent">
+        <span class="tache-parent-num">4</span>
+        <input type="text" class="tache-parent-texte" id="nr-t4-texte" placeholder="Ex : Sors et sèche-toi.">
+        <input type="text" class="tache-parent-emoji" id="nr-t4-emoji" placeholder="🧺" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t4-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div class="tache-parent">
+        <span class="tache-parent-num">5</span>
+        <input type="text" class="tache-parent-texte" id="nr-t5-texte" placeholder="Ex : Mets ton pyjama.">
+        <input type="text" class="tache-parent-emoji" id="nr-t5-emoji" placeholder="👕" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t5-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div id="nr-erreur" class="texte-erreur"></div>
+    </div>
+    <button class="btn-continuer" id="btn-creer-routine">Créer et ajouter à la journée</button>
+    <button class="btn-secondaire" id="btn-retour-parent-nouvelle-routine">Annuler</button>
+  </div>
+
   <!-- ============ Espace parent : nouvelle activité ============ -->
   <div id="screen-parent-nouvelle-aventure" class="screen">
     <div class="barre-haut">

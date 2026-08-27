@@ -413,17 +413,16 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 
 /* ---------- Espace parent ---------- */
-#parent-contenu, #parent-routines-liste, #parent-historique-liste {
+#parent-contenu, #parent-routines-liste, #parent-historique-liste, #parent-activites-liste, #parent-routines-catalogue-liste {
   display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; padding-bottom: 12px;
 }
 .carte-parent-soustitre { font-size: 13px; font-weight: 500; color: var(--text-faint); margin-top: 3px; }
-/* option pas encore construite (ex. paramétrage des routines elles-mêmes) :
-   même style "verrouillee" que le menu, mais sans le cadenas — juste
-   moins mis en avant, pas cliquable. */
+/* option pas encore construite : même style "verrouillee" que le menu,
+   mais sans le cadenas — juste moins mis en avant, pas cliquable. */
 .carte-parent.verrouillee { cursor: default; }
 
-/* ---------- Nouvelle activité (formulaire parent) ---------- */
-#nouvelle-aventure-contenu { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 8px; }
+/* ---------- Formulaires parent (nouvelle activité / nouvelle routine) ---------- */
+#nouvelle-aventure-contenu, #nouvelle-routine-contenu { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 8px; }
 .champ-parent { display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 700; color: var(--text-soft); }
 .champ-parent input[type="text"] {
   font: inherit; font-size: 17px; font-weight: 600; color: var(--text);
@@ -433,12 +432,41 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 .champ-parent input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .champ-parent-case { flex-direction: row; align-items: center; gap: 10px; }
 .champ-parent-case input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--accent); }
-#na-emoji-grille { display: flex; flex-wrap: wrap; gap: 8px; }
-.na-emoji-btn {
+#na-emoji-grille, #nr-emoji-grille { display: flex; flex-wrap: wrap; gap: 8px; }
+.emoji-choix-btn {
   width: 44px; height: 44px; font-size: 22px; background: var(--surface);
   border: 2px solid var(--surface-high); opacity: .6;
 }
-.na-emoji-btn.choisi { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); }
+.emoji-choix-btn.choisi { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); }
+
+/* lieu (chambre/salon) : même esprit que les boutons emoji, deux choix
+   mutuellement exclusifs plutôt qu'une grille. */
+.nr-lieu-choix { display: flex; gap: 8px; }
+.nr-lieu-btn {
+  flex: 1; padding: 10px; font-size: 15px; font-weight: 700; color: var(--text-soft);
+  background: var(--surface); border: 2px solid var(--surface-high); opacity: .6;
+}
+.nr-lieu-btn.choisi { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); color: var(--text); }
+
+/* une ligne de tâche = texte (large) + emoji (étroit) + zone (menu) sur
+   une même ligne, plutôt qu'un bloc par champ comme le reste du
+   formulaire — sinon 5 tâches rendraient le formulaire interminable. */
+.tache-parent { display: flex; align-items: center; gap: 8px; }
+.tache-parent-num {
+  width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; color: var(--text-faint); background: var(--surface); border: 2px solid var(--surface-high);
+}
+.tache-parent-texte { flex: 1; min-width: 0; }
+.tache-parent-emoji { width: 52px; flex-shrink: 0; text-align: center; }
+.tache-parent-texte, .tache-parent-emoji {
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--text);
+  background: var(--surface); border: 2px solid var(--surface-high); padding: 9px 10px;
+}
+.tache-parent-texte::placeholder, .tache-parent-emoji::placeholder { color: var(--text-faint); font-weight: 500; }
+.tache-parent-zone {
+  flex-shrink: 0; font: inherit; font-size: 13px; font-weight: 700; color: var(--text);
+  background: var(--surface); border: 2px solid var(--surface-high); padding: 9px 6px;
+}
 
 /* ---------- Fin ---------- */
 #screen-fin h1 { font-size: 26px; margin: 0; padding: 0 12px; }
