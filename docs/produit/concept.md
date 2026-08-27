@@ -77,13 +77,23 @@ heure"), juste un ordre relatif.
 Premier pas concret vers le principe déjà posé plus haut ("Ordre et
 blocage, paramétrables par les parents") : un **mode édition protégé par
 le code parent** permet de réordonner et retirer les items du jour, et
-d'en ajouter d'autres — mais seulement en piochant dans ce qui existe
-déjà (routines/aventures/repas déjà définis), pas en créant une activité
-entièrement nouvelle depuis l'app. Ça reste un paramétrage **du jour**
-(qu'est-ce qu'on fait aujourd'hui et dans quel ordre), pas encore un
-paramétrage **du contenu** (créer une nouvelle routine — cf. `TODO.md`).
-Ce mode édition est maintenant repris tel quel comme une des options de
-l'espace parent, ci-dessous.
+d'en ajouter d'autres — soit en piochant dans ce qui existe déjà
+(routines/aventures/repas déjà définis), soit, pour les activités
+(missions/sorties), en **créant une page entièrement nouvelle** depuis
+l'espace parent ("Nouvelle activité"). Ça reste un paramétrage
+**du contenu limité aux activités** — créer une nouvelle routine (des
+tâches liées à des zones précises de l'avatar) demande encore d'éditer
+`app.js`, cf. `TODO.md`. Ce mode édition est maintenant repris tel quel
+comme une des options de l'espace parent, ci-dessous.
+
+**Le planning est la seule source de vérité pour ce qui est accessible
+aujourd'hui** : une activité apparaît dans "Partir à l'aventure" si et
+seulement si elle est dans le planning du jour — pas via un champ date
+séparé qu'il faudrait aussi penser à mettre à jour. Concrètement : créer
+une activité l'ajoute immédiatement au planning (donc à "Partir à
+l'aventure") ; la retirer du planning la retire aussi des sorties
+possibles. Les deux écrans (aperçu du jour, sorties jouables) sont deux
+vues du même état, pas deux systèmes à synchroniser à la main.
 
 ## Espace parent : lié à l'espace enfant, pas un outil séparé
 

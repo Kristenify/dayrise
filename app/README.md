@@ -147,9 +147,19 @@ Séquence :
      (généralisé, cf. "Points d'entrée" plus bas).
    - **Planning du jour** — lien direct vers le mode édition de "Ma
      journée" existant, sans redemander le code.
-   - **Routines et sorties** — pas encore construit ("Bientôt" dans le
-     hub) : ajouter/modifier des routines ou aventures reste à faire
-     dans `app.js` pour l'instant.
+   - **Nouvelle activité** — formulaire (nom, icône, texte du trajet,
+     texte de l'arrivée, 3 étapes sur place, pièce à la fin oui/non).
+     Ajoutée directement au planning du jour à la création
+     (`creerNouvelleAventure()`) — c'est ce qui la rend accessible dans
+     "Partir à l'aventure" tout de suite, pas un champ date à
+     renseigner. Persistée à part (`leon_aventures_perso`), fusionnée
+     avec le catalogue en dur `AVENTURES` via `toutesLesAventures()`
+     partout où le code cherche une aventure — pas de distinction entre
+     les deux sources ailleurs dans l'app.
+   - **Nouvelle routine** — pas encore construit ("Bientôt" dans le
+     hub) : une routine a des tâches liées à des zones/calques précis de
+     l'avatar, plus complexe qu'un formulaire libre. Reste à faire dans
+     `app.js` pour l'instant.
 
 Voix : synthèse vocale native du navigateur (`SpeechSynthesis`, `fr-FR`),
 annoncée automatiquement à chaque nouvelle étape, rejouable via le bouton
@@ -239,6 +249,14 @@ chaîne de 4 chiffres), absente tant qu'il n'a jamais été changé —
 `codeParentActuel()` retombe alors sur `"1234"`. Modifiable depuis
 l'espace parent (`demarrerChangementCode()`/`sauverCodeParent()`).
 
+Les **activités créées par un parent** sont dans une cinquième clé,
+`leon_aventures_perso` (tableau d'objets au même format que les entrées
+de `AVENTURES`), jamais remise à zéro. `toutesLesAventures()` = `AVENTURES`
++ ce tableau : c'est cette fonction qu'il faut utiliser partout où on
+cherche/liste des aventures (`aventureParId()`, le catalogue "Ajouter à
+la journée"...), jamais `AVENTURES` seul, sous peine d'ignorer les
+activités créées depuis l'app.
+
 **Important si tu changes la forme de `leon_journee`** :
 `chargerEtat()` appelle `etatRepare()`, qui **complète en place** les
 champs manquants d'un état dont le jour est bon plutôt que de tout jeter
@@ -276,15 +294,21 @@ le mécanisme principal.
   retour vers la maison — texte générique par défaut si absent),
   `programme` (3 lignes), `personne` optionnelle (`{ emoji, nom }`,
   affiche un 2ᵉ sprite à l'arrivée à côté du vrai avatar de Léon), `date`
-  optionnelle (format `cleJour()`, ex. `"2026-8-27"` — absente =
-  n'apparaît jamais toute seule dans les sorties du jour), `apres`
+  optionnelle (format `cleJour()`, ex. `"2026-8-27"` — sert uniquement à
+  ensemencer le planning d'une nouvelle journée via `planningParDefaut()`,
+  cf. plus bas ; absente pour une activité créée depuis l'espace parent,
+  qui est ajoutée directement au planning à la création), `apres`
   optionnelle (`{ type, id }` d'un autre item du planning — où l'insérer
   dans `PLANNING_DEFAUT` quand elle est programmée ; absente = ajoutée en
   fin de journée) et `recompensePieces` (0 = pas de récompense propre,
   sinon une pièce sort du coffre une fois le retour à la maison
-  confirmé). Ajouter une aventure = ajouter une entrée ici ; avec une
-  `date` d'aujourd'hui elle apparaît automatiquement dans
-  `screen-missions` et dans "Ma journée".
+  confirmé). Ajouter une aventure = ajouter une entrée ici. **Ce qui la
+  rend accessible dans "Partir à l'aventure" n'est plus `date` mais sa
+  présence dans `etat.planning` du jour** (`aventuresPlanifieesAujourdhui()`,
+  utilisée par `construireMissions()`) — `date` ne fait que la faire
+  entrer dans ce planning la première fois qu'un jour est ensemencé,
+  après quoi le planning (édité par un parent ou peuplé à la création
+  d'une activité) fait foi.
 - `PLANNING_DEFAUT` (`app.js`) — le squelette de journée type utilisé par
   `planningParDefaut()` pour initialiser `etat.planning` à chaque
   nouveau jour (avant édition éventuelle par un parent, cf. plus haut).

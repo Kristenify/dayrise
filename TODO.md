@@ -248,11 +248,42 @@ prototype actuel.
         lien direct vers le mode édition de "Ma journée" déjà existant
         (entre directement en édition, sans redemander le code — déjà
         authentifié dans l'espace parent).
-  - [ ] **Routines et sorties** — carte présente dans le hub mais non
-        cliquable ("Bientôt") : ajouter/modifier/supprimer des routines
-        ou aventures depuis l'app reste à faire (aujourd'hui, toujours en
-        dur dans `ROUTINES`/`AVENTURES`, `app.js`). Prochaine étape
-        logique une fois ce premier jet revu.
+  - [x] **Nouvelle activité** (demandé explicitement : créer des pages
+        d'activité pour qu'ajoutées au planning, elles soient accessibles
+        dans "Partir à l'aventure") — formulaire (nom, icône parmi 16
+        emoji, texte du trajet, texte de l'arrivée, 3 étapes sur place,
+        pièce à la fin oui/non). Pas de champ date/heure ni de choix
+        d'emplacement dans le planning : à la création, l'activité est
+        **ajoutée directement au planning d'aujourd'hui**
+        (`creerNouvelleAventure()`), toujours juste après "Se préparer à
+        partir" comme "Le magasin de bricolage" (même raison : impossible
+        de partir en aventure avant d'être habillé/prêt). Trajet/arrivée
+        pré-remplis à partir du nom dès qu'il quitte le champ (suggestion
+        éditable, grammaire pas garantie — ex. "à le" au lieu de "au").
+        Persistée à part (`leon_aventures_perso`, jamais remise à zéro),
+        **fusionnée avec le catalogue en dur** `AVENTURES` partout où on
+        cherche une aventure (`toutesLesAventures()`) — le reste du code
+        ne distingue pas d'où elle vient.
+        - [x] **Lien planning ↔ "Partir à l'aventure"** (la vraie
+              demande derrière celle-ci) — jusqu'ici, "Partir à
+              l'aventure" listait les aventures par leur champ `date`
+              (`aventuresDuJour()`), complètement indépendamment du
+              planning que l'espace parent permet d'éditer : y ajouter/
+              retirer une aventure n'avait aucun effet sur les sorties
+              visibles par l'enfant. Nouvelle fonction
+              `aventuresPlanifieesAujourdhui()` : dérive la liste des
+              sorties du jour du planning (`etat.planning`) plutôt que du
+              champ `date`, qui ne sert plus qu'à l'ensemencement d'une
+              nouvelle journée (`planningParDefaut()`). Ajouter/retirer
+              une aventure du planning (via "Ajouter à la journée" ou une
+              nouvelle activité) l'ajoute/la retire maintenant bien de
+              "Partir à l'aventure".
+  - [ ] **Nouvelle routine** — carte présente dans le hub mais non
+        cliquable ("Bientôt") : contrairement à une activité, une routine
+        a des tâches liées à des zones/calques précis de l'avatar — un
+        formulaire libre demande plus de réflexion (quelles zones/calques
+        proposer sans sprite existant ?). Prochaine étape logique une
+        fois ce premier jet revu.
 - [x] **"Aller se coucher" débloquée par l'heure, plus par les autres
       routines** (demandé explicitement, suite à "Relancer une routine")
       — cette routine sortait mal de son chaînage séquentiel avec

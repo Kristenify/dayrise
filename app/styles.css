@@ -422,6 +422,24 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
    moins mis en avant, pas cliquable. */
 .carte-parent.verrouillee { cursor: default; }
 
+/* ---------- Nouvelle activité (formulaire parent) ---------- */
+#nouvelle-aventure-contenu { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 8px; }
+.champ-parent { display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 700; color: var(--text-soft); }
+.champ-parent input[type="text"] {
+  font: inherit; font-size: 17px; font-weight: 600; color: var(--text);
+  background: var(--surface); border: 2px solid var(--surface-high); padding: 10px 12px;
+}
+.champ-parent input[type="text"]::placeholder { color: var(--text-faint); font-weight: 500; }
+.champ-parent input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.champ-parent-case { flex-direction: row; align-items: center; gap: 10px; }
+.champ-parent-case input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--accent); }
+#na-emoji-grille { display: flex; flex-wrap: wrap; gap: 8px; }
+.na-emoji-btn {
+  width: 44px; height: 44px; font-size: 22px; background: var(--surface);
+  border: 2px solid var(--surface-high); opacity: .6;
+}
+.na-emoji-btn.choisi { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); }
+
 /* ---------- Fin ---------- */
 #screen-fin h1 { font-size: 26px; margin: 0; padding: 0 12px; }
 #fin-emoji { font-size: 96px; animation: rebond 1s ease infinite; }

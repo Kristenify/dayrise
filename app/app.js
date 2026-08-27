@@ -180,8 +180,36 @@ let aventureActuelleId = null;
 // parent de "On est arrivés" (cf. allerAuTrajet/allerValidationArrivee).
 let sensTrajet = "aller";
 
-function aventureParId(id) { return AVENTURES.find(a => a.id === id); }
-function aventuresDuJour() { return AVENTURES.filter(a => a.date === cleJour()); }
+// Activités créées par un parent (cf. ouvrirNouvelleAventure()) —
+// persistées à part de AVENTURES (qui reste le catalogue en dur du
+// code), jamais remises à zéro. `toutesLesAventures()` est la vue
+// combinée à utiliser partout où on cherche/liste des aventures, pour
+// que le reste du code n'ait pas à savoir laquelle des deux sources une
+// aventure donnée vient.
+function chargerAventuresPerso() {
+  try { return JSON.parse(localStorage.getItem("leon_aventures_perso") || "[]"); } catch (e) { return []; }
+}
+function sauverAventuresPerso(liste) {
+  try { localStorage.setItem("leon_aventures_perso", JSON.stringify(liste)); } catch (e) {}
+}
+function toutesLesAventures() { return AVENTURES.concat(chargerAventuresPerso()); }
+
+function aventureParId(id) { return toutesLesAventures().find(a => a.id === id); }
+function aventuresDuJour() { return toutesLesAventures().filter(a => a.date === cleJour()); }
+// Une aventure est accessible aujourd'hui dans "Partir à l'aventure" si
+// et seulement si elle est dans le planning du jour (`etat.planning`) —
+// pas directement via son champ `date`, qui ne sert qu'à l'y insérer une
+// première fois (cf. `planningParDefaut()`). Ça lie directement les
+// deux, comme demandé : ajouter/retirer une activité du planning
+// l'ajoute/la retire de "Partir à l'aventure", que ce soit via "Ajouter
+// à la journée" ou en créant une nouvelle activité.
+function aventuresPlanifieesAujourdhui() {
+  const etat = chargerEtat();
+  return etat.planning
+    .filter(it => it.type === "aventure")
+    .map(it => aventureParId(it.id))
+    .filter(Boolean);
+}
 
 // Planning par défaut d'une journée type (écran "Ma journée") : une
 // suite d'items `{ type: "routine"|"aventure"|"repas", id }`, dans
@@ -506,11 +534,12 @@ function allerVersDepart() {
   clignoterRoutine(manquantes[0].id);
 }
 
-// Écran des sorties du jour : liste les aventures programmées pour
-// aujourd'hui (`aventuresDuJour()`), sinon garde le texte d'origine
-// "Rien de prévu aujourd'hui !".
+// Écran des sorties du jour : liste les aventures du planning
+// (`aventuresPlanifieesAujourdhui()` — pas `aventuresDuJour()`, qui ne
+// sert qu'à l'ensemencement initial d'une nouvelle journée), sinon
+// garde le texte d'origine "Rien de prévu aujourd'hui !".
 function construireMissions() {
-  const duJour = aventuresDuJour();
+  const duJour = aventuresPlanifieesAujourdhui();
   const emoji = document.getElementById("missions-emoji");
   const texte = document.getElementById("missions-texte");
   const liste = document.getElementById("missions-liste");
@@ -640,8 +669,9 @@ function ajouterItemPlanning(type, id) {
 
 // Catalogue d'ajout : tout ce qui existe (routines, aventures — pas
 // seulement celles du jour, un parent peut vouloir reprogrammer Pauline
-// par exemple —, repas) et n'est pas déjà dans le planning. Pas de
-// création libre pour l'instant, seulement piocher dans l'existant.
+// par exemple —, repas) et n'est pas déjà dans le planning. Inclut les
+// activités créées par un parent (cf. `toutesLesAventures()`) au même
+// titre que celles du catalogue en dur.
 function construireAjoutPlanning(etat) {
   const bloc = document.createElement("div");
   const label = document.createElement("div");
@@ -652,7 +682,7 @@ function construireAjoutPlanning(etat) {
   const dejaLa = new Set(etat.planning.map(it => it.type + ":" + it.id));
   const candidats = [
     ...ROUTINES.map(r => ({ type: "routine", id: r.id, emoji: r.emoji, nom: r.nom })),
-    ...AVENTURES.map(a => ({ type: "aventure", id: a.id, emoji: a.emoji, nom: a.lieu })),
+    ...toutesLesAventures().map(a => ({ type: "aventure", id: a.id, emoji: a.emoji, nom: a.lieu })),
     ...REPAS.map(r => ({ type: "repas", id: r.id, emoji: r.emoji, nom: r.nom })),
   ].filter(c => !dejaLa.has(c.type + ":" + c.id));
 
@@ -1075,8 +1105,13 @@ function construireEspaceParent() {
       action: () => { demarrerChangementCode(); },
     },
     {
-      emoji: "🧩", titre: "Routines et sorties",
-      soustitre: "Bientôt — modifiables dans le code (app.js) pour l'instant",
+      emoji: "➕", titre: "Nouvelle activité",
+      soustitre: "Créer une sortie, elle s'ajoute directement à aujourd'hui",
+      action: () => { ouvrirNouvelleAventure(); },
+    },
+    {
+      emoji: "🧩", titre: "Nouvelle routine",
+      soustitre: "Bientôt — modifiable dans le code (app.js) pour l'instant",
       action: null,
     },
   ];
@@ -1186,6 +1221,92 @@ function demarrerChangementCode() {
   construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
   majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   afficherEcran("screen-validation");
+}
+
+// Nouvelle activité : formulaire minimal (pas de création libre de
+// routine pour l'instant, ça demande de savoir associer des tâches à
+// des zones/calques de l'avatar — cf. carte "Nouvelle routine" du hub).
+// Une nouvelle aventure n'a ni `personne` ni `date` fixe : elle est
+// ajoutée directement au planning du jour à la création (voir
+// `creerNouvelleAventure()`), c'est ça qui la rend accessible dans
+// "Partir à l'aventure" plutôt qu'un champ date à remplir.
+const EMOJI_ACTIVITE = ["🏊","🚲","🎨","🎪","🍕","🌳","⚽","🎬","🏥","🛒","🎵","🧩","🎡","🐶","🎳","🍦"];
+let emojiChoisiActivite = EMOJI_ACTIVITE[0];
+
+function ouvrirNouvelleAventure() {
+  ["na-nom", "na-trajet", "na-arrivee", "na-etape1", "na-etape2", "na-etape3"]
+    .forEach(id => { document.getElementById(id).value = ""; });
+  document.getElementById("na-piece").checked = false;
+  document.getElementById("na-erreur").textContent = "";
+  emojiChoisiActivite = EMOJI_ACTIVITE[0];
+  construireGrilleEmoji();
+  afficherEcran("screen-parent-nouvelle-aventure");
+}
+
+function construireGrilleEmoji() {
+  const grille = document.getElementById("na-emoji-grille");
+  grille.innerHTML = "";
+  EMOJI_ACTIVITE.forEach(e => {
+    const b = document.createElement("button");
+    b.className = "na-emoji-btn" + (e === emojiChoisiActivite ? " choisi" : "");
+    b.textContent = e;
+    b.onclick = () => { emojiChoisiActivite = e; construireGrilleEmoji(); };
+    grille.appendChild(b);
+  });
+}
+
+// Pré-remplit trajet/arrivée à partir du nom dès qu'il quitte le champ —
+// simple suggestion (grammaire pas garantie, ex. "à le" au lieu de "au"),
+// jamais écrasée si le parent a déjà tapé quelque chose dans ces champs.
+function suggererTextesActivite() {
+  const nom = document.getElementById("na-nom").value.trim();
+  if (!nom) return;
+  const trajetEl = document.getElementById("na-trajet");
+  const arriveeEl = document.getElementById("na-arrivee");
+  if (!trajetEl.value.trim()) trajetEl.value = "On roule vers " + nom + ".";
+  if (!arriveeEl.value.trim()) arriveeEl.value = "On est arrivés à " + nom + ".";
+}
+
+function creerNouvelleAventure() {
+  const nom = document.getElementById("na-nom").value.trim();
+  const texteTrajet = document.getElementById("na-trajet").value.trim();
+  const texteArrivee = document.getElementById("na-arrivee").value.trim();
+  const e1 = document.getElementById("na-etape1").value.trim();
+  const e2 = document.getElementById("na-etape2").value.trim();
+  const e3 = document.getElementById("na-etape3").value.trim();
+  const pieceOui = document.getElementById("na-piece").checked;
+
+  if (!nom || !texteTrajet || !texteArrivee || !e1 || !e2 || !e3) {
+    document.getElementById("na-erreur").textContent = "Remplis tous les champs avant de créer l'activité.";
+    return;
+  }
+
+  const nouvelle = {
+    id: "perso-" + Date.now(),
+    lieu: nom,
+    emoji: emojiChoisiActivite,
+    texteTrajet,
+    texteArrivee,
+    programme: ["1. " + e1, "2. " + e2, "3. " + e3],
+    recompensePieces: pieceOui ? 1 : 0,
+    texteTrajetRetour: "On a fini, on rentre à la maison.",
+    // Comme "Le magasin de bricolage" : après "Se préparer à partir",
+    // pas juste après le petit-déj — l'enfant ne peut de toute façon pas
+    // partir en aventure avant d'être habillé/prêt.
+    apres: { type: "routine", id: "partir" },
+  };
+
+  const perso = chargerAventuresPerso();
+  perso.push(nouvelle);
+  sauverAventuresPerso(perso);
+
+  const etat = chargerEtat();
+  etat.planning.push({ type: "aventure", id: nouvelle.id });
+  sauverEtat(etat);
+
+  dire("Nouvelle activité créée : " + nom + ".");
+  construireEspaceParent();
+  afficherEcran("screen-parent");
 }
 
 // ---------------------------------------------------------------------
@@ -1409,6 +1530,10 @@ document.getElementById("btn-espace-parent").onclick = ouvrirEspaceParent;
 document.getElementById("btn-retour-menu-parent").onclick = construireMenu;
 document.getElementById("btn-retour-parent-routines").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 document.getElementById("btn-retour-parent-historique").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+
+document.getElementById("na-nom").addEventListener("blur", suggererTextesActivite);
+document.getElementById("btn-creer-aventure").onclick = creerNouvelleAventure;
+document.getElementById("btn-retour-parent-nouvelle-aventure").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 
 // Le bouton "Terminé !" du coffre ne va pas toujours au même endroit
 // (fin de journée vs retour d'aventure) : `coffreRetour` est fixé par
