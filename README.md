@@ -120,5 +120,23 @@ Workflow :
 3. C'est seulement à ce moment-là que la tablette de Léon doit être mise
    à jour vers ce que contient `main` — pas à chaque session de travail
    sur `dev`.
+4. Pousser `main` (`git push origin main`) déclenche automatiquement la
+   publication de `app/` sur GitHub Pages (cf. "Déploiement" ci-dessous)
+   — c'est ce qui rend le changement réellement disponible pour la
+   tablette de Léon.
 
-Dépôt local pour l'instant, pas de remote configuré.
+## Déploiement
+
+- **Dépôt** : [github.com/Kristenify/dayrise](https://github.com/Kristenify/dayrise)
+  (public — `assets/external/` en est volontairement exclu, cf.
+  `.gitignore` : licence Bitglow non redistribuable, non utilisé par
+  l'app déployée de toute façon).
+- **App en ligne** : [kristenify.github.io/dayrise](https://kristenify.github.io/dayrise/)
+  — publiée automatiquement (`.github/workflows/deploy.yml`) à chaque
+  push sur `main`, à partir du contenu de `app/` uniquement.
+- **Installation sur la tablette de Léon** : ouvrir l'URL ci-dessus une
+  fois dans le navigateur, puis "Ajouter à l'écran d'accueil". Un
+  service worker (`app/sw.js`) met ensuite l'app en cache : elle
+  continue de fonctionner **hors-ligne**, sans dépendre d'aucun serveur
+  (ni GitHub, ni le Mac utilisé pour développer) — voir `app/README.md`
+  pour le détail technique.
