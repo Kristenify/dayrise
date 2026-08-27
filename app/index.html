@@ -24,6 +24,11 @@
        usage réel si la journée doit être recommencée. -->
   <button id="btn-reset-test" title="Maintenir pour recommencer la journée">↺</button>
 
+  <!-- Entrée de l'espace parent, visible sur tous les écrans — pas
+       protégée par appui long (pas destructif : ouvre juste l'écran du
+       code, cf. ouvrirEspaceParent() dans app.js), symétrique du reset. -->
+  <button id="btn-espace-parent" aria-label="Espace parent" title="Espace parent">⚙️</button>
+
   <!-- ============ 0. Menu de la journée ============ -->
   <div id="screen-menu" class="screen active">
     <div class="barre-haut">
@@ -178,6 +183,37 @@
       <div id="correction-liste"></div>
       <button class="btn-continuer" id="btn-valider-routine">Valider — donner l'étoile ⭐</button>
     </div>
+  </div>
+
+  <!-- ============ Espace parent (hub) ============ -->
+  <div id="screen-parent" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Espace parent</div>
+      <div></div>
+    </div>
+    <div id="parent-contenu"></div>
+    <button class="btn-continuer" id="btn-retour-menu-parent">Retour</button>
+  </div>
+
+  <!-- ============ Espace parent : relancer une routine ============ -->
+  <div id="screen-parent-routines" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Relancer une routine</div>
+      <div></div>
+    </div>
+    <div class="texte-consigne">Si l'état de Léon a changé (ex. il s'est redéshabillé), choisis la routine à relancer.</div>
+    <div id="parent-routines-liste"></div>
+    <button class="btn-continuer" id="btn-retour-parent-routines">Retour</button>
+  </div>
+
+  <!-- ============ Espace parent : historique des journées ============ -->
+  <div id="screen-parent-historique" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Historique</div>
+      <div></div>
+    </div>
+    <div id="parent-historique-liste"></div>
+    <button class="btn-continuer" id="btn-retour-parent-historique">Retour</button>
   </div>
 
   <!-- ============ 4. Récompense de fin de journée ============ -->

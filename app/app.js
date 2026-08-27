@@ -24,7 +24,15 @@
  * configurable plus tard — cf. docs/produit/concept.md).
  */
 
-const CODE_PARENT = "1234";
+// Code parent : persisté à part (`leon_code_parent`), modifiable depuis
+// l'espace parent (cf. demarrerChangementCode()) — "1234" tant qu'aucun
+// nouveau code n'a été enregistré.
+function codeParentActuel() {
+  try { return localStorage.getItem("leon_code_parent") || "1234"; } catch (e) { return "1234"; }
+}
+function sauverCodeParent(code) {
+  try { localStorage.setItem("leon_code_parent", code); } catch (e) {}
+}
 
 // `calque` = data-calque (ou tableau de data-calque) à révéler sur le
 // sprite ; `retire: true` les CACHE au lieu de les révéler (routine du
@@ -398,20 +406,32 @@ function construireMenu() {
   document.getElementById("pieces-total").textContent = piecesTotal > 0 ? "🪙 " + piecesTotal : "";
 
   // cartes de routines : la première non validée est jouable, les
-  // suivantes restent grisées tant que la précédente n'est pas validée
+  // suivantes restent grisées tant que TOUTES les précédentes ne sont
+  // pas validées — pas juste l'immédiatement précédente. Distinction qui
+  // ne se voyait pas tant que les routines s'enchaînaient forcément dans
+  // l'ordre, mais compte depuis qu'un parent peut relancer une routine
+  // du milieu (cf. relancerRoutine()) : sans ça, une routine plus loin
+  // dans la liste réapparaîtrait débloquée juste parce que celle qui la
+  // précède immédiatement est restée validée, en sautant celle qu'on
+  // vient de relancer.
   const liste = document.getElementById("liste-routines");
   liste.innerHTML = "";
-  let precedenteValidee = true;
+  let toutPrecedentValide = true;
   ROUTINES.forEach(r => {
     const etatR = etat.routines[r.id];
-    const debloquee = precedenteValidee && !etatR.valide;
+    const debloquee = toutPrecedentValide && !etatR.valide;
     const carte = document.createElement("div");
     carte.dataset.id = r.id;
-    carte.className = "carte-routine" + (etatR.valide ? " faite" : "") + (!precedenteValidee ? " verrouillee" : "");
-    carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (precedenteValidee ? "" : "🔒")}</div>`;
+    // "verrouillee" ne s'applique qu'à une routine PAS ENCORE validée —
+    // sinon une routine déjà faite (ex. "Se préparer à partir") peut se
+    // retrouver visuellement "verrouillée" après qu'un parent a relancé
+    // une routine précédente depuis l'espace parent, alors qu'elle reste
+    // bel et bien validée.
+    carte.className = "carte-routine" + (etatR.valide ? " faite" : (!toutPrecedentValide ? " verrouillee" : ""));
+    carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (toutPrecedentValide ? "" : "🔒")}</div>`;
     if (debloquee) carte.onclick = () => demarrerRoutine(r.id);
     liste.appendChild(carte);
-    precedenteValidee = etatR.valide;
+    toutPrecedentValide = toutPrecedentValide && etatR.valide;
   });
 
   afficherEcran("screen-menu");
@@ -548,12 +568,13 @@ function basculerEditionJournee() {
     return;
   }
   codeSaisi = "";
+  modeCode = "verifier";
   document.getElementById("validation-sous-titre").textContent = "Un parent entre le code pour modifier la journée.";
   document.getElementById("correction-wrap").classList.add("hidden");
   document.getElementById("pavecode-wrap").classList.remove("hidden");
   document.getElementById("pavecode-erreur").textContent = "";
-  construireClavier();
-  majCasesCode();
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   apresCodeValide = () => {
     journeeEnEdition = true;
     afficherEcran("screen-journee");
@@ -836,63 +857,112 @@ function finDeRoutine() {
 // ---------------------------------------------------------------------
 let codeSaisi = "";
 let apresCodeValide = null;
+// "verifier" (code existant, cas normal) | "nouveau1"/"nouveau2" (les
+// deux saisies successives d'un nouveau code, cf. demarrerChangementCode()).
+let modeCode = "verifier";
+let premierNouveauCode = "";
+// Bouton de la correction (#btn-valider-routine) : sert à la fois à
+// valider une routine tout juste finie (étoile) et à confirmer une
+// relance de routine depuis l'espace parent (pas d'étoile en plus,
+// cf. confirmerRelanceRoutine()) — même écran/liste, action différente.
+let actionCorrection = null;
 
 function allerValidation() {
   const routine = routineParId(routineActuelleId);
   codeSaisi = "";
+  modeCode = "verifier";
   document.getElementById("validation-sous-titre").textContent =
     "Un parent entre le code pour valider « " + routine.nom + " ».";
   document.getElementById("correction-wrap").classList.add("hidden");
   document.getElementById("pavecode-wrap").classList.remove("hidden");
   document.getElementById("pavecode-erreur").textContent = "";
-  construireClavier();
-  majCasesCode();
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   apresCodeValide = () => {
+    document.getElementById("correction-note").textContent = "Décoche ce qui n'a pas vraiment été fait, puis valide.";
+    document.getElementById("btn-valider-routine").textContent = "Valider — donner l'étoile ⭐";
+    actionCorrection = validerRoutine;
     construireCorrection();
     document.getElementById("correction-wrap").classList.remove("hidden");
   };
   afficherEcran("screen-validation");
 }
 
-function construireClavier() {
-  const clavier = document.getElementById("pavecode-clavier");
-  clavier.innerHTML = "";
+// Généralisé (conteneur + callback) pour servir aussi bien le pavé du
+// code existant que celui d'un nouveau code (cf. demarrerChangementCode())
+// sans dupliquer le clavier.
+function construireClavier(conteneur, onTouche) {
+  conteneur.innerHTML = "";
   const touches = ["1","2","3","4","5","6","7","8","9","⌫","0","OK"];
   touches.forEach(t => {
     const b = document.createElement("button");
     b.className = "touche-code";
     b.textContent = t;
-    b.onclick = () => appuyerTouche(t);
-    clavier.appendChild(b);
+    b.onclick = () => onTouche(t);
+    conteneur.appendChild(b);
   });
 }
-function majCasesCode() {
-  const cases = document.querySelectorAll(".case-code");
-  cases.forEach((c, i) => c.classList.toggle("rempli", i < codeSaisi.length));
+function majCasesCode(conteneurCases, saisi) {
+  const cases = conteneurCases.querySelectorAll(".case-code");
+  cases.forEach((c, i) => c.classList.toggle("rempli", i < saisi.length));
 }
 function appuyerTouche(t) {
-  if (t === "⌫") { codeSaisi = codeSaisi.slice(0, -1); majCasesCode(); return; }
+  if (t === "⌫") { codeSaisi = codeSaisi.slice(0, -1); majCasesCode(document.getElementById("pavecode-cases"), codeSaisi); return; }
   if (t === "OK") { validerCode(); return; }
   if (codeSaisi.length >= 4) return;
   codeSaisi += t;
-  majCasesCode();
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   if (codeSaisi.length === 4) setTimeout(validerCode, 150);
 }
 function validerCode() {
-  if (codeSaisi === CODE_PARENT) {
-    document.getElementById("pavecode-erreur").textContent = "";
-    document.getElementById("pavecode-wrap").classList.add("hidden");
-    if (apresCodeValide) apresCodeValide();
-  } else {
-    document.getElementById("pavecode-erreur").textContent = "Code incorrect.";
+  const cases = document.getElementById("pavecode-cases");
+
+  if (modeCode === "verifier") {
+    if (codeSaisi === codeParentActuel()) {
+      document.getElementById("pavecode-erreur").textContent = "";
+      document.getElementById("pavecode-wrap").classList.add("hidden");
+      if (apresCodeValide) apresCodeValide();
+    } else {
+      document.getElementById("pavecode-erreur").textContent = "Code incorrect.";
+      codeSaisi = "";
+      majCasesCode(cases, codeSaisi);
+    }
+    return;
+  }
+
+  // Changement de code (cf. demarrerChangementCode()) : deux saisies
+  // identiques de suite avant d'être enregistré, comme un changement de
+  // mot de passe classique — évite d'enregistrer une faute de frappe.
+  if (modeCode === "nouveau1") {
+    premierNouveauCode = codeSaisi;
     codeSaisi = "";
-    majCasesCode();
+    modeCode = "nouveau2";
+    document.getElementById("validation-sous-titre").textContent = "Retape le même code pour confirmer.";
+    majCasesCode(cases, codeSaisi);
+    return;
+  }
+  // modeCode === "nouveau2"
+  if (codeSaisi === premierNouveauCode) {
+    sauverCodeParent(premierNouveauCode);
+    document.getElementById("pavecode-wrap").classList.add("hidden");
+    dire("Nouveau code enregistré.");
+    modeCode = "verifier";
+    construireEspaceParent();
+    afficherEcran("screen-parent");
+  } else {
+    document.getElementById("pavecode-erreur").textContent = "Les deux codes ne correspondent pas. On recommence.";
+    codeSaisi = "";
+    premierNouveauCode = "";
+    modeCode = "nouveau1";
+    document.getElementById("validation-sous-titre").textContent = "Entre le nouveau code à 4 chiffres.";
+    majCasesCode(cases, codeSaisi);
   }
 }
 
 // relecture/correction : toutes les tâches de la routine sont ici
 // déclickables (pas seulement l'étape en cours comme pendant la
-// routine), pour que le parent puisse décocher ce qui n'a pas été fait.
+// routine), pour que le parent puisse décocher ce qui n'a pas été fait
+// (ou plus vrai, cf. relancerRoutine()).
 function construireCorrection() {
   const etat = chargerEtat();
   const routine = routineParId(routineActuelleId);
@@ -926,6 +996,166 @@ function validerRoutine() {
   if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
   routineActuelleId = null;
   construireMenu();
+}
+
+// ---------------------------------------------------------------------
+// Espace parent — hub protégé par le code, pour que les changements
+// faits ici aient un effet direct sur ce que l'enfant voit (même état
+// `leon_journee`/`localStorage`, pas un outil séparé). Cf.
+// docs/produit/concept.md pour la philosophie.
+// ---------------------------------------------------------------------
+function ouvrirEspaceParent() {
+  codeSaisi = "";
+  modeCode = "verifier";
+  document.getElementById("validation-sous-titre").textContent = "Un parent entre le code pour accéder à l'espace parent.";
+  document.getElementById("correction-wrap").classList.add("hidden");
+  document.getElementById("pavecode-wrap").classList.remove("hidden");
+  document.getElementById("pavecode-erreur").textContent = "";
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
+  apresCodeValide = () => {
+    construireEspaceParent();
+    afficherEcran("screen-parent");
+  };
+  afficherEcran("screen-validation");
+}
+
+function construireEspaceParent() {
+  const conteneur = document.getElementById("parent-contenu");
+  conteneur.innerHTML = "";
+  const options = [
+    {
+      emoji: "🔁", titre: "Relancer une routine",
+      soustitre: "Si l'état de Léon a changé (ex. il s'est redéshabillé)",
+      action: () => { construireParentRoutines(); afficherEcran("screen-parent-routines"); },
+    },
+    {
+      emoji: "🗓️", titre: "Planning du jour",
+      soustitre: "Réordonner, retirer ou ajouter les activités d'aujourd'hui",
+      action: () => { journeeEnEdition = true; construireJournee(); afficherEcran("screen-journee"); },
+    },
+    {
+      emoji: "📅", titre: "Historique des journées",
+      soustitre: "Revoir les jours précédents",
+      action: () => { construireHistorique(); afficherEcran("screen-parent-historique"); },
+    },
+    {
+      emoji: "🔑", titre: "Changer le code parent",
+      soustitre: "Code à 4 chiffres, actuellement " + codeParentActuel().replace(/./g, "•"),
+      action: () => { demarrerChangementCode(); },
+    },
+    {
+      emoji: "🧩", titre: "Routines et sorties",
+      soustitre: "Bientôt — modifiables dans le code (app.js) pour l'instant",
+      action: null,
+    },
+  ];
+  options.forEach(o => {
+    const carte = document.createElement("div");
+    carte.className = "carte-routine carte-parent" + (o.action ? "" : " verrouillee");
+    carte.innerHTML =
+      `<div class="carte-routine-nom">${o.emoji} ${o.titre}<div class="carte-parent-soustitre">${o.soustitre}</div></div>`;
+    if (o.action) carte.onclick = o.action;
+    conteneur.appendChild(carte);
+  });
+}
+
+// Liste des routines avec leur état, pour choisir laquelle relancer.
+// Toutes affichées (pas seulement les validées) : un parent peut aussi
+// vouloir corriger une routine en cours sans attendre la fin.
+function construireParentRoutines() {
+  const etat = chargerEtat();
+  const liste = document.getElementById("parent-routines-liste");
+  liste.innerHTML = "";
+  ROUTINES.forEach(r => {
+    const etatR = etat.routines[r.id];
+    const etatTexte = etatR.valide
+      ? "✓ validée"
+      : (etatR.fait.length > 0 ? etatR.fait.length + "/" + r.taches.length : "pas commencée");
+    const carte = document.createElement("div");
+    carte.className = "carte-routine";
+    carte.innerHTML = `<div class="carte-routine-nom">${r.emoji} ${r.nom}</div><div class="carte-routine-etat">${etatTexte}</div>`;
+    carte.onclick = () => relancerRoutine(r.id);
+    liste.appendChild(carte);
+  });
+}
+
+// Réutilise l'écran/la liste de correction déjà construits pour la
+// validation parent (mêmes éléments DOM), mais sans redemander le code
+// (déjà dans l'espace parent authentifié) et avec une action différente
+// à la confirmation (cf. confirmerRelanceRoutine, pas de nouvelle étoile).
+function relancerRoutine(id) {
+  routineActuelleId = id;
+  const routine = routineParId(id);
+  document.getElementById("validation-sous-titre").textContent = "Relancer « " + routine.nom + " ».";
+  document.getElementById("pavecode-wrap").classList.add("hidden");
+  document.getElementById("correction-note").textContent = "Décoche ce qui n'est plus vrai, puis mets à jour.";
+  document.getElementById("btn-valider-routine").textContent = "Mettre à jour";
+  actionCorrection = confirmerRelanceRoutine;
+  construireCorrection();
+  document.getElementById("correction-wrap").classList.remove("hidden");
+  afficherEcran("screen-validation");
+}
+
+// Si la routine était validée, on retire l'étoile qu'elle avait
+// rapportée : elle sera regagnée quand l'enfant la revalidera pour de
+// bon, sinon le compteur d'étoiles serait gonflé. `journeeFaite` repasse
+// à faux : la journée n'est plus "finie" tant que cette routine ne l'est
+// pas à nouveau.
+function confirmerRelanceRoutine() {
+  const etat = chargerEtat();
+  const etatR = etat.routines[routineActuelleId];
+  if (etatR.valide) {
+    etatR.valide = false;
+    etat.etoiles = Math.max(0, (etat.etoiles || 0) - 1);
+  }
+  etat.journeeFaite = false;
+  sauverEtat(etat);
+  synchroniserAvatar(etat);
+  jouerSon();
+  if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+  routineActuelleId = null;
+  construireParentRoutines();
+  afficherEcran("screen-parent-routines");
+}
+
+function construireHistorique() {
+  const conteneur = document.getElementById("parent-historique-liste");
+  conteneur.innerHTML = "";
+  let historique = [];
+  try { historique = JSON.parse(localStorage.getItem("leon_historique") || "[]"); } catch (e) {}
+  if (historique.length === 0) {
+    const vide = document.createElement("div");
+    vide.className = "recompenses-vide";
+    vide.textContent = "Pas encore de journée archivée.";
+    conteneur.appendChild(vide);
+    return;
+  }
+  historique.slice().reverse().forEach(j => {
+    const noms = j.routinesValidees.map(id => { const r = routineParId(id); return r ? r.nom : id; });
+    const resume = noms.length > 0 ? noms.join(", ") : "aucune routine validée";
+    const ligne = document.createElement("div");
+    ligne.className = "ligne-journee";
+    ligne.innerHTML =
+      `<span class="emoji-journee">📅</span><span class="texte-journee">${j.jour} — ${j.etoiles} ⭐ — ${resume}</span>`;
+    conteneur.appendChild(ligne);
+  });
+}
+
+// Deux saisies identiques de suite avant d'enregistrer (cf. `validerCode()`,
+// branche "nouveau1"/"nouveau2") — réutilise le même pavé que la
+// vérification du code existant, pas de nouvel écran.
+function demarrerChangementCode() {
+  codeSaisi = "";
+  modeCode = "nouveau1";
+  premierNouveauCode = "";
+  document.getElementById("validation-sous-titre").textContent = "Entre le nouveau code à 4 chiffres.";
+  document.getElementById("correction-wrap").classList.add("hidden");
+  document.getElementById("pavecode-wrap").classList.remove("hidden");
+  document.getElementById("pavecode-erreur").textContent = "";
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
+  afficherEcran("screen-validation");
 }
 
 // ---------------------------------------------------------------------
@@ -1036,14 +1266,15 @@ function partirEnActivite() {
 function allerValidationArrivee() {
   const a = aventureParId(aventureActuelleId);
   codeSaisi = "";
+  modeCode = "verifier";
   const lieu = sensTrajet === "retour" ? "la maison" : a.lieu;
   document.getElementById("validation-sous-titre").textContent =
     "Un parent entre le code pour confirmer l'arrivée : « " + lieu + " ».";
   document.getElementById("correction-wrap").classList.add("hidden");
   document.getElementById("pavecode-wrap").classList.remove("hidden");
   document.getElementById("pavecode-erreur").textContent = "";
-  construireClavier();
-  majCasesCode();
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   apresCodeValide = sensTrajet === "retour" ? () => terminerAventure(a) : () => allerAArrivee();
   afficherEcran("screen-validation");
 }
@@ -1132,7 +1363,7 @@ document.getElementById("btn-voix-arrivee").onclick = () => dire(document.getEle
 protegerParAppuiLong(document.getElementById("btn-reset-test"), reinitialiserTout);
 
 document.getElementById("btn-un-parent").onclick = allerValidation;
-document.getElementById("btn-valider-routine").onclick = validerRoutine;
+document.getElementById("btn-valider-routine").onclick = () => { if (actionCorrection) actionCorrection(); };
 
 document.getElementById("btn-depart").onclick = allerVersDepart;
 document.getElementById("btn-retour-menu").onclick = construireMenu;
@@ -1143,6 +1374,11 @@ document.getElementById("btn-modifier-journee").onclick = basculerEditionJournee
 
 document.getElementById("btn-mes-recompenses").onclick = () => { construireRecompenses(); afficherEcran("screen-recompenses"); };
 document.getElementById("btn-retour-menu-recompenses").onclick = construireMenu;
+
+document.getElementById("btn-espace-parent").onclick = ouvrirEspaceParent;
+document.getElementById("btn-retour-menu-parent").onclick = construireMenu;
+document.getElementById("btn-retour-parent-routines").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("btn-retour-parent-historique").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 
 // Le bouton "Terminé !" du coffre ne va pas toujours au même endroit
 // (fin de journée vs retour d'aventure) : `coffreRetour` est fixé par

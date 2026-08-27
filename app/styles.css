@@ -212,6 +212,15 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 #btn-reset-test.maintien { opacity: 1; }
 #btn-reset-test.maintien::after { height: 100%; transition: height .9s linear; }
 
+/* Symétrique du reset, côté gauche — simple tap (pas d'appui long) : pas
+   destructif, ouvre juste l'écran du code parent. */
+#btn-espace-parent {
+  position: fixed; top: 8px; left: 8px; z-index: 999; width: 30px; height: 30px;
+  background: var(--surface-high); color: var(--text-soft); border: 2px solid var(--outline);
+  font-size: 15px; opacity: .5;
+}
+#btn-espace-parent:active { opacity: 1; transform: translate(1px, 1px); }
+
 .btn-continuer.maintien { background: var(--accent-shadow); }
 
 #chemin { padding-bottom: 20px; overflow-y: auto; flex: 1; }
@@ -402,6 +411,16 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   filter: grayscale(1) brightness(1.25) sepia(1) saturate(4) hue-rotate(-15deg) contrast(1.1);
   mix-blend-mode: multiply;
 }
+
+/* ---------- Espace parent ---------- */
+#parent-contenu, #parent-routines-liste, #parent-historique-liste {
+  display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; padding-bottom: 12px;
+}
+.carte-parent-soustitre { font-size: 13px; font-weight: 500; color: var(--text-faint); margin-top: 3px; }
+/* option pas encore construite (ex. paramétrage des routines elles-mêmes) :
+   même style "verrouillee" que le menu, mais sans le cadenas — juste
+   moins mis en avant, pas cliquable. */
+.carte-parent.verrouillee { cursor: default; }
 
 /* ---------- Fin ---------- */
 #screen-fin h1 { font-size: 26px; margin: 0; padding: 0 12px; }

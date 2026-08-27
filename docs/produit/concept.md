@@ -68,8 +68,30 @@ d'en ajouter d'autres — mais seulement en piochant dans ce qui existe
 déjà (routines/aventures/repas déjà définis), pas en créant une activité
 entièrement nouvelle depuis l'app. Ça reste un paramétrage **du jour**
 (qu'est-ce qu'on fait aujourd'hui et dans quel ordre), pas encore un
-paramétrage **du contenu** (créer une nouvelle routine, changer le code
-parent, etc. — cf. `TODO.md`).
+paramétrage **du contenu** (créer une nouvelle routine — cf. `TODO.md`).
+Ce mode édition est maintenant repris tel quel comme une des options de
+l'espace parent, ci-dessous.
+
+## Espace parent : lié à l'espace enfant, pas un outil séparé
+
+Les réglages destinés aux parents (Alexandra notamment) vivent dans la
+**même application** que ce que voit Léon — même `app.js`, même
+`localStorage` — et pas dans un outil séparé (site d'admin, autre app).
+**Un changement fait dans l'espace parent a un effet immédiat sur
+l'espace enfant**, parce que c'est littéralement le même état qui est lu
+des deux côtés. Protégé par le même code parent que le reste, via un
+point d'entrée discret (pas caché — un enfant curieux tombe juste sur
+l'écran du code, rien de plus).
+
+**Relancer une routine** en fait partie, demandé explicitement : si
+l'état réel de l'enfant a changé depuis qu'une routine a été validée
+(ex. il s'est redéshabillé en rentrant à la maison), un parent doit
+pouvoir la rouvrir plutôt que de tout réinitialiser la journée. Réutilise
+le principe déjà posé ailleurs (correction avant validation) : on
+décoche ce qui n'est plus vrai, la routine redevient à faire pour
+l'enfant. L'étoile déjà donnée est reprise (pas donnée deux fois), pas
+un blocage/une punition — cohérent avec "le parent valide toujours au
+final" déjà posé plus bas.
 
 ## Correction parent avant validation
 

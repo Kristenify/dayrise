@@ -20,6 +20,20 @@ http.server`, ou l'équivalent utilisé pendant le développement) reste
 utile pour tester en cours de route, mais n'est jamais ce que la
 tablette de Léon doit charger au quotidien.
 
+**Piège de test une fois le service worker actif** : après avoir modifié
+`app.js`/`styles.css`/`index.html`, un simple rechargement du navigateur
+peut continuer à servir l'ancienne version depuis le cache
+(stale-while-revalidate sert le cache en premier, cf. `sw.js`). Pendant
+le développement, désenregistrer le service worker et vider le cache
+avant de retester :
+```js
+navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+caches.keys().then(ns => ns.forEach(n => caches.delete(n)));
+```
+(bug réel rencontré en testant l'espace parent dans cette session — un
+correctif semblait ne rien changer, alors qu'il était simplement masqué
+par le cache).
+
 ## Ce qui est couvert
 
 Un seul enfant (Léon), un seul jour type. Modèle : une **Routine** a une
@@ -106,6 +120,27 @@ Séquence :
    brillent au toucher). La pièce affiche un petit portrait de Léon
    teinté façon profil gravé sur une pièce d'or (`.piece-visage`),
    recadré depuis le sprite avatar existant — pas de nouvel asset dédié.
+9. **Espace parent** (`ouvrirEspaceParent()`, bouton ⚙️ discret en haut à
+   gauche, sur tous les écrans — symétrique du reset, mais un simple tap
+   suffit : rien ici n'est destructif) — hub protégé par le code parent,
+   **directement lié à l'espace enfant** (même `app.js`, même état,
+   aucun outil séparé) :
+   - **Relancer une routine** — pour corriger l'état si Léon a changé
+     entre-temps (ex. redéshabillé après une routine validée). Réutilise
+     l'écran de correction déjà existant (`construireCorrection()`,
+     `screen-validation`) plutôt que d'en dupliquer un : mêmes tâches
+     décochables, bouton "Mettre à jour" au lieu de "Valider". Si la
+     routine était validée, son étoile est retirée (regagnée à la
+     revalidation par Léon) et `journeeFaite` repasse à `false`.
+   - **Historique des journées** — lecture seule de `leon_historique`.
+   - **Changer le code parent** — deux saisies identiques de suite avant
+     d'enregistrer, réutilise le même pavé numérique que la vérification
+     (généralisé, cf. "Points d'entrée" plus bas).
+   - **Planning du jour** — lien direct vers le mode édition de "Ma
+     journée" existant, sans redemander le code.
+   - **Routines et sorties** — pas encore construit ("Bientôt" dans le
+     hub) : ajouter/modifier des routines ou aventures reste à faire
+     dans `app.js` pour l'instant.
 
 Voix : synthèse vocale native du navigateur (`SpeechSynthesis`, `fr-FR`),
 annoncée automatiquement à chaque nouvelle étape, rejouable via le bouton
@@ -187,8 +222,13 @@ L'**historique** des journées passées est dans une troisième clé,
 chaque journée y est archivée (`archiverJournee()`) au moment où
 `chargerEtat()` détecte un changement de date, juste avant que
 `leon_journee` ne soit écrasée par la nouvelle journée. Entrée :
-`{ jour, etoiles, routinesValidees: [...ids], journeeFaite }`. Pas
-encore d'écran pour la consulter, juste le stockage pour l'instant.
+`{ jour, etoiles, routinesValidees: [...ids], journeeFaite }`. Consultable
+en lecture seule depuis l'espace parent (`construireHistorique()`).
+
+Le **code parent** est dans une quatrième clé, `leon_code_parent` (une
+chaîne de 4 chiffres), absente tant qu'il n'a jamais été changé —
+`codeParentActuel()` retombe alors sur `"1234"`. Modifiable depuis
+l'espace parent (`demarrerChangementCode()`/`sauverCodeParent()`).
 
 **Important si tu changes la forme de `leon_journee`** :
 `chargerEtat()` appelle `etatRepare()`, qui **complète en place** les
@@ -262,3 +302,9 @@ le mécanisme principal.
   ajoute-le ici aussi, sinon il ne sera pas disponible hors-ligne.
   Incrémenter `CACHE_NAME` (ex. `dayrise-v2`) force le renouvellement du
   cache d'un appareil déjà installé au prochain chargement en ligne.
+- `construireClavier(conteneur, onTouche)` / `majCasesCode(conteneurCases, saisi)`
+  (`app.js`) — pavé numérique générique (partagé entre la vérification du
+  code existant et la saisie d'un nouveau code, cf. `modeCode` dans
+  `validerCode()`), pas un composant par écran. Pour un nouvel écran de
+  code, appeler ces deux fonctions avec les éléments `.case-code`/
+  `.touche-code` de cet écran plutôt que d'en dupliquer le HTML/JS.

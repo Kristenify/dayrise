@@ -14,7 +14,7 @@
  * forcer un rafraîchissement) : `activate` supprime les caches d'un nom
  * différent.
  */
-const CACHE_NAME = "dayrise-v1";
+const CACHE_NAME = "dayrise-v2";
 const A_METTRE_EN_CACHE = [
   "./",
   "./index.html",
