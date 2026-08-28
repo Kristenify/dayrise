@@ -155,12 +155,21 @@
            liste. Reconstruite à chaque rendu par app.js. -->
       <div id="pile-vetements"></div>
 
+      <!-- Panier de linge, visible en permanence pendant la routine du
+           soir (cf. synchroniserRoutineEcran(), routine.id === "soir")
+           — demandé explicitement : une cible fixe et déjà visible
+           plutôt qu'une zone invisible qui n'apparaît qu'en glissant.
+           Purement décoratif (pointer-events:none) ; #zone-panier
+           juste en dessous est la vraie cible du glisser. -->
+      <div id="panier-linge" aria-hidden="true">🧺</div>
+
       <div class="zone-cible" id="zone-visage"></div>
       <div class="zone-cible" id="zone-torse"></div>
       <div class="zone-cible" id="zone-bassin"></div>
       <div class="zone-cible" id="zone-jambes"></div>
       <div class="zone-cible" id="zone-pieds"></div>
       <div class="zone-cible" id="zone-dos"></div>
+      <div class="zone-cible" id="zone-panier"></div>
     </div>
 
     <div id="etape-courante"></div>
@@ -191,7 +200,11 @@
       <div class="zone-dent" data-zone="bas-droite"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
     </div>
     <div id="dents-chrono">3:00</div>
-    <div class="note-bas">Garde le doigt sur la zone qui brille pour la brosser.</div>
+    <!-- Seule action possible pendant le brossage, jamais requise (cf.
+         toggleDentsPause() dans app.js) : le minuteur avance tout seul,
+         l'enfant se concentre sur sa vraie brosse à dents. -->
+    <button class="btn-secondaire" id="btn-pause-dents">⏸️ Pause</button>
+    <div class="note-bas">Le minuteur avance tout seul, zone par zone.</div>
   </div>
 
   <!-- ============ 2. Fin de routine : félicitations + appel au parent ============ -->

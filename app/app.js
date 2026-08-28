@@ -107,7 +107,7 @@ const ROUTINES = [
       // #pile-vetements, synchroniserRoutineEcran()) — matérialise les
       // habits qui viennent de tomber, plutôt que de les faire disparaître
       // pour de bon avant même cette tâche.
-      { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-dos", pileGlissable: true },
+      { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-panier", pileGlissable: true },
       // `miniJeu: "dents"` (au lieu de `zone`) : cette tâche s'ouvre en
       // tapant sa ligne (cf. ouvrirMiniJeu()) plutôt qu'en y glissant
       // l'icône — lance l'écran dédié `screen-dents` (minuteur +
@@ -825,6 +825,10 @@ function synchroniserRoutineEcran() {
   synchroniserAvatar(etat);
   document.getElementById("nom-routine").textContent = routine.nom;
   document.getElementById("scene").classList.toggle("scene-salon", routine.lieu === "salon");
+  // Panier de linge : présent en permanence pendant "Aller se coucher",
+  // pas seulement pendant la tâche "ranger" — sert de repère fixe avant
+  // même que les vêtements ne tombent (cf. #panier-linge, index.html).
+  document.getElementById("panier-linge").classList.toggle("visible", routine.id === "soir");
 
   // prochaine tâche à faire (première non cochée), seule jouable : les
   // suivantes n'ont pas d'icône glissable tant que celle-ci n'est pas
@@ -1078,10 +1082,15 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
 // TODO.md, "Pas encore designé"). 6 zones dans l'ordre où les brosser
 // (haut-gauche → haut-devant → haut-droite → bas-gauche → bas-devant →
 // bas-droite), chacune avec sa part du minuteur total (3 minutes ÷ 6 =
-// 30s/zone). Il faut garder le doigt sur la zone EN COURS pour que son
-// temps décompte (`dentsEnBrossage`) — relâcher ou toucher une autre
-// zone met en pause, ça n'avance jamais tout seul ni ne peut sauter une
-// zone. Une fois les 6 zones épuisées, marque la tâche `dents` de la
+// 30s/zone).
+//
+// Volontairement AUCUNE action requise de l'enfant pendant le brossage
+// (demandé explicitement) : il doit se concentrer sur le geste réel
+// avec sa vraie brosse à dents, pas sur l'écran. Le minuteur démarre
+// tout seul à l'ouverture et avance tout seul, zone après zone
+// (`dentsEnCours`, vrai par défaut) — la seule interaction possible est
+// de le mettre en pause/reprendre (bouton dédié, cf. toggleDentsPause()),
+// jamais requise. Une fois les 6 zones épuisées, marque la tâche `dents` de la
 // routine en cours comme faite (même geste que les autres — son,
 // vibration, étoile de tâche via marquerTache()) et revient à
 // l'écran de routine.
@@ -1096,7 +1105,7 @@ const DUREE_PAR_ZONE = DUREE_BROSSAGE_SEC / ZONES_DENTS.length;
 let dentsEtapeRoutine = null; // la tâche `dents` de la routine en cours, pour marquerTache() à la fin
 let dentsZoneIndex = 0;
 let dentsTempsRestant = DUREE_PAR_ZONE;
-let dentsEnBrossage = false; // vrai tant que le doigt reste sur la zone en cours
+let dentsEnCours = true; // le minuteur avance tout seul par défaut ; false seulement si mis en pause
 let dentsMinuteurId = null;
 
 // Point d'entrée générique pour toute tâche `miniJeu` (aujourd'hui, une
@@ -1110,7 +1119,7 @@ function demarrerBrossageDents(etape) {
   dentsEtapeRoutine = etape;
   dentsZoneIndex = 0;
   dentsTempsRestant = DUREE_PAR_ZONE;
-  dentsEnBrossage = false;
+  dentsEnCours = true; // démarre tout seul, cf. commentaire plus haut
   const barre = document.getElementById("dents-barre");
   if (barre.childElementCount !== ZONES_DENTS.length) {
     barre.innerHTML = "";
@@ -1123,8 +1132,16 @@ function demarrerBrossageDents(etape) {
   dentsMinuteurId = setInterval(tickDents, 250);
 }
 
+// Seule action possible pendant le brossage — jamais requise, juste
+// disponible (ex. interruption). Ne modifie ni la zone ni le temps
+// restant, juste si le minuteur avance.
+function toggleDentsPause() {
+  dentsEnCours = !dentsEnCours;
+  majAffichageDents();
+}
+
 function tickDents() {
-  if (!dentsEnBrossage) return;
+  if (!dentsEnCours) return;
   dentsTempsRestant = Math.max(0, dentsTempsRestant - 0.25);
   majAffichageDents();
   if (dentsTempsRestant <= 0) avancerZoneDents();
@@ -1134,9 +1151,10 @@ function avancerZoneDents() {
   jouerSon();
   if (navigator.vibrate) navigator.vibrate(30);
   dentsZoneIndex++;
-  dentsEnBrossage = false;
   if (dentsZoneIndex >= ZONES_DENTS.length) { finBrossageDents(); return; }
   dentsTempsRestant = DUREE_PAR_ZONE;
+  // dentsEnCours n'est pas touché : le minuteur enchaîne sur la zone
+  // suivante sans s'arrêter, sauf si l'enfant/parent l'a mis en pause.
   majAffichageDents();
   dire("Brosse maintenant " + LIBELLES_ZONES_DENTS[ZONES_DENTS[dentsZoneIndex]] + ".");
 }
@@ -1162,34 +1180,6 @@ function quitterBrossageDents() {
   afficherEcran("screen-routine");
 }
 
-// Écouteurs posés une seule fois (pas à chaque rendu, contrairement aux
-// lignes de #chemin) : les 6 `.zone-dent` sont des éléments statiques
-// d'index.html, jamais recréés — les repositionner ici accumulerait des
-// écouteurs en double à chaque partie. `estZoneActive()` ignore tout
-// appui hors de la zone actuellement à brosser (ex. l'enfant retouche
-// une zone déjà faite) plutôt que de le laisser faire avancer le minuteur
-// de la mauvaise zone.
-function initZonesDents() {
-  document.querySelectorAll(".zone-dent").forEach((zoneEl, i) => {
-    function estZoneActive() { return i === dentsZoneIndex; }
-    function debut(ev) {
-      if (!estZoneActive()) return;
-      ev.preventDefault();
-      dentsEnBrossage = true;
-      zoneEl.classList.add("brossage-actif");
-      zoneEl.setPointerCapture(ev.pointerId);
-    }
-    function fin() {
-      dentsEnBrossage = false;
-      zoneEl.classList.remove("brossage-actif");
-    }
-    zoneEl.addEventListener("pointerdown", debut);
-    zoneEl.addEventListener("pointerup", fin);
-    zoneEl.addEventListener("pointercancel", fin);
-    zoneEl.addEventListener("pointerleave", fin);
-  });
-}
-
 function formatChrono(secondes) {
   const total = Math.ceil(secondes);
   return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
@@ -1203,6 +1193,7 @@ function majAffichageDents() {
       remplissage.style.height = "100%";
     } else if (i === dentsZoneIndex) {
       zoneEl.classList.remove("faite"); zoneEl.classList.add("active");
+      zoneEl.classList.toggle("brossage-actif", dentsEnCours); // anime tant que le minuteur avance, plus lié au toucher
       remplissage.style.height = ((1 - dentsTempsRestant / DUREE_PAR_ZONE) * 100) + "%";
     } else {
       zoneEl.classList.remove("faite", "active", "brossage-actif");
@@ -1213,6 +1204,8 @@ function majAffichageDents() {
   document.getElementById("dents-chrono").textContent = formatChrono(dentsTempsRestant);
   const barre = document.getElementById("dents-barre");
   [...barre.children].forEach((seg, i) => seg.classList.toggle("fait", i < dentsZoneIndex));
+  const btnPause = document.getElementById("btn-pause-dents");
+  btnPause.textContent = dentsEnCours ? "⏸️ Pause" : "▶️ Reprendre";
 }
 
 // ---------------------------------------------------------------------
@@ -1978,7 +1971,7 @@ setInterval(majHorloge, 15000);
 document.getElementById("btn-retour-routine").onclick = retourMenuDepuisRoutine;
 document.getElementById("btn-voix-routine").onclick = () => dire(document.getElementById("etape-courante").textContent);
 document.getElementById("btn-retour-dents").onclick = quitterBrossageDents;
-initZonesDents();
+document.getElementById("btn-pause-dents").onclick = toggleDentsPause;
 document.getElementById("btn-voix-coffre").onclick = () => dire(document.getElementById("coffre-texte").textContent);
 document.getElementById("btn-voix-trajet").onclick = () => dire(document.getElementById("trajet-texte").textContent);
 document.getElementById("btn-voix-arrivee").onclick = () => dire(document.getElementById("arrivee-texte").textContent);

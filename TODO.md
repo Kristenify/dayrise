@@ -351,13 +351,19 @@ prototype actuel.
       tapant sa ligne (`ouvrirMiniJeu()`) plutôt qu'en y glissant
       l'icône. Minuteur de 3 minutes réparties en 6 zones dans l'ordre
       où les brosser (haut-gauche → haut-devant → haut-droite →
-      bas-gauche → bas-devant → bas-droite, 30s chacune) : il faut
-      garder le doigt sur la zone en cours pour que son temps décompte
-      (relâcher ou toucher une autre zone met en pause, aucune zone ne
-      peut être sautée). Une fois les 6 zones épuisées, revient à la
-      routine avec la tâche marquée faite — même geste que les autres
-      (son, vibration, étoile de tâche, badge ✨ sur le visage de
-      l'avatar, toujours via `marquerTache()`).
+      bas-gauche → bas-devant → bas-droite, 30s chacune). Une fois les
+      6 zones épuisées, revient à la routine avec la tâche marquée
+      faite — même geste que les autres (son, vibration, étoile de
+      tâche, badge ✨ sur le visage de l'avatar, toujours via
+      `marquerTache()`).
+  - [x] **Aucune action requise pendant le brossage** — demandé
+        explicitement : la version initiale demandait de garder le
+        doigt sur la zone en cours, ce qui faisait concurrence au vrai
+        geste de brossage (l'enfant a besoin de ses mains pour la vraie
+        brosse à dents, pas pour l'écran). Le minuteur démarre et
+        avance tout seul dès l'ouverture (`dentsEnCours`, vrai par
+        défaut) ; la seule interaction possible est un bouton
+        Pause/Reprendre dédié (`toggleDentsPause()`), jamais requis.
 - [x] **"Enlève tes vêtements" glisse l'avatar, pas la carte** — pour se
       déshabiller (1ʳᵉ tâche de "Aller se coucher"), on tire maintenant
       l'avatar habillé (`avatarGlissable: true`) hors de la scène (vers
@@ -383,10 +389,17 @@ prototype actuel.
         explicitement en écho au point précédent : les habits qui
         viennent de tomber ne disparaissent plus dans le vide, ils
         réapparaissent en pile dans la scène (`#pile-vetements`,
-        `pileGlissable: true`) que l'enfant glisse ensuite vers
-        `zone-dos` — réutilise `rendreGlissable()` tel quel (seule la
+        `pileGlissable: true`) que l'enfant glisse ensuite vers un
+        panier — réutilise `rendreGlissable()` tel quel (seule la
         source du glisser change, la liste vers la scène), pas de
         nouvelle fonction nécessaire.
+  - [x] **Panier de linge visible en permanence** — demandé
+        explicitement : `zone-dos` (invisible, ne s'affiche qu'au
+        survol pendant un glisser) remplacée par `zone-panier`, associée
+        à un panier 🧺 réellement visible à côté de Léon
+        (`#panier-linge`) dès le début de "Aller se coucher" — pas
+        seulement pendant la tâche "ranger" — pour que la cible soit
+        connue avant même que les vêtements ne tombent.
 - [x] **Refonte menu + routines + validation parent**, à partir des
       principes notés dans `docs/produit/` (routines indépendantes,
       relation mère-fille Routine ↔ Tâches, étoiles → jauge de journée,
