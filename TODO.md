@@ -364,6 +364,10 @@ prototype actuel.
         avance tout seul dès l'ouverture (`dentsEnCours`, vrai par
         défaut) ; la seule interaction possible est un bouton
         Pause/Reprendre dédié (`toggleDentsPause()`), jamais requis.
+  > **Le principe du mini-jeu de brossage est validé** (retour explicite),
+  > mais **pas figé** — d'autres améliorations sont prévues plus tard,
+  > pas encore précisées à ce stade. Ne pas considérer `screen-dents`
+  > comme la version finale en cas de refonte future du parcours.
 - [x] **"Enlève tes vêtements" glisse l'avatar, pas la carte** — pour se
       déshabiller (1ʳᵉ tâche de "Aller se coucher"), on tire maintenant
       l'avatar habillé (`avatarGlissable: true`) hors de la scène (vers
