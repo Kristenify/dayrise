@@ -365,17 +365,27 @@ prototype actuel.
 > n'a pas encore été revu par Léon** — à observer à la prochaine
 > utilisation.
 
-1. [ ] **Contenu des missions** — première aventure de contenu réel
+1. [ ] **Repasser tous les écrans un par un** — après la densification
+       récente (espace parent complet : relancer une routine, historique,
+       changer le code, planning du jour, catalogues Activités/Routines +
+       création), revalider chaque écran et chaque parcours en conditions
+       réelles plutôt que sur la seule lecture du code : le glisser-déposer,
+       les boutons retour, le pavé code, les formulaires de création
+       restent fluides sur tablette ; les enchaînements (verrouillage
+       séquentiel des routines, déblocage par heure de "Aller se coucher",
+       lien planning ↔ "Partir à l'aventure") se comportent comme prévu
+       après tous les ajouts récents ; rien n'a régressé.
+2. [ ] **Contenu des missions** — première aventure de contenu réel
        ajoutée ("Le magasin de bricolage", cf. "Fait" ci-dessus), mais
        `AVENTURES` reste en dur dans `app.js` (comme `ROUTINES`) : pas
        encore d'écran parent pour en programmer/reprogrammer. Reste à
        faire : plus d'aventures (orthophoniste redevient programmable
        avec une vraie date, vélo...) et leur paramétrage côté parent.
        Cf. `docs/produit/concept.md`.
-2. [ ] **Généraliser à Colette** — ses propres routines + calibrage doux
+3. [ ] **Généraliser à Colette** — ses propres routines + calibrage doux
        (handoff, écran 05 "deuxième peau"), preuve que l'architecture
        tient avec un 2ᵉ profil
-3. [ ] **Rendre le contenu pilotable côté parent** — plusieurs briques
+4. [ ] **Rendre le contenu pilotable côté parent** — plusieurs briques
        faites via l'espace parent (cf. "Fait" plus haut) : réordonner/
        retirer/ajouter les *items du planning du jour*, relancer une
        routine, changer le code, consulter l'historique. Reste en dur
@@ -385,10 +395,10 @@ prototype actuel.
        déjà pour le planning) ; le verrouillage séquentiel entre
        routines (toujours figé dans le code, indépendant de l'ordre du
        planning qui lui est éditable).
-4. [ ] **Barème de récompense de fin de journée** — actuellement juste
+5. [ ] **Barème de récompense de fin de journée** — actuellement juste
        "total d'étoiles affiché", pas de vraie récompense différenciée
        selon la quantité (cf. `docs/produit/concept.md`)
-5. [ ] **Direction artistique** — une fois le parcours éprouvé sur les
+6. [ ] **Direction artistique** — une fois le parcours éprouvé sur les
        deux enfants : intégrer les packs Bitglow ou affiner le
        procédural pour les pièces, brancher des sprites de décor sur
        l'app (aujourd'hui la scène reste un simple dégradé de fond)
