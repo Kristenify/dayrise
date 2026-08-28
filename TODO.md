@@ -344,6 +344,31 @@ prototype actuel.
         changement perceptible)
   - [x] Célébration à l'ouverture du coffre/récompense (confettis +
         rebond, en plus du son/vibration déjà là)
+- [x] **Mini-jeu brossage de dents** (`screen-dents`) — remplace le
+      badge ✨ obtenu par glisser-déposer (placeholder noté dans "Pas
+      encore designé") : la tâche `dents` de "Aller se coucher" a
+      maintenant `miniJeu: "dents"` au lieu de `zone`, et s'ouvre en
+      tapant sa ligne (`ouvrirMiniJeu()`) plutôt qu'en y glissant
+      l'icône. Minuteur de 3 minutes réparties en 6 zones dans l'ordre
+      où les brosser (haut-gauche → haut-devant → haut-droite →
+      bas-gauche → bas-devant → bas-droite, 30s chacune) : il faut
+      garder le doigt sur la zone en cours pour que son temps décompte
+      (relâcher ou toucher une autre zone met en pause, aucune zone ne
+      peut être sautée). Une fois les 6 zones épuisées, revient à la
+      routine avec la tâche marquée faite — même geste que les autres
+      (son, vibration, étoile de tâche, badge ✨ sur le visage de
+      l'avatar, toujours via `marquerTache()`).
+- [x] **"Enlève tes vêtements" glisse l'avatar, pas la carte** — pour se
+      déshabiller (1ʳᵉ tâche de "Aller se coucher"), on tire maintenant
+      l'avatar habillé (`avatarGlissable: true`) hors de la scène (vers
+      le bas) plutôt que de glisser une icône de liste jusqu'à lui —
+      sens plus logique que pour s'habiller, où le vêtement n'existe pas
+      encore sur l'avatar. `rendreAvatarGlissable()` (app.js), variante
+      de `rendreGlissable()` : clone `#avatar-wrap` au lieu d'une icône,
+      succès si lâché sous `#scene`. L'avatar respire doucement
+      (`.invite-glisser`) pendant que cette tâche est active, pour
+      remplacer l'invite visuelle que portait l'icône glissable
+      (retirée de la liste pour cette tâche précise).
 - [x] **Refonte menu + routines + validation parent**, à partir des
       principes notés dans `docs/produit/` (routines indépendantes,
       relation mère-fille Routine ↔ Tâches, étoiles → jauge de journée,
@@ -414,9 +439,6 @@ prototype actuel.
 
 ## Pas encore designé (cf. handoff, section "Ce qui n'est pas encore conçu")
 
-- **Mini-jeu brossage de dents** — salle de bain, devant un miroir,
-  animations dédiées pour bien brosser toutes les dents (pas un simple
-  glisser-déposer comme le reste).
 - **Routine petit-déjeuner** — cuisine, plusieurs sous-étapes (préparer la
   table, sortir le repas, manger...), pas une étape isolée.
 - Routine du soir
