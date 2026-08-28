@@ -24,7 +24,15 @@
  * configurable plus tard — cf. docs/produit/concept.md).
  */
 
-const CODE_PARENT = "1234";
+// Code parent : persisté à part (`leon_code_parent`), modifiable depuis
+// l'espace parent (cf. demarrerChangementCode()) — "1234" tant qu'aucun
+// nouveau code n'a été enregistré.
+function codeParentActuel() {
+  try { return localStorage.getItem("leon_code_parent") || "1234"; } catch (e) { return "1234"; }
+}
+function sauverCodeParent(code) {
+  try { localStorage.setItem("leon_code_parent", code); } catch (e) {}
+}
 
 // `calque` = data-calque (ou tableau de data-calque) à révéler sur le
 // sprite ; `retire: true` les CACHE au lieu de les révéler (routine du
@@ -72,6 +80,18 @@ const ROUTINES = [
     emoji: "🌙",
     lieu: "chambre",
     felicitation: "Bravo Léon, tu es prêt à dormir !",
+    // Volontairement PAS chaînée après "S'habiller"/"Se préparer à
+    // partir" (contrairement aux autres routines, cf. construireMenu()) :
+    // le coucher n'a rien à voir avec le fait d'être habillé pour sortir,
+    // et les enchaîner créait un vrai risque — si un parent relance
+    // "S'habiller" en soirée (cf. espace parent), "Aller se coucher" se
+    // serait retrouvée verrouillée juste avant le coucher. À la place,
+    // débloquée par l'heure : avant `disponibleApresHeure`, elle reste
+    // inaccessible (pour éviter l'autre risque inverse — un enfant qui
+    // irait se déshabiller pour "aller se coucher" en pleine journée sans
+    // avoir rien fait d'autre), après, elle l'est, indépendamment de
+    // l'état des autres routines.
+    disponibleApresHeure: 18,
     taches: [
       { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👕", zone: "zone-torse",
         calque: ["calque-haut", "calque-pantalon", "calque-chaussettes", "calque-chaussures", "calque-manteau"],
@@ -160,8 +180,36 @@ let aventureActuelleId = null;
 // parent de "On est arrivés" (cf. allerAuTrajet/allerValidationArrivee).
 let sensTrajet = "aller";
 
-function aventureParId(id) { return AVENTURES.find(a => a.id === id); }
-function aventuresDuJour() { return AVENTURES.filter(a => a.date === cleJour()); }
+// Activités créées par un parent (cf. ouvrirNouvelleAventure()) —
+// persistées à part de AVENTURES (qui reste le catalogue en dur du
+// code), jamais remises à zéro. `toutesLesAventures()` est la vue
+// combinée à utiliser partout où on cherche/liste des aventures, pour
+// que le reste du code n'ait pas à savoir laquelle des deux sources une
+// aventure donnée vient.
+function chargerAventuresPerso() {
+  try { return JSON.parse(localStorage.getItem("leon_aventures_perso") || "[]"); } catch (e) { return []; }
+}
+function sauverAventuresPerso(liste) {
+  try { localStorage.setItem("leon_aventures_perso", JSON.stringify(liste)); } catch (e) {}
+}
+function toutesLesAventures() { return AVENTURES.concat(chargerAventuresPerso()); }
+
+function aventureParId(id) { return toutesLesAventures().find(a => a.id === id); }
+function aventuresDuJour() { return toutesLesAventures().filter(a => a.date === cleJour()); }
+// Une aventure est accessible aujourd'hui dans "Partir à l'aventure" si
+// et seulement si elle est dans le planning du jour (`etat.planning`) —
+// pas directement via son champ `date`, qui ne sert qu'à l'y insérer une
+// première fois (cf. `planningParDefaut()`). Ça lie directement les
+// deux, comme demandé : ajouter/retirer une activité du planning
+// l'ajoute/la retire de "Partir à l'aventure", que ce soit via "Ajouter
+// à la journée" ou en créant une nouvelle activité.
+function aventuresPlanifieesAujourdhui() {
+  const etat = chargerEtat();
+  return etat.planning
+    .filter(it => it.type === "aventure")
+    .map(it => aventureParId(it.id))
+    .filter(Boolean);
+}
 
 // Planning par défaut d'une journée type (écran "Ma journée") : une
 // suite d'items `{ type: "routine"|"aventure"|"repas", id }`, dans
@@ -181,6 +229,13 @@ const PLANNING_DEFAUT = [
 ];
 function planningParDefaut() {
   const items = PLANNING_DEFAUT.map(ref => ({ ...ref }));
+  // Routines créées par un parent : absentes de PLANNING_DEFAUT (qui ne
+  // connaît que le catalogue en dur), donc ajoutées ici en plus, à la
+  // fin — récurrentes tous les jours comme les autres routines,
+  // contrairement aux aventures qui ne reviennent que si programmées.
+  chargerRoutinesPerso().forEach(r => {
+    if (!items.some(it => it.type === "routine" && it.id === r.id)) items.push({ type: "routine", id: r.id });
+  });
   aventuresDuJour().forEach(a => {
     const entree = { type: "aventure", id: a.id };
     const pos = a.apres ? items.findIndex(it => it.type === a.apres.type && it.id === a.apres.id) : -1;
@@ -208,7 +263,7 @@ function cleJour() {
 }
 function etatParDefaut() {
   const routines = {};
-  ROUTINES.forEach(r => { routines[r.id] = { fait: [], valide: false }; });
+  toutesLesRoutines().forEach(r => { routines[r.id] = { fait: [], valide: false }; });
   return { jour: cleJour(), routines, etoiles: 0, journeeFaite: false, planning: planningParDefaut() };
 }
 // Répare un état du jour dont la forme est incomplète (ex. un champ
@@ -224,7 +279,7 @@ function etatParDefaut() {
 function etatRepare(etat) {
   if (!etat || typeof etat !== "object" || etat.jour !== cleJour()) return null;
   if (!etat.routines || typeof etat.routines !== "object") return null;
-  ROUTINES.forEach(r => {
+  toutesLesRoutines().forEach(r => {
     if (!etat.routines[r.id] || !Array.isArray(etat.routines[r.id].fait)) {
       etat.routines[r.id] = { fait: [], valide: false };
     }
@@ -249,7 +304,7 @@ function archiverJournee(etat) {
     historique.push({
       jour: etat.jour,
       etoiles: etat.etoiles || 0,
-      routinesValidees: ROUTINES.filter(r => etat.routines[r.id] && etat.routines[r.id].valide).map(r => r.id),
+      routinesValidees: toutesLesRoutines().filter(r => etat.routines[r.id] && etat.routines[r.id].valide).map(r => r.id),
       journeeFaite: !!etat.journeeFaite,
     });
     while (historique.length > 90) historique.shift();
@@ -273,7 +328,20 @@ function chargerEtat() {
 function sauverEtat(etat) {
   try { localStorage.setItem("leon_journee", JSON.stringify(etat)); } catch (e) {}
 }
-function routineParId(id) { return ROUTINES.find(r => r.id === id); }
+// Routines créées par un parent (cf. creerNouvelleRoutine()) — même
+// principe que chargerAventuresPerso()/toutesLesAventures() : persistées
+// à part de ROUTINES (catalogue en dur), jamais remises à zéro,
+// fusionnées partout où le code cherche/liste des routines pour que le
+// reste ne distingue pas d'où une routine donnée vient.
+function chargerRoutinesPerso() {
+  try { return JSON.parse(localStorage.getItem("leon_routines_perso") || "[]"); } catch (e) { return []; }
+}
+function sauverRoutinesPerso(liste) {
+  try { localStorage.setItem("leon_routines_perso", JSON.stringify(liste)); } catch (e) {}
+}
+function toutesLesRoutines() { return ROUTINES.concat(chargerRoutinesPerso()); }
+
+function routineParId(id) { return toutesLesRoutines().find(r => r.id === id); }
 
 // Pièces : monnaie gagnée en aventure, distincte des étoiles de routine.
 // Stockée à part de `leon_journee` et JAMAIS remise à zéro au changement
@@ -289,8 +357,16 @@ function chargerPieces() {
 function sauverPieces(n) {
   try { localStorage.setItem("leon_pieces", JSON.stringify(n)); } catch (e) {}
 }
+// Seul point d'entrée qui écrit `leon_pieces` (avec `sauverPieces`,
+// jamais appelée ailleurs) : le total ne peut donc **jamais diminuer**,
+// même si `n` était un jour négatif par erreur (`Math.max(0, n)`) — les
+// pièces ne se remettent pas à zéro comme les étoiles, et rien dans
+// l'app ne doit pouvoir les retirer du compte, cf. plus haut ("dépensée
+// ... dans la vraie vie", pas une transaction dans l'app). Si Colette a
+// un jour son propre profil, réutiliser cette même fonction (avec sa
+// propre clé) plutôt qu'une variante parallèle, pour garder la garantie.
 function ajouterPieces(n) {
-  const total = chargerPieces() + n;
+  const total = chargerPieces() + Math.max(0, n);
   sauverPieces(total);
   return total;
 }
@@ -299,7 +375,7 @@ function ajouterPieces(n) {
 // l'avatar reste cohérent (habits déjà mis) sur tous les écrans
 function tachesFaitesPartout(etat) {
   const s = new Set();
-  ROUTINES.forEach(r => (etat.routines[r.id].fait || []).forEach(id => s.add(id)));
+  toutesLesRoutines().forEach(r => (etat.routines[r.id].fait || []).forEach(id => s.add(id)));
   return s;
 }
 
@@ -349,7 +425,7 @@ function synchroniserAvatar(etat) {
   const faites = tachesFaitesPartout(etat);
   const calques = new Set();
   const badges = {};
-  ROUTINES.forEach(r => r.taches.forEach(t => {
+  toutesLesRoutines().forEach(r => r.taches.forEach(t => {
     if (!faites.has(t.id)) return;
     if (t.calque) {
       const liste = Array.isArray(t.calque) ? t.calque : [t.calque];
@@ -378,7 +454,7 @@ function construireMenu() {
   // le code parent protège l'entrée en édition, pas juste un aller simple.
   journeeEnEdition = false;
 
-  if (ROUTINES.every(r => etat.routines[r.id].valide) && !etat.journeeFaite) {
+  if (toutesLesRoutines().every(r => etat.routines[r.id].valide) && !etat.journeeFaite) {
     allerFinDeJournee();
     return;
   }
@@ -388,7 +464,7 @@ function construireMenu() {
   // jauge de journée : une étoile par routine, gagnée une fois validée
   const jauge = document.getElementById("jauge-jour");
   jauge.innerHTML = "";
-  ROUTINES.forEach(r => {
+  toutesLesRoutines().forEach(r => {
     const etoile = document.createElement("div");
     etoile.className = "etoile-jauge" + (etat.routines[r.id].valide ? " gagnee" : "");
     etoile.textContent = "⭐";
@@ -398,20 +474,50 @@ function construireMenu() {
   document.getElementById("pieces-total").textContent = piecesTotal > 0 ? "🪙 " + piecesTotal : "";
 
   // cartes de routines : la première non validée est jouable, les
-  // suivantes restent grisées tant que la précédente n'est pas validée
+  // suivantes restent grisées tant que TOUTES les précédentes ne sont
+  // pas validées — pas juste l'immédiatement précédente. Distinction qui
+  // ne se voyait pas tant que les routines s'enchaînaient forcément dans
+  // l'ordre, mais compte depuis qu'un parent peut relancer une routine
+  // du milieu (cf. relancerRoutine()) : sans ça, une routine plus loin
+  // dans la liste réapparaîtrait débloquée juste parce que celle qui la
+  // précède immédiatement est restée validée, en sautant celle qu'on
+  // vient de relancer.
+  //
+  // Une routine avec `disponibleApresHeure` (ex. "Aller se coucher")
+  // sort volontairement de ce chaînage : ni bloquée par les précédentes,
+  // ni prise en compte pour bloquer une éventuelle suivante — débloquée
+  // par l'heure plutôt que par les autres routines (cf. sa définition
+  // dans ROUTINES pour le pourquoi).
   const liste = document.getElementById("liste-routines");
   liste.innerHTML = "";
-  let precedenteValidee = true;
-  ROUTINES.forEach(r => {
+  let toutPrecedentValide = true;
+  toutesLesRoutines().forEach(r => {
     const etatR = etat.routines[r.id];
-    const debloquee = precedenteValidee && !etatR.valide;
     const carte = document.createElement("div");
     carte.dataset.id = r.id;
-    carte.className = "carte-routine" + (etatR.valide ? " faite" : "") + (!precedenteValidee ? " verrouillee" : "");
-    carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (precedenteValidee ? "" : "🔒")}</div>`;
+
+    if (r.disponibleApresHeure !== undefined) {
+      const heureAtteinte = new Date().getHours() >= r.disponibleApresHeure;
+      const debloquee = heureAtteinte && !etatR.valide;
+      carte.className = "carte-routine" + (etatR.valide ? " faite" : (!heureAtteinte ? " verrouillee" : ""));
+      carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (heureAtteinte ? "" : "🕒")}</div>`;
+      if (debloquee) carte.onclick = () => demarrerRoutine(r.id);
+      else if (!etatR.valide) carte.onclick = () => dire("Ce n'est pas encore l'heure pour « " + r.nom + " ».");
+      liste.appendChild(carte);
+      return;
+    }
+
+    const debloquee = toutPrecedentValide && !etatR.valide;
+    // "verrouillee" ne s'applique qu'à une routine PAS ENCORE validée —
+    // sinon une routine déjà faite (ex. "Se préparer à partir") peut se
+    // retrouver visuellement "verrouillée" après qu'un parent a relancé
+    // une routine précédente depuis l'espace parent, alors qu'elle reste
+    // bel et bien validée.
+    carte.className = "carte-routine" + (etatR.valide ? " faite" : (!toutPrecedentValide ? " verrouillee" : ""));
+    carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (toutPrecedentValide ? "" : "🔒")}</div>`;
     if (debloquee) carte.onclick = () => demarrerRoutine(r.id);
     liste.appendChild(carte);
-    precedenteValidee = etatR.valide;
+    toutPrecedentValide = toutPrecedentValide && etatR.valide;
   });
 
   afficherEcran("screen-menu");
@@ -456,11 +562,12 @@ function allerVersDepart() {
   clignoterRoutine(manquantes[0].id);
 }
 
-// Écran des sorties du jour : liste les aventures programmées pour
-// aujourd'hui (`aventuresDuJour()`), sinon garde le texte d'origine
-// "Rien de prévu aujourd'hui !".
+// Écran des sorties du jour : liste les aventures du planning
+// (`aventuresPlanifieesAujourdhui()` — pas `aventuresDuJour()`, qui ne
+// sert qu'à l'ensemencement initial d'une nouvelle journée), sinon
+// garde le texte d'origine "Rien de prévu aujourd'hui !".
 function construireMissions() {
-  const duJour = aventuresDuJour();
+  const duJour = aventuresPlanifieesAujourdhui();
   const emoji = document.getElementById("missions-emoji");
   const texte = document.getElementById("missions-texte");
   const liste = document.getElementById("missions-liste");
@@ -547,13 +654,15 @@ function basculerEditionJournee() {
     construireJournee();
     return;
   }
+  ecranAvantValidation = document.querySelector(".screen.active").id;
   codeSaisi = "";
+  modeCode = "verifier";
   document.getElementById("validation-sous-titre").textContent = "Un parent entre le code pour modifier la journée.";
   document.getElementById("correction-wrap").classList.add("hidden");
   document.getElementById("pavecode-wrap").classList.remove("hidden");
   document.getElementById("pavecode-erreur").textContent = "";
-  construireClavier();
-  majCasesCode();
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   apresCodeValide = () => {
     journeeEnEdition = true;
     afficherEcran("screen-journee");
@@ -589,8 +698,9 @@ function ajouterItemPlanning(type, id) {
 
 // Catalogue d'ajout : tout ce qui existe (routines, aventures — pas
 // seulement celles du jour, un parent peut vouloir reprogrammer Pauline
-// par exemple —, repas) et n'est pas déjà dans le planning. Pas de
-// création libre pour l'instant, seulement piocher dans l'existant.
+// par exemple —, repas) et n'est pas déjà dans le planning. Inclut les
+// activités créées par un parent (cf. `toutesLesAventures()`) au même
+// titre que celles du catalogue en dur.
 function construireAjoutPlanning(etat) {
   const bloc = document.createElement("div");
   const label = document.createElement("div");
@@ -600,8 +710,8 @@ function construireAjoutPlanning(etat) {
 
   const dejaLa = new Set(etat.planning.map(it => it.type + ":" + it.id));
   const candidats = [
-    ...ROUTINES.map(r => ({ type: "routine", id: r.id, emoji: r.emoji, nom: r.nom })),
-    ...AVENTURES.map(a => ({ type: "aventure", id: a.id, emoji: a.emoji, nom: a.lieu })),
+    ...toutesLesRoutines().map(r => ({ type: "routine", id: r.id, emoji: r.emoji, nom: r.nom })),
+    ...toutesLesAventures().map(a => ({ type: "aventure", id: a.id, emoji: a.emoji, nom: a.lieu })),
     ...REPAS.map(r => ({ type: "repas", id: r.id, emoji: r.emoji, nom: r.nom })),
   ].filter(c => !dejaLa.has(c.type + ":" + c.id));
 
@@ -836,63 +946,119 @@ function finDeRoutine() {
 // ---------------------------------------------------------------------
 let codeSaisi = "";
 let apresCodeValide = null;
+// Écran actif juste avant d'ouvrir screen-validation (n'importe laquelle
+// de ses 5 entrées : validation de routine, édition de la journée,
+// espace parent, changement de code, confirmation d'arrivée) — capturé
+// pour que le bouton retour du bandeau puisse y ramener sans avoir à
+// connaître spécifiquement d'où on vient.
+let ecranAvantValidation = null;
+// "verifier" (code existant, cas normal) | "nouveau1"/"nouveau2" (les
+// deux saisies successives d'un nouveau code, cf. demarrerChangementCode()).
+let modeCode = "verifier";
+let premierNouveauCode = "";
+// Bouton de la correction (#btn-valider-routine) : sert à la fois à
+// valider une routine tout juste finie (étoile) et à confirmer une
+// relance de routine depuis l'espace parent (pas d'étoile en plus,
+// cf. confirmerRelanceRoutine()) — même écran/liste, action différente.
+let actionCorrection = null;
 
 function allerValidation() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
   const routine = routineParId(routineActuelleId);
   codeSaisi = "";
+  modeCode = "verifier";
   document.getElementById("validation-sous-titre").textContent =
     "Un parent entre le code pour valider « " + routine.nom + " ».";
   document.getElementById("correction-wrap").classList.add("hidden");
   document.getElementById("pavecode-wrap").classList.remove("hidden");
   document.getElementById("pavecode-erreur").textContent = "";
-  construireClavier();
-  majCasesCode();
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   apresCodeValide = () => {
+    document.getElementById("correction-note").textContent = "Décoche ce qui n'a pas vraiment été fait, puis valide.";
+    document.getElementById("btn-valider-routine").textContent = "Valider — donner l'étoile ⭐";
+    actionCorrection = validerRoutine;
     construireCorrection();
     document.getElementById("correction-wrap").classList.remove("hidden");
   };
   afficherEcran("screen-validation");
 }
 
-function construireClavier() {
-  const clavier = document.getElementById("pavecode-clavier");
-  clavier.innerHTML = "";
+// Généralisé (conteneur + callback) pour servir aussi bien le pavé du
+// code existant que celui d'un nouveau code (cf. demarrerChangementCode())
+// sans dupliquer le clavier.
+function construireClavier(conteneur, onTouche) {
+  conteneur.innerHTML = "";
   const touches = ["1","2","3","4","5","6","7","8","9","⌫","0","OK"];
   touches.forEach(t => {
     const b = document.createElement("button");
     b.className = "touche-code";
     b.textContent = t;
-    b.onclick = () => appuyerTouche(t);
-    clavier.appendChild(b);
+    b.onclick = () => onTouche(t);
+    conteneur.appendChild(b);
   });
 }
-function majCasesCode() {
-  const cases = document.querySelectorAll(".case-code");
-  cases.forEach((c, i) => c.classList.toggle("rempli", i < codeSaisi.length));
+function majCasesCode(conteneurCases, saisi) {
+  const cases = conteneurCases.querySelectorAll(".case-code");
+  cases.forEach((c, i) => c.classList.toggle("rempli", i < saisi.length));
 }
 function appuyerTouche(t) {
-  if (t === "⌫") { codeSaisi = codeSaisi.slice(0, -1); majCasesCode(); return; }
+  if (t === "⌫") { codeSaisi = codeSaisi.slice(0, -1); majCasesCode(document.getElementById("pavecode-cases"), codeSaisi); return; }
   if (t === "OK") { validerCode(); return; }
   if (codeSaisi.length >= 4) return;
   codeSaisi += t;
-  majCasesCode();
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   if (codeSaisi.length === 4) setTimeout(validerCode, 150);
 }
 function validerCode() {
-  if (codeSaisi === CODE_PARENT) {
-    document.getElementById("pavecode-erreur").textContent = "";
-    document.getElementById("pavecode-wrap").classList.add("hidden");
-    if (apresCodeValide) apresCodeValide();
-  } else {
-    document.getElementById("pavecode-erreur").textContent = "Code incorrect.";
+  const cases = document.getElementById("pavecode-cases");
+
+  if (modeCode === "verifier") {
+    if (codeSaisi === codeParentActuel()) {
+      document.getElementById("pavecode-erreur").textContent = "";
+      document.getElementById("pavecode-wrap").classList.add("hidden");
+      if (apresCodeValide) apresCodeValide();
+    } else {
+      document.getElementById("pavecode-erreur").textContent = "Code incorrect.";
+      codeSaisi = "";
+      majCasesCode(cases, codeSaisi);
+    }
+    return;
+  }
+
+  // Changement de code (cf. demarrerChangementCode()) : deux saisies
+  // identiques de suite avant d'être enregistré, comme un changement de
+  // mot de passe classique — évite d'enregistrer une faute de frappe.
+  if (modeCode === "nouveau1") {
+    premierNouveauCode = codeSaisi;
     codeSaisi = "";
-    majCasesCode();
+    modeCode = "nouveau2";
+    document.getElementById("validation-sous-titre").textContent = "Retape le même code pour confirmer.";
+    majCasesCode(cases, codeSaisi);
+    return;
+  }
+  // modeCode === "nouveau2"
+  if (codeSaisi === premierNouveauCode) {
+    sauverCodeParent(premierNouveauCode);
+    document.getElementById("pavecode-wrap").classList.add("hidden");
+    dire("Nouveau code enregistré.");
+    modeCode = "verifier";
+    construireEspaceParent();
+    afficherEcran("screen-parent");
+  } else {
+    document.getElementById("pavecode-erreur").textContent = "Les deux codes ne correspondent pas. On recommence.";
+    codeSaisi = "";
+    premierNouveauCode = "";
+    modeCode = "nouveau1";
+    document.getElementById("validation-sous-titre").textContent = "Entre le nouveau code à 4 chiffres.";
+    majCasesCode(cases, codeSaisi);
   }
 }
 
 // relecture/correction : toutes les tâches de la routine sont ici
 // déclickables (pas seulement l'étape en cours comme pendant la
-// routine), pour que le parent puisse décocher ce qui n'a pas été fait.
+// routine), pour que le parent puisse décocher ce qui n'a pas été fait
+// (ou plus vrai, cf. relancerRoutine()).
 function construireCorrection() {
   const etat = chargerEtat();
   const routine = routineParId(routineActuelleId);
@@ -926,6 +1092,401 @@ function validerRoutine() {
   if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
   routineActuelleId = null;
   construireMenu();
+}
+
+// ---------------------------------------------------------------------
+// Espace parent — hub protégé par le code, pour que les changements
+// faits ici aient un effet direct sur ce que l'enfant voit (même état
+// `leon_journee`/`localStorage`, pas un outil séparé). Cf.
+// docs/produit/concept.md pour la philosophie.
+// ---------------------------------------------------------------------
+function ouvrirEspaceParent() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
+  codeSaisi = "";
+  modeCode = "verifier";
+  document.getElementById("validation-sous-titre").textContent = "Un parent entre le code pour accéder à l'espace parent.";
+  document.getElementById("correction-wrap").classList.add("hidden");
+  document.getElementById("pavecode-wrap").classList.remove("hidden");
+  document.getElementById("pavecode-erreur").textContent = "";
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
+  apresCodeValide = () => {
+    construireEspaceParent();
+    afficherEcran("screen-parent");
+  };
+  afficherEcran("screen-validation");
+}
+
+function construireEspaceParent() {
+  const conteneur = document.getElementById("parent-contenu");
+  conteneur.innerHTML = "";
+  const options = [
+    {
+      emoji: "🔁", titre: "Relancer une routine",
+      soustitre: "Si l'état de Léon a changé (ex. il s'est redéshabillé)",
+      action: () => { construireParentRoutines(); afficherEcran("screen-parent-routines"); },
+    },
+    {
+      emoji: "🗓️", titre: "Planning du jour",
+      soustitre: "Réordonner, retirer ou ajouter les activités d'aujourd'hui",
+      action: () => { journeeEnEdition = true; construireJournee(); afficherEcran("screen-journee"); },
+    },
+    {
+      emoji: "📅", titre: "Historique des journées",
+      soustitre: "Revoir les jours précédents",
+      action: () => { construireHistorique(); afficherEcran("screen-parent-historique"); },
+    },
+    {
+      emoji: "🔑", titre: "Changer le code parent",
+      soustitre: "Code à 4 chiffres, actuellement " + codeParentActuel().replace(/./g, "•"),
+      action: () => { demarrerChangementCode(); },
+    },
+    {
+      emoji: "🗺️", titre: "Activités",
+      soustitre: "Voir toutes les sorties, ou en créer une nouvelle",
+      action: () => { construireParentActivites(); afficherEcran("screen-parent-activites"); },
+    },
+    {
+      emoji: "🧩", titre: "Routines",
+      soustitre: "Voir toutes les routines, ou en créer une nouvelle",
+      action: () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); },
+    },
+  ];
+  options.forEach(o => {
+    const carte = document.createElement("div");
+    carte.className = "carte-routine carte-parent" + (o.action ? "" : " verrouillee");
+    carte.innerHTML =
+      `<div class="carte-routine-nom">${o.emoji} ${o.titre}<div class="carte-parent-soustitre">${o.soustitre}</div></div>`;
+    if (o.action) carte.onclick = o.action;
+    conteneur.appendChild(carte);
+  });
+}
+
+// Liste des routines avec leur état, pour choisir laquelle relancer.
+// Toutes affichées (pas seulement les validées) : un parent peut aussi
+// vouloir corriger une routine en cours sans attendre la fin.
+function construireParentRoutines() {
+  const etat = chargerEtat();
+  const liste = document.getElementById("parent-routines-liste");
+  liste.innerHTML = "";
+  toutesLesRoutines().forEach(r => {
+    const etatR = etat.routines[r.id];
+    const etatTexte = etatR.valide
+      ? "✓ validée"
+      : (etatR.fait.length > 0 ? etatR.fait.length + "/" + r.taches.length : "pas commencée");
+    const carte = document.createElement("div");
+    carte.className = "carte-routine";
+    carte.innerHTML = `<div class="carte-routine-nom">${r.emoji} ${r.nom}</div><div class="carte-routine-etat">${etatTexte}</div>`;
+    carte.onclick = () => relancerRoutine(r.id);
+    liste.appendChild(carte);
+  });
+}
+
+// Réutilise l'écran/la liste de correction déjà construits pour la
+// validation parent (mêmes éléments DOM), mais sans redemander le code
+// (déjà dans l'espace parent authentifié) et avec une action différente
+// à la confirmation (cf. confirmerRelanceRoutine, pas de nouvelle étoile).
+function relancerRoutine(id) {
+  routineActuelleId = id;
+  const routine = routineParId(id);
+  document.getElementById("validation-sous-titre").textContent = "Relancer « " + routine.nom + " ».";
+  document.getElementById("pavecode-wrap").classList.add("hidden");
+  document.getElementById("correction-note").textContent = "Décoche ce qui n'est plus vrai, puis mets à jour.";
+  document.getElementById("btn-valider-routine").textContent = "Mettre à jour";
+  actionCorrection = confirmerRelanceRoutine;
+  construireCorrection();
+  document.getElementById("correction-wrap").classList.remove("hidden");
+  afficherEcran("screen-validation");
+}
+
+// Si la routine était validée, on retire l'étoile qu'elle avait
+// rapportée : elle sera regagnée quand l'enfant la revalidera pour de
+// bon, sinon le compteur d'étoiles serait gonflé. `journeeFaite` repasse
+// à faux : la journée n'est plus "finie" tant que cette routine ne l'est
+// pas à nouveau.
+function confirmerRelanceRoutine() {
+  const etat = chargerEtat();
+  const etatR = etat.routines[routineActuelleId];
+  if (etatR.valide) {
+    etatR.valide = false;
+    etat.etoiles = Math.max(0, (etat.etoiles || 0) - 1);
+  }
+  etat.journeeFaite = false;
+  sauverEtat(etat);
+  synchroniserAvatar(etat);
+  jouerSon();
+  if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+  routineActuelleId = null;
+  construireParentRoutines();
+  afficherEcran("screen-parent-routines");
+}
+
+function construireHistorique() {
+  const conteneur = document.getElementById("parent-historique-liste");
+  conteneur.innerHTML = "";
+  let historique = [];
+  try { historique = JSON.parse(localStorage.getItem("leon_historique") || "[]"); } catch (e) {}
+  if (historique.length === 0) {
+    const vide = document.createElement("div");
+    vide.className = "recompenses-vide";
+    vide.textContent = "Pas encore de journée archivée.";
+    conteneur.appendChild(vide);
+    return;
+  }
+  historique.slice().reverse().forEach(j => {
+    const noms = j.routinesValidees.map(id => { const r = routineParId(id); return r ? r.nom : id; });
+    const resume = noms.length > 0 ? noms.join(", ") : "aucune routine validée";
+    const ligne = document.createElement("div");
+    ligne.className = "ligne-journee";
+    ligne.innerHTML =
+      `<span class="emoji-journee">📅</span><span class="texte-journee">${j.jour} — ${j.etoiles} ⭐ — ${resume}</span>`;
+    conteneur.appendChild(ligne);
+  });
+}
+
+// Deux saisies identiques de suite avant d'enregistrer (cf. `validerCode()`,
+// branche "nouveau1"/"nouveau2") — réutilise le même pavé que la
+// vérification du code existant, pas de nouvel écran.
+function demarrerChangementCode() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
+  codeSaisi = "";
+  modeCode = "nouveau1";
+  premierNouveauCode = "";
+  document.getElementById("validation-sous-titre").textContent = "Entre le nouveau code à 4 chiffres.";
+  document.getElementById("correction-wrap").classList.add("hidden");
+  document.getElementById("pavecode-wrap").classList.remove("hidden");
+  document.getElementById("pavecode-erreur").textContent = "";
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
+  afficherEcran("screen-validation");
+}
+
+// Liste de toutes les activités (catalogue en dur + créées par un
+// parent) — accès + création, cf. carte "Activités" du hub. Toucher une
+// activité l'ajoute/la retire du planning du jour, donc de "Partir à
+// l'aventure" (même logique que le catalogue de "Ma journée", ici
+// recentré sur les seules activités).
+function construireParentActivites() {
+  const etat = chargerEtat();
+  const planifiees = new Set(etat.planning.filter(it => it.type === "aventure").map(it => it.id));
+  const liste = document.getElementById("parent-activites-liste");
+  liste.innerHTML = "";
+  toutesLesAventures().forEach(a => {
+    const programmee = planifiees.has(a.id);
+    const carte = document.createElement("div");
+    carte.className = "carte-routine" + (programmee ? " faite" : "");
+    carte.innerHTML =
+      `<div class="carte-routine-nom">${a.emoji} ${a.lieu}</div><div class="carte-routine-etat">${programmee ? "✓ aujourd'hui" : ""}</div>`;
+    carte.onclick = () => basculerActivitePlanning(a.id);
+    liste.appendChild(carte);
+  });
+}
+
+function basculerActivitePlanning(id) {
+  const etat = chargerEtat();
+  const pos = etat.planning.findIndex(it => it.type === "aventure" && it.id === id);
+  if (pos === -1) etat.planning.push({ type: "aventure", id }); else etat.planning.splice(pos, 1);
+  sauverEtat(etat);
+  construireParentActivites();
+}
+
+// Nouvelle activité : formulaire minimal. Une nouvelle aventure n'a ni
+// `personne` ni `date` fixe : elle est ajoutée directement au planning
+// du jour à la création (voir `creerNouvelleAventure()`), c'est ça qui
+// la rend accessible dans "Partir à l'aventure" plutôt qu'un champ date
+// à remplir.
+const EMOJI_ACTIVITE = ["🏊","🚲","🎨","🎪","🍕","🌳","⚽","🎬","🏥","🛒","🎵","🧩","🎡","🐶","🎳","🍦"];
+let emojiChoisiActivite = EMOJI_ACTIVITE[0];
+
+// Grille de choix d'emoji, générique (réutilisée par les formulaires
+// activité ET routine) : `conteneur` reçoit les boutons, `actuel` marque
+// celui sélectionné, `onChoix(e)` est rappelé au clic — à l'appelant de
+// mettre à jour sa variable et de reconstruire la grille.
+function construireGrilleEmoji(conteneur, liste, actuel, onChoix) {
+  conteneur.innerHTML = "";
+  liste.forEach(e => {
+    const b = document.createElement("button");
+    b.className = "emoji-choix-btn" + (e === actuel ? " choisi" : "");
+    b.textContent = e;
+    b.onclick = () => onChoix(e);
+    conteneur.appendChild(b);
+  });
+}
+function construireGrilleEmojiActivite() {
+  construireGrilleEmoji(document.getElementById("na-emoji-grille"), EMOJI_ACTIVITE, emojiChoisiActivite,
+    (e) => { emojiChoisiActivite = e; construireGrilleEmojiActivite(); });
+}
+
+function ouvrirNouvelleAventure() {
+  ["na-nom", "na-trajet", "na-arrivee", "na-etape1", "na-etape2", "na-etape3"]
+    .forEach(id => { document.getElementById(id).value = ""; });
+  document.getElementById("na-piece").checked = false;
+  document.getElementById("na-erreur").textContent = "";
+  emojiChoisiActivite = EMOJI_ACTIVITE[0];
+  construireGrilleEmojiActivite();
+  afficherEcran("screen-parent-nouvelle-aventure");
+}
+
+// Pré-remplit trajet/arrivée à partir du nom dès qu'il quitte le champ —
+// simple suggestion (grammaire pas garantie, ex. "à le" au lieu de "au"),
+// jamais écrasée si le parent a déjà tapé quelque chose dans ces champs.
+function suggererTextesActivite() {
+  const nom = document.getElementById("na-nom").value.trim();
+  if (!nom) return;
+  const trajetEl = document.getElementById("na-trajet");
+  const arriveeEl = document.getElementById("na-arrivee");
+  if (!trajetEl.value.trim()) trajetEl.value = "On roule vers " + nom + ".";
+  if (!arriveeEl.value.trim()) arriveeEl.value = "On est arrivés à " + nom + ".";
+}
+
+function creerNouvelleAventure() {
+  const nom = document.getElementById("na-nom").value.trim();
+  const texteTrajet = document.getElementById("na-trajet").value.trim();
+  const texteArrivee = document.getElementById("na-arrivee").value.trim();
+  const e1 = document.getElementById("na-etape1").value.trim();
+  const e2 = document.getElementById("na-etape2").value.trim();
+  const e3 = document.getElementById("na-etape3").value.trim();
+  const pieceOui = document.getElementById("na-piece").checked;
+
+  if (!nom || !texteTrajet || !texteArrivee || !e1 || !e2 || !e3) {
+    document.getElementById("na-erreur").textContent = "Remplis tous les champs avant de créer l'activité.";
+    return;
+  }
+
+  const nouvelle = {
+    id: "perso-" + Date.now(),
+    lieu: nom,
+    emoji: emojiChoisiActivite,
+    texteTrajet,
+    texteArrivee,
+    programme: ["1. " + e1, "2. " + e2, "3. " + e3],
+    recompensePieces: pieceOui ? 1 : 0,
+    texteTrajetRetour: "On a fini, on rentre à la maison.",
+    // Comme "Le magasin de bricolage" : après "Se préparer à partir",
+    // pas juste après le petit-déj — l'enfant ne peut de toute façon pas
+    // partir en aventure avant d'être habillé/prêt.
+    apres: { type: "routine", id: "partir" },
+  };
+
+  const perso = chargerAventuresPerso();
+  perso.push(nouvelle);
+  sauverAventuresPerso(perso);
+
+  const etat = chargerEtat();
+  etat.planning.push({ type: "aventure", id: nouvelle.id });
+  sauverEtat(etat);
+
+  dire("Nouvelle activité créée : " + nom + ".");
+  construireParentActivites();
+  afficherEcran("screen-parent-activites");
+}
+
+// Catalogue des routines (accès + création, carte "Routines" du hub).
+// Contrairement aux activités, une routine n'a pas d'interrupteur
+// jour par jour — elle fait partie du parcours tous les jours dès
+// qu'elle existe (cf. `toutesLesRoutines()`, `planningParDefaut()`).
+// Liste donc en lecture seule (mêmes lignes que l'historique, pas des
+// cartes tapables) plutôt qu'un bascule comme pour les activités — pour
+// corriger une routine précise, "Relancer une routine" reste l'écran
+// dédié.
+function construireRoutinesCatalogue() {
+  const etat = chargerEtat();
+  const liste = document.getElementById("parent-routines-catalogue-liste");
+  liste.innerHTML = "";
+  toutesLesRoutines().forEach(r => {
+    const etatR = etat.routines[r.id];
+    const etatTexte = etatR.valide
+      ? "✓ validée"
+      : (etatR.fait.length > 0 ? etatR.fait.length + "/" + r.taches.length : "pas commencée");
+    const ligne = document.createElement("div");
+    ligne.className = "ligne-journee";
+    ligne.innerHTML =
+      `<span class="emoji-journee">${r.emoji}</span><span class="texte-journee">${r.nom}</span><span class="carte-routine-etat">${etatTexte}</span>`;
+    liste.appendChild(ligne);
+  });
+}
+
+// Nouvelle routine : contrairement à une activité, une routine a un
+// nombre variable de tâches, chacune ciblant une zone précise de
+// l'avatar (`.zone-cible` dans index.html) — jusqu'à 5 lignes de tâche
+// fixes dans le formulaire, les vides sont simplement ignorées (au
+// moins une requise). Pas de `calque` proposé (ça demanderait un sprite
+// existant pour chaque nouveau vêtement/objet) : chaque tâche a son
+// propre emoji, affiché tel quel, sans effet persistant sur l'avatar —
+// comme "Range tes vêtements"/"On lit l'histoire" dans "Aller se
+// coucher" aujourd'hui.
+const EMOJI_ROUTINE = ["🪥","🛁","🧦","🧸","📚","🍽️","🧴","✏️","🧹","🚿","🎒","👕","🧼","⏰","🌟","🧦"];
+const ZONE_PAR_DEFAUT_ROUTINE = "zone-torse";
+let emojiChoisiRoutine = EMOJI_ROUTINE[0];
+let lieuChoisiRoutine = "chambre";
+
+function construireGrilleEmojiRoutine() {
+  construireGrilleEmoji(document.getElementById("nr-emoji-grille"), EMOJI_ROUTINE, emojiChoisiRoutine,
+    (e) => { emojiChoisiRoutine = e; construireGrilleEmojiRoutine(); });
+}
+
+function choisirLieuRoutine(lieu) {
+  lieuChoisiRoutine = lieu;
+  document.getElementById("nr-lieu-chambre").classList.toggle("choisi", lieu === "chambre");
+  document.getElementById("nr-lieu-salon").classList.toggle("choisi", lieu === "salon");
+}
+
+function ouvrirNouvelleRoutine() {
+  document.getElementById("nr-nom").value = "";
+  for (let i = 1; i <= 5; i++) {
+    document.getElementById("nr-t" + i + "-texte").value = "";
+    document.getElementById("nr-t" + i + "-emoji").value = "";
+    document.getElementById("nr-t" + i + "-zone").value = ZONE_PAR_DEFAUT_ROUTINE;
+  }
+  document.getElementById("nr-erreur").textContent = "";
+  emojiChoisiRoutine = EMOJI_ROUTINE[0];
+  construireGrilleEmojiRoutine();
+  choisirLieuRoutine("chambre");
+  afficherEcran("screen-parent-nouvelle-routine");
+}
+
+function creerNouvelleRoutine() {
+  const nom = document.getElementById("nr-nom").value.trim();
+  const taches = [];
+  for (let i = 1; i <= 5; i++) {
+    const texte = document.getElementById("nr-t" + i + "-texte").value.trim();
+    if (!texte) continue;
+    const emoji = document.getElementById("nr-t" + i + "-emoji").value.trim() || "✅";
+    const zone = document.getElementById("nr-t" + i + "-zone").value;
+    taches.push({ id: "t" + i, texte, emoji, zone });
+  }
+
+  if (!nom || taches.length === 0) {
+    document.getElementById("nr-erreur").textContent = "Donne un nom et remplis au moins une tâche avant de créer la routine.";
+    return;
+  }
+
+  const nouvelle = {
+    id: "routine-perso-" + Date.now(),
+    nom,
+    emoji: emojiChoisiRoutine,
+    lieu: lieuChoisiRoutine,
+    felicitation: "Bravo Léon, tu as fini : " + nom + " !",
+    taches,
+  };
+
+  const perso = chargerRoutinesPerso();
+  perso.push(nouvelle);
+  sauverRoutinesPerso(perso);
+
+  // Ajoutée tout de suite à l'état du jour (etat.routines) et au
+  // planning d'aujourd'hui — sinon `toutesLesRoutines()` la connaîtrait
+  // déjà, mais un `etat.routines`/`etat.planning` chargé avant sa
+  // création ne l'aurait pas. `planningParDefaut()` s'occupe des jours
+  // suivants (routine récurrente, cf. sa définition).
+  const etat = chargerEtat();
+  etat.routines[nouvelle.id] = { fait: [], valide: false };
+  etat.planning.push({ type: "routine", id: nouvelle.id });
+  sauverEtat(etat);
+
+  dire("Nouvelle routine créée : " + nom + ".");
+  construireRoutinesCatalogue();
+  afficherEcran("screen-parent-routines-catalogue");
 }
 
 // ---------------------------------------------------------------------
@@ -1034,16 +1595,18 @@ function partirEnActivite() {
 // validation d'une routine, mais sans étape de correction (rien à
 // décocher pour une simple confirmation d'arrivée).
 function allerValidationArrivee() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
   const a = aventureParId(aventureActuelleId);
   codeSaisi = "";
+  modeCode = "verifier";
   const lieu = sensTrajet === "retour" ? "la maison" : a.lieu;
   document.getElementById("validation-sous-titre").textContent =
     "Un parent entre le code pour confirmer l'arrivée : « " + lieu + " ».";
   document.getElementById("correction-wrap").classList.add("hidden");
   document.getElementById("pavecode-wrap").classList.remove("hidden");
   document.getElementById("pavecode-erreur").textContent = "";
-  construireClavier();
-  majCasesCode();
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   apresCodeValide = sensTrajet === "retour" ? () => terminerAventure(a) : () => allerAArrivee();
   afficherEcran("screen-validation");
 }
@@ -1132,7 +1695,13 @@ document.getElementById("btn-voix-arrivee").onclick = () => dire(document.getEle
 protegerParAppuiLong(document.getElementById("btn-reset-test"), reinitialiserTout);
 
 document.getElementById("btn-un-parent").onclick = allerValidation;
-document.getElementById("btn-valider-routine").onclick = validerRoutine;
+document.getElementById("btn-valider-routine").onclick = () => { if (actionCorrection) actionCorrection(); };
+// Retour discret : ramène à l'écran actif juste avant l'ouverture de
+// screen-validation (cf. ecranAvantValidation, capturé à chacune de ses
+// 5 entrées) — rien n'est perdu, aucune des 5 entrées ne modifie l'état
+// avant que le code soit validé (sauf décocher/recocher en relecture,
+// qui reste tel quel, cf. construireCorrection()).
+document.getElementById("btn-retour-validation").onclick = () => afficherEcran(ecranAvantValidation || "screen-menu");
 
 document.getElementById("btn-depart").onclick = allerVersDepart;
 document.getElementById("btn-retour-menu").onclick = construireMenu;
@@ -1143,6 +1712,25 @@ document.getElementById("btn-modifier-journee").onclick = basculerEditionJournee
 
 document.getElementById("btn-mes-recompenses").onclick = () => { construireRecompenses(); afficherEcran("screen-recompenses"); };
 document.getElementById("btn-retour-menu-recompenses").onclick = construireMenu;
+
+document.getElementById("btn-espace-parent").onclick = ouvrirEspaceParent;
+document.getElementById("btn-retour-menu-parent").onclick = construireMenu;
+document.getElementById("btn-retour-parent-routines").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("btn-retour-parent-historique").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+
+document.getElementById("na-nom").addEventListener("blur", suggererTextesActivite);
+document.getElementById("btn-creer-aventure").onclick = creerNouvelleAventure;
+document.getElementById("btn-retour-parent-nouvelle-aventure").onclick = () => { construireParentActivites(); afficherEcran("screen-parent-activites"); };
+
+document.getElementById("btn-nouvelle-activite").onclick = ouvrirNouvelleAventure;
+document.getElementById("btn-retour-parent-activites").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+
+document.getElementById("btn-nouvelle-routine").onclick = ouvrirNouvelleRoutine;
+document.getElementById("btn-retour-parent-routines-catalogue").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("nr-lieu-chambre").onclick = () => choisirLieuRoutine("chambre");
+document.getElementById("nr-lieu-salon").onclick = () => choisirLieuRoutine("salon");
+document.getElementById("btn-creer-routine").onclick = creerNouvelleRoutine;
+document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); };
 
 // Le bouton "Terminé !" du coffre ne va pas toujours au même endroit
 // (fin de journée vs retour d'aventure) : `coffreRetour` est fixé par

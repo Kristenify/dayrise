@@ -24,6 +24,11 @@
        usage réel si la journée doit être recommencée. -->
   <button id="btn-reset-test" title="Maintenir pour recommencer la journée">↺</button>
 
+  <!-- Entrée de l'espace parent, visible sur tous les écrans — pas
+       protégée par appui long (pas destructif : ouvre juste l'écran du
+       code, cf. ouvrirEspaceParent() dans app.js), symétrique du reset. -->
+  <button id="btn-espace-parent" aria-label="Espace parent" title="Espace parent">⚙️</button>
+
   <!-- ============ 0. Menu de la journée ============ -->
   <div id="screen-menu" class="screen active">
     <div class="barre-haut">
@@ -70,6 +75,7 @@
   <!-- ============ Aventures / missions du jour ============ -->
   <div id="screen-missions" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-menu" aria-label="Retour au menu">←</button>
       <div class="prenom-actif">Les sorties du jour</div>
       <div></div>
     </div>
@@ -77,29 +83,28 @@
       <div id="missions-emoji">🚗</div>
       <div id="missions-texte" class="texte-consigne">Rien de prévu aujourd'hui !</div>
       <div id="missions-liste"></div>
-      <button class="btn-continuer" id="btn-retour-menu">Retour</button>
     </div>
   </div>
 
   <!-- ============ Ma journée (planning chronologique) ============ -->
   <div id="screen-journee" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-menu-journee" aria-label="Retour au menu">←</button>
       <div class="prenom-actif">Ma journée</div>
       <button class="btn-voix" id="btn-modifier-journee" aria-label="Modifier la journée">✏️</button>
       <div></div>
     </div>
     <div id="journee-contenu"></div>
-    <button class="btn-continuer" id="btn-retour-menu-journee">Retour</button>
   </div>
 
   <!-- ============ Mes récompenses (étoiles + pièces à collectionner) ============ -->
   <div id="screen-recompenses" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-menu-recompenses" aria-label="Retour au menu">←</button>
       <div class="prenom-actif">Mes récompenses</div>
       <div></div>
     </div>
     <div id="recompenses-contenu"></div>
-    <button class="btn-continuer" id="btn-retour-menu-recompenses">Retour</button>
   </div>
 
   <!-- ============ 1. Écran d'une routine (générique, alimenté par ROUTINES) ============ -->
@@ -157,6 +162,7 @@
   <!-- ============ 3. Validation parent (code + relecture/correction) ============ -->
   <div id="screen-validation" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-validation" aria-label="Retour">←</button>
       <div class="prenom-actif">Un parent valide</div>
       <div></div>
     </div>
@@ -178,6 +184,200 @@
       <div id="correction-liste"></div>
       <button class="btn-continuer" id="btn-valider-routine">Valider — donner l'étoile ⭐</button>
     </div>
+  </div>
+
+  <!-- ============ Espace parent (hub) ============ -->
+  <div id="screen-parent" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-menu-parent" aria-label="Retour au menu">←</button>
+      <div class="prenom-actif">Espace parent</div>
+      <div></div>
+    </div>
+    <div id="parent-contenu"></div>
+  </div>
+
+  <!-- ============ Espace parent : relancer une routine ============ -->
+  <div id="screen-parent-routines" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-routines" aria-label="Retour à l'espace parent">←</button>
+      <div class="prenom-actif">Relancer une routine</div>
+      <div></div>
+    </div>
+    <div class="texte-consigne">Si l'état de Léon a changé (ex. il s'est redéshabillé), choisis la routine à relancer.</div>
+    <div id="parent-routines-liste"></div>
+  </div>
+
+  <!-- ============ Espace parent : historique des journées ============ -->
+  <div id="screen-parent-historique" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-historique" aria-label="Retour à l'espace parent">←</button>
+      <div class="prenom-actif">Historique</div>
+      <div></div>
+    </div>
+    <div id="parent-historique-liste"></div>
+  </div>
+
+  <!-- ============ Espace parent : activités ============ -->
+  <div id="screen-parent-activites" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-activites" aria-label="Retour à l'espace parent">←</button>
+      <div class="prenom-actif">Activités</div>
+      <div></div>
+    </div>
+    <div class="texte-consigne">Touche une activité pour l'ajouter ou la retirer d'aujourd'hui.</div>
+    <div id="parent-activites-liste"></div>
+    <button class="btn-continuer" id="btn-nouvelle-activite">➕ Nouvelle activité</button>
+  </div>
+
+  <!-- ============ Espace parent : catalogue des routines ============ -->
+  <div id="screen-parent-routines-catalogue" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-routines-catalogue" aria-label="Retour à l'espace parent">←</button>
+      <div class="prenom-actif">Routines</div>
+      <div></div>
+    </div>
+    <div id="parent-routines-catalogue-liste"></div>
+    <button class="btn-continuer" id="btn-nouvelle-routine">➕ Nouvelle routine</button>
+  </div>
+
+  <!-- ============ Espace parent : nouvelle routine ============ -->
+  <div id="screen-parent-nouvelle-routine" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-nouvelle-routine" aria-label="Annuler">←</button>
+      <div class="prenom-actif">Nouvelle routine</div>
+      <div></div>
+    </div>
+    <div id="nouvelle-routine-contenu">
+      <label class="champ-parent">
+        <span>Nom de la routine</span>
+        <input type="text" id="nr-nom" placeholder="Ex : Le bain" maxlength="40">
+      </label>
+      <div class="champ-parent">
+        <span>Icône</span>
+        <div id="nr-emoji-grille"></div>
+      </div>
+      <div class="champ-parent">
+        <span>Lieu (teinte du décor)</span>
+        <div class="nr-lieu-choix">
+          <button type="button" class="nr-lieu-btn choisi" id="nr-lieu-chambre">Chambre</button>
+          <button type="button" class="nr-lieu-btn" id="nr-lieu-salon">Salon</button>
+        </div>
+      </div>
+      <div class="texte-consigne" style="margin: 8px 0 0;">Remplis au moins une tâche (dans l'ordre). « Zone » = où glisser l'icône sur Léon.</div>
+
+      <div class="tache-parent">
+        <span class="tache-parent-num">1</span>
+        <input type="text" class="tache-parent-texte" id="nr-t1-texte" placeholder="Ex : Brosse-toi les dents.">
+        <input type="text" class="tache-parent-emoji" id="nr-t1-emoji" placeholder="🪥" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t1-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div class="tache-parent">
+        <span class="tache-parent-num">2</span>
+        <input type="text" class="tache-parent-texte" id="nr-t2-texte" placeholder="Ex : Entre dans le bain.">
+        <input type="text" class="tache-parent-emoji" id="nr-t2-emoji" placeholder="🛁" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t2-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div class="tache-parent">
+        <span class="tache-parent-num">3</span>
+        <input type="text" class="tache-parent-texte" id="nr-t3-texte" placeholder="Ex : Lave-toi.">
+        <input type="text" class="tache-parent-emoji" id="nr-t3-emoji" placeholder="🧼" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t3-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div class="tache-parent">
+        <span class="tache-parent-num">4</span>
+        <input type="text" class="tache-parent-texte" id="nr-t4-texte" placeholder="Ex : Sors et sèche-toi.">
+        <input type="text" class="tache-parent-emoji" id="nr-t4-emoji" placeholder="🧺" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t4-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div class="tache-parent">
+        <span class="tache-parent-num">5</span>
+        <input type="text" class="tache-parent-texte" id="nr-t5-texte" placeholder="Ex : Mets ton pyjama.">
+        <input type="text" class="tache-parent-emoji" id="nr-t5-emoji" placeholder="👕" maxlength="4">
+        <select class="tache-parent-zone" id="nr-t5-zone">
+          <option value="zone-visage">Visage</option>
+          <option value="zone-torse">Torse</option>
+          <option value="zone-bassin">Bassin</option>
+          <option value="zone-jambes">Jambes</option>
+          <option value="zone-pieds">Pieds</option>
+          <option value="zone-dos">Dos</option>
+        </select>
+      </div>
+      <div id="nr-erreur" class="texte-erreur"></div>
+    </div>
+    <button class="btn-continuer" id="btn-creer-routine">Créer et ajouter à la journée</button>
+  </div>
+
+  <!-- ============ Espace parent : nouvelle activité ============ -->
+  <div id="screen-parent-nouvelle-aventure" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-nouvelle-aventure" aria-label="Annuler">←</button>
+      <div class="prenom-actif">Nouvelle activité</div>
+      <div></div>
+    </div>
+    <div id="nouvelle-aventure-contenu">
+      <label class="champ-parent">
+        <span>Nom de l'activité</span>
+        <input type="text" id="na-nom" placeholder="Ex : La piscine" maxlength="40">
+      </label>
+      <div class="champ-parent">
+        <span>Icône</span>
+        <div id="na-emoji-grille"></div>
+      </div>
+      <label class="champ-parent">
+        <span>Texte pendant le trajet</span>
+        <input type="text" id="na-trajet" placeholder="Ex : On roule vers la piscine." maxlength="80">
+      </label>
+      <label class="champ-parent">
+        <span>Texte à l'arrivée</span>
+        <input type="text" id="na-arrivee" placeholder="Ex : On est arrivés à la piscine." maxlength="80">
+      </label>
+      <label class="champ-parent">
+        <span>1ʳᵉ étape sur place</span>
+        <input type="text" id="na-etape1" placeholder="Ex : On se change." maxlength="60">
+      </label>
+      <label class="champ-parent">
+        <span>2ᵉ étape sur place</span>
+        <input type="text" id="na-etape2" placeholder="Ex : On nage." maxlength="60">
+      </label>
+      <label class="champ-parent">
+        <span>3ᵉ étape sur place</span>
+        <input type="text" id="na-etape3" placeholder="Ex : On se rhabille." maxlength="60">
+      </label>
+      <label class="champ-parent champ-parent-case">
+        <input type="checkbox" id="na-piece">
+        <span>Donne une pièce 🪙 à la fin</span>
+      </label>
+      <div id="na-erreur" class="texte-erreur"></div>
+    </div>
+    <button class="btn-continuer" id="btn-creer-aventure">Créer et ajouter à aujourd'hui</button>
   </div>
 
   <!-- ============ 4. Récompense de fin de journée ============ -->

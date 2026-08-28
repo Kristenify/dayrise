@@ -20,6 +20,20 @@ http.server`, ou l'équivalent utilisé pendant le développement) reste
 utile pour tester en cours de route, mais n'est jamais ce que la
 tablette de Léon doit charger au quotidien.
 
+**Piège de test une fois le service worker actif** : après avoir modifié
+`app.js`/`styles.css`/`index.html`, un simple rechargement du navigateur
+peut continuer à servir l'ancienne version depuis le cache
+(stale-while-revalidate sert le cache en premier, cf. `sw.js`). Pendant
+le développement, désenregistrer le service worker et vider le cache
+avant de retester :
+```js
+navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+caches.keys().then(ns => ns.forEach(n => caches.delete(n)));
+```
+(bug réel rencontré en testant l'espace parent dans cette session — un
+correctif semblait ne rien changer, alors qu'il était simplement masqué
+par le cache).
+
 ## Ce qui est couvert
 
 Un seul enfant (Léon), un seul jour type. Modèle : une **Routine** a une
@@ -35,20 +49,29 @@ liste ordonnée de **Tâches** (relation mère-fille — voir
   saison.
 - **"Aller se coucher"** — enlève les vêtements (retire plusieurs
   calques d'un coup, `retire: true`) → range/sale → dents → histoire →
-  coucher.
+  coucher. **Débloquée par l'heure** (`disponibleApresHeure: 18`), pas
+  par les autres routines — volontairement sortie du chaînage séquentiel
+  (cf. plus bas, "Menu de la journée").
 
 Séquence :
 
 1. **Menu de la journée** — liste des routines. Seule la première non
    validée est cliquable ; les suivantes sont grisées/verrouillées (🔒)
-   tant que la précédente n'est pas validée. L'avatar y est affiché dans
-   son état réel du moment (habillé ou non selon ce qui est déjà fait),
-   avec une jauge de journée (une étoile par routine validée), et une
-   horloge (jour + heure, `#horloge`/`majHorloge()`, purement
-   informative). Un bouton voiture 🚗 distinct ("Partir à l'aventure")
-   ouvre `screen-missions` (actuellement vide, pas encore de mission)
-   **seulement si** "Se préparer à partir" est validée — sinon il ramène
-   directement dans cette routine (`allerVersDepart()`).
+   tant que **toutes** les précédentes ne sont pas validées (pas
+   seulement l'immédiatement précédente — sinon relancer une routine du
+   milieu depuis l'espace parent peut laisser une routine plus loin
+   débloquée à tort, cf. `construireMenu()`, `toutPrecedentValide`). Une
+   routine peut sortir de ce chaînage et se débloquer par l'heure plutôt
+   que par les précédentes (`disponibleApresHeure`, cf. "Aller se
+   coucher" plus haut) — icône 🕒 au lieu de 🔒, message vocal dédié tant
+   que l'heure n'est pas là. L'avatar y est affiché dans son état réel du
+   moment (habillé ou non selon ce qui est déjà fait), avec une jauge de
+   journée (une étoile par routine validée), et une horloge (jour +
+   heure, `#horloge`/`majHorloge()`, purement informative). Un bouton
+   voiture 🚗 distinct ("Partir à l'aventure") ouvre `screen-missions`
+   (actuellement vide, pas encore de mission) **seulement si** "Se
+   préparer à partir" est validée — sinon il ramène directement dans
+   cette routine (`allerVersDepart()`).
 2. **Écran de routine** (générique, alimenté par la routine choisie) —
    liste récapitulative complète toujours visible (l'enfant mesure ce
    qu'il reste à faire), ordre imposé (une seule tâche actionnable à la
@@ -106,6 +129,49 @@ Séquence :
    brillent au toucher). La pièce affiche un petit portrait de Léon
    teinté façon profil gravé sur une pièce d'or (`.piece-visage`),
    recadré depuis le sprite avatar existant — pas de nouvel asset dédié.
+9. **Espace parent** (`ouvrirEspaceParent()`, bouton ⚙️ discret en haut à
+   gauche, sur tous les écrans — symétrique du reset, mais un simple tap
+   suffit : rien ici n'est destructif) — hub protégé par le code parent,
+   **directement lié à l'espace enfant** (même `app.js`, même état,
+   aucun outil séparé) :
+   - **Relancer une routine** — pour corriger l'état si Léon a changé
+     entre-temps (ex. redéshabillé après une routine validée). Réutilise
+     l'écran de correction déjà existant (`construireCorrection()`,
+     `screen-validation`) plutôt que d'en dupliquer un : mêmes tâches
+     décochables, bouton "Mettre à jour" au lieu de "Valider". Si la
+     routine était validée, son étoile est retirée (regagnée à la
+     revalidation par Léon) et `journeeFaite` repasse à `false`.
+   - **Historique des journées** — lecture seule de `leon_historique`.
+   - **Changer le code parent** — deux saisies identiques de suite avant
+     d'enregistrer, réutilise le même pavé numérique que la vérification
+     (généralisé, cf. "Points d'entrée" plus bas).
+   - **Planning du jour** — lien direct vers le mode édition de "Ma
+     journée" existant, sans redemander le code.
+   - **Activités** — liste toutes les activités (`toutesLesAventures()`),
+     chacune tapable pour l'ajouter/retirer du planning du jour
+     (`basculerActivitePlanning()`) — donc de "Partir à l'aventure".
+     Bouton "+ Nouvelle activité" → formulaire (nom, icône, texte du
+     trajet, texte de l'arrivée, 3 étapes sur place, pièce à la fin
+     oui/non), ajoutée directement au planning du jour à la création
+     (`creerNouvelleAventure()`) — c'est ce qui la rend accessible dans
+     "Partir à l'aventure" tout de suite, pas un champ date à renseigner.
+     Persistée à part (`leon_aventures_perso`), fusionnée avec le
+     catalogue en dur `AVENTURES` via `toutesLesAventures()` partout où
+     le code cherche une aventure — pas de distinction entre les deux
+     sources ailleurs dans l'app.
+   - **Routines** — liste toutes les routines (`toutesLesRoutines()`)
+     avec leur état du jour, en **lecture seule** (contrairement aux
+     activités, pas de bascule planning : une routine fait partie du
+     parcours tous les jours dès qu'elle existe, pas d'interrupteur jour
+     par jour). Bouton "+ Nouvelle routine" → formulaire (nom, icône,
+     lieu chambre/salon, jusqu'à 5 tâches — texte + emoji + zone parmi
+     les 6 `.zone-cible`). Pas de `calque` proposé (demanderait un sprite
+     existant) : chaque tâche a son propre emoji, sans effet persistant
+     sur l'avatar. Persistée à part (`leon_routines_perso`), fusionnée
+     avec `ROUTINES` via `toutesLesRoutines()`, utilisée partout où
+     `app.js` cherchait `ROUTINES` directement (menu, avatar, jauge,
+     planning...) pour qu'une routine créée se comporte identiquement à
+     une du catalogue en dur.
 
 Voix : synthèse vocale native du navigateur (`SpeechSynthesis`, `fr-FR`),
 annoncée automatiquement à chaque nouvelle étape, rejouable via le bouton
@@ -187,8 +253,30 @@ L'**historique** des journées passées est dans une troisième clé,
 chaque journée y est archivée (`archiverJournee()`) au moment où
 `chargerEtat()` détecte un changement de date, juste avant que
 `leon_journee` ne soit écrasée par la nouvelle journée. Entrée :
-`{ jour, etoiles, routinesValidees: [...ids], journeeFaite }`. Pas
-encore d'écran pour la consulter, juste le stockage pour l'instant.
+`{ jour, etoiles, routinesValidees: [...ids], journeeFaite }`. Consultable
+en lecture seule depuis l'espace parent (`construireHistorique()`).
+
+Le **code parent** est dans une quatrième clé, `leon_code_parent` (une
+chaîne de 4 chiffres), absente tant qu'il n'a jamais été changé —
+`codeParentActuel()` retombe alors sur `"1234"`. Modifiable depuis
+l'espace parent (`demarrerChangementCode()`/`sauverCodeParent()`).
+
+Les **activités créées par un parent** sont dans une cinquième clé,
+`leon_aventures_perso` (tableau d'objets au même format que les entrées
+de `AVENTURES`), jamais remise à zéro. `toutesLesAventures()` = `AVENTURES`
++ ce tableau : c'est cette fonction qu'il faut utiliser partout où on
+cherche/liste des aventures (`aventureParId()`, le catalogue "Ajouter à
+la journée"...), jamais `AVENTURES` seul, sous peine d'ignorer les
+activités créées depuis l'app.
+
+Les **routines créées par un parent** suivent exactement le même
+principe dans une sixième clé, `leon_routines_perso` (même format que
+les entrées de `ROUTINES`), fusionnée via `toutesLesRoutines()` =
+`ROUTINES` + ce tableau. **`ROUTINES` seul ne doit quasiment jamais être
+utilisé directement dans le code** (menu, avatar, jauge, planning,
+historique...) — toujours `toutesLesRoutines()`, sous peine qu'une
+routine créée depuis l'app se comporte différemment de celles du
+catalogue en dur.
 
 **Important si tu changes la forme de `leon_journee`** :
 `chargerEtat()` appelle `etatRepare()`, qui **complète en place** les
@@ -213,9 +301,15 @@ le mécanisme principal.
   qu'avant : `zone` doit correspondre à un élément `.zone-cible` dans
   `index.html`, `calque` révèle un sprite existant dans `assets/avatar/`
   via `data-calque`, `badge` affiche un emoji via `data-badge` si aucun
-  sprite n'existe encore). Ajouter une routine = ajouter une entrée ici ;
-  elle apparaît automatiquement au menu, verrouillée jusqu'à ce que la
-  précédente soit validée.
+  sprite n'existe encore), et `disponibleApresHeure` optionnel (nombre,
+  0-23) : si présent, la routine sort du chaînage séquentiel et se
+  débloque à partir de cette heure au lieu d'attendre que les précédentes
+  soient validées (cf. "Aller se coucher"). Ajouter une routine en dur =
+  ajouter une entrée ici ; pour une routine créée par un parent depuis
+  l'app, cf. `leon_routines_perso`/`toutesLesRoutines()` plus haut — même
+  format, juste dans l'autre tableau. Une routine apparaît automatiquement
+  au menu, verrouillée jusqu'à ce que la précédente soit validée (sauf si
+  elle a `disponibleApresHeure`).
 - `REPAS` (`app.js`) — tableau plat `{ id, nom, emoji }`, purement
   informatif pour l'écran "Ma journée" (pas de tâches, pas d'horaire).
 - `AVENTURES` (`app.js`) — tableau d'aventures, chacune avec `lieu`,
@@ -223,15 +317,21 @@ le mécanisme principal.
   retour vers la maison — texte générique par défaut si absent),
   `programme` (3 lignes), `personne` optionnelle (`{ emoji, nom }`,
   affiche un 2ᵉ sprite à l'arrivée à côté du vrai avatar de Léon), `date`
-  optionnelle (format `cleJour()`, ex. `"2026-8-27"` — absente =
-  n'apparaît jamais toute seule dans les sorties du jour), `apres`
+  optionnelle (format `cleJour()`, ex. `"2026-8-27"` — sert uniquement à
+  ensemencer le planning d'une nouvelle journée via `planningParDefaut()`,
+  cf. plus bas ; absente pour une activité créée depuis l'espace parent,
+  qui est ajoutée directement au planning à la création), `apres`
   optionnelle (`{ type, id }` d'un autre item du planning — où l'insérer
   dans `PLANNING_DEFAUT` quand elle est programmée ; absente = ajoutée en
   fin de journée) et `recompensePieces` (0 = pas de récompense propre,
   sinon une pièce sort du coffre une fois le retour à la maison
-  confirmé). Ajouter une aventure = ajouter une entrée ici ; avec une
-  `date` d'aujourd'hui elle apparaît automatiquement dans
-  `screen-missions` et dans "Ma journée".
+  confirmé). Ajouter une aventure = ajouter une entrée ici. **Ce qui la
+  rend accessible dans "Partir à l'aventure" n'est plus `date` mais sa
+  présence dans `etat.planning` du jour** (`aventuresPlanifieesAujourdhui()`,
+  utilisée par `construireMissions()`) — `date` ne fait que la faire
+  entrer dans ce planning la première fois qu'un jour est ensemencé,
+  après quoi le planning (édité par un parent ou peuplé à la création
+  d'une activité) fait foi.
 - `PLANNING_DEFAUT` (`app.js`) — le squelette de journée type utilisé par
   `planningParDefaut()` pour initialiser `etat.planning` à chaque
   nouveau jour (avant édition éventuelle par un parent, cf. plus haut).
@@ -262,3 +362,9 @@ le mécanisme principal.
   ajoute-le ici aussi, sinon il ne sera pas disponible hors-ligne.
   Incrémenter `CACHE_NAME` (ex. `dayrise-v2`) force le renouvellement du
   cache d'un appareil déjà installé au prochain chargement en ligne.
+- `construireClavier(conteneur, onTouche)` / `majCasesCode(conteneurCases, saisi)`
+  (`app.js`) — pavé numérique générique (partagé entre la vérification du
+  code existant et la saisie d'un nouveau code, cf. `modeCode` dans
+  `validerCode()`), pas un composant par écran. Pour un nouvel écran de
+  code, appeler ces deux fonctions avec les éléments `.case-code`/
+  `.touche-code` de cet écran plutôt que d'en dupliquer le HTML/JS.

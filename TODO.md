@@ -212,6 +212,119 @@ prototype actuel.
       la redistribution en fichiers autonomes, incompatible avec un repo
       public (cf. `.gitignore`) — ces assets restent en local uniquement,
       l'app déployée ne les utilise pas de toute façon.
+- [x] **Espace parent (v1)** — hub protégé par le code (bouton ⚙️
+      discret, `position: fixed`, visible sur tous les écrans comme le
+      reset, mais pas protégé par appui long : pas destructif). **Lié
+      directement à l'espace enfant** — même `app.js`, même
+      `localStorage`, pas d'outil séparé : un changement fait ici a un
+      effet immédiat sur ce que Léon voit (cf.
+      `docs/produit/concept.md`). Options accessibles :
+  - [x] **Relancer une routine** (demandé explicitement : si l'état de
+        Léon a changé, ex. il s'est redéshabillé en rentrant) — liste
+        toutes les routines avec leur état, taper l'une d'elles réutilise
+        l'écran de correction déjà existant (mêmes éléments DOM que la
+        validation parent, pas de duplication) pour décocher ce qui n'est
+        plus vrai. À la confirmation (`confirmerRelanceRoutine()`) : si
+        la routine était validée, son étoile est retirée (sera regagnée
+        à la revalidation, pour ne pas gonfler le compteur) et
+        `journeeFaite` repasse à faux. **Corrige un vrai bug découvert en
+        testant cette fonctionnalité** : le déblocage/verrouillage des
+        routines au menu ne regardait que la routine *immédiatement*
+        précédente, pas toutes les précédentes — en relançant une
+        routine du milieu, une routine plus loin dans la liste pouvait se
+        retrouver débloquée à tort en sautant celle qu'on venait de
+        relancer (cf. `construireMenu()`, `toutPrecedentValide`).
+  - [x] **Historique des journées** — lecture seule de `leon_historique`
+        (déjà stocké, cf. plus haut), jour/étoiles/routines validées,
+        plus récent en premier.
+  - [x] **Changer le code parent** — deux saisies identiques de suite
+        avant d'enregistrer (comme un changement de mot de passe),
+        réutilise le même pavé numérique que la vérification du code
+        existant (`construireClavier()`/`majCasesCode()` généralisés pour
+        prendre un conteneur + callback, au lieu d'être dupliqués).
+        Code persisté à part (`leon_code_parent`), "1234" par défaut tant
+        qu'aucun nouveau code n'est enregistré.
+  - [x] **Planning du jour** — pas une nouvelle fonctionnalité, juste un
+        lien direct vers le mode édition de "Ma journée" déjà existant
+        (entre directement en édition, sans redemander le code — déjà
+        authentifié dans l'espace parent).
+  - [x] **Activités** (demandé explicitement, en deux temps : d'abord un
+        formulaire de création directe, puis reformulé en un vrai menu
+        d'accès + création) — liste **toutes** les activités
+        (`toutesLesAventures()` : catalogue en dur + créées par un
+        parent), chacune tapable pour l'**ajouter/retirer du planning du
+        jour** (`basculerActivitePlanning()`) — donc de "Partir à
+        l'aventure" (cf. lien ci-dessous). Bouton "+ Nouvelle activité"
+        en bas → formulaire (nom, icône parmi 16 emoji, texte du trajet,
+        texte de l'arrivée, 3 étapes sur place, pièce à la fin oui/non),
+        ajoutée directement au planning d'aujourd'hui à la création
+        (`creerNouvelleAventure()`), toujours juste après "Se préparer à
+        partir" comme "Le magasin de bricolage" (même raison : impossible
+        de partir en aventure avant d'être habillé/prêt). Trajet/arrivée
+        pré-remplis à partir du nom dès qu'il quitte le champ (suggestion
+        éditable, grammaire pas garantie — ex. "à le" au lieu de "au").
+        Persistée à part (`leon_aventures_perso`, jamais remise à zéro),
+        fusionnée avec le catalogue en dur `AVENTURES` partout où on
+        cherche une aventure — le reste du code ne distingue pas d'où
+        elle vient.
+        - [x] **Lien planning ↔ "Partir à l'aventure"** (la vraie
+              demande derrière celle-ci) — jusqu'ici, "Partir à
+              l'aventure" listait les aventures par leur champ `date`
+              (`aventuresDuJour()`), complètement indépendamment du
+              planning que l'espace parent permet d'éditer : y ajouter/
+              retirer une aventure n'avait aucun effet sur les sorties
+              visibles par l'enfant. Nouvelle fonction
+              `aventuresPlanifieesAujourdhui()` : dérive la liste des
+              sorties du jour du planning (`etat.planning`) plutôt que du
+              champ `date`, qui ne sert plus qu'à l'ensemencement d'une
+              nouvelle journée (`planningParDefaut()`). Ajouter/retirer
+              une aventure du planning (Activités, "Ajouter à la
+              journée", ou une nouvelle activité) l'ajoute/la retire
+              maintenant bien de "Partir à l'aventure".
+  - [x] **Routines** (demandé explicitement, même principe que les
+        activités) — liste **toutes** les routines
+        (`toutesLesRoutines()` : catalogue en dur + créées par un
+        parent) avec leur état du jour, **en lecture seule** cette fois
+        (pas de bascule planning : contrairement à une activité, une
+        routine fait partie du parcours tous les jours dès qu'elle
+        existe, il n'y a pas d'interrupteur jour par jour à proposer —
+        pour corriger une routine précise, "Relancer une routine" reste
+        l'écran dédié). Bouton "+ Nouvelle routine" → formulaire (nom,
+        icône, lieu chambre/salon, jusqu'à 5 tâches — texte + emoji +
+        zone parmi les 6 `.zone-cible` existantes). Pas de `calque`
+        proposé (demanderait un sprite existant pour chaque nouveau
+        vêtement/objet) : chaque tâche a son propre emoji, sans effet
+        persistant sur l'avatar, comme "Range tes vêtements"/"On lit
+        l'histoire" dans "Aller se coucher" aujourd'hui. Persistée à part
+        (`leon_routines_perso`), fusionnée avec `ROUTINES` via
+        `toutesLesRoutines()` — remplace la vingtaine d'usages directs de
+        `ROUTINES` dans `app.js` (menu, avatar, jauge, planning...) pour
+        qu'une routine créée se comporte identiquement à une routine du
+        catalogue en dur partout, y compris le chaînage séquentiel du
+        menu (ajoutée à la fin de l'ordre). Récurrente tous les jours dès
+        la création (`planningParDefaut()` inclut désormais aussi les
+        routines perso, pas seulement `PLANNING_DEFAUT`), contrairement
+        aux activités qui ne reviennent que si programmées. Testé de bout
+        en bout : création → apparaît dans le menu enfant, verrouillage
+        séquentiel correct, glisser-déposer fonctionnel, félicitations,
+        validation parent, étoile.
+- [x] **"Aller se coucher" débloquée par l'heure, plus par les autres
+      routines** (demandé explicitement, suite à "Relancer une routine")
+      — cette routine sortait mal de son chaînage séquentiel avec
+      "S'habiller"/"Se préparer à partir" : un parent relançant
+      "S'habiller" en soirée (ex. l'enfant s'est redéshabillé) se
+      retrouvait avec le coucher verrouillé juste avant l'heure de
+      dormir, alors que les deux n'ont aucun rapport. Solution :
+      `disponibleApresHeure: 18` sur la routine "soir" (`ROUTINES`) —
+      débloquée dès cette heure passée, **indépendamment** de l'état des
+      autres routines (ni bloquée par elles, ni prise en compte pour en
+      bloquer une suivante, cf. `construireMenu()`). Empêche aussi le
+      risque inverse signalé : sans une notion d'heure, un enfant aurait
+      pu passer directement à "Aller se coucher" (donc se déshabiller,
+      première tâche) à n'importe quel moment de la journée sans avoir
+      rien fait d'autre. Icône dédiée (🕒 au lieu de 🔒) et message vocal
+      distinct ("Ce n'est pas encore l'heure pour...") pour ne pas laisser
+      croire qu'une autre routine doit être finie avant.
 - [x] Exploration direction artistique : générateur procédural (avatars
       Colette/Léon, chambre de Léon), packs Bitglow téléchargés (salle de
       bain, chambre, salon/cuisine — licence perso/commercial ok, cf.
@@ -252,28 +365,40 @@ prototype actuel.
 > n'a pas encore été revu par Léon** — à observer à la prochaine
 > utilisation.
 
-1. [ ] **Contenu des missions** — première aventure de contenu réel
+1. [ ] **Repasser tous les écrans un par un** — après la densification
+       récente (espace parent complet : relancer une routine, historique,
+       changer le code, planning du jour, catalogues Activités/Routines +
+       création), revalider chaque écran et chaque parcours en conditions
+       réelles plutôt que sur la seule lecture du code : le glisser-déposer,
+       les boutons retour, le pavé code, les formulaires de création
+       restent fluides sur tablette ; les enchaînements (verrouillage
+       séquentiel des routines, déblocage par heure de "Aller se coucher",
+       lien planning ↔ "Partir à l'aventure") se comportent comme prévu
+       après tous les ajouts récents ; rien n'a régressé.
+2. [ ] **Contenu des missions** — première aventure de contenu réel
        ajoutée ("Le magasin de bricolage", cf. "Fait" ci-dessus), mais
        `AVENTURES` reste en dur dans `app.js` (comme `ROUTINES`) : pas
        encore d'écran parent pour en programmer/reprogrammer. Reste à
        faire : plus d'aventures (orthophoniste redevient programmable
        avec une vraie date, vélo...) et leur paramétrage côté parent.
        Cf. `docs/produit/concept.md`.
-2. [ ] **Généraliser à Colette** — ses propres routines + calibrage doux
+3. [ ] **Généraliser à Colette** — ses propres routines + calibrage doux
        (handoff, écran 05 "deuxième peau"), preuve que l'architecture
        tient avec un 2ᵉ profil
-3. [ ] **Rendre le contenu pilotable côté parent** — premier pas fait
-       (mode édition protégé par code sur "Ma journée" : réordonner/
-       retirer/ajouter les *items du planning du jour*, cf. "Fait" plus
-       haut). Reste en dur dans `app.js` : `ROUTINES`, `AVENTURES`,
-       `CODE_PARENT` eux-mêmes (impossible de créer une routine/aventure
-       depuis l'app, seulement de piocher dans ce qui existe déjà) ; le
-       verrouillage séquentiel entre routines (toujours figé dans le
-       code, indépendant de l'ordre du planning qui lui est éditable).
-4. [ ] **Barème de récompense de fin de journée** — actuellement juste
+4. [ ] **Rendre le contenu pilotable côté parent** — plusieurs briques
+       faites via l'espace parent (cf. "Fait" plus haut) : réordonner/
+       retirer/ajouter les *items du planning du jour*, relancer une
+       routine, changer le code, consulter l'historique. Reste en dur
+       dans `app.js` : le contenu de `ROUTINES` et `AVENTURES`
+       elles-mêmes (impossible de créer/modifier une routine ou une
+       aventure depuis l'app, seulement de piocher dans ce qui existe
+       déjà pour le planning) ; le verrouillage séquentiel entre
+       routines (toujours figé dans le code, indépendant de l'ordre du
+       planning qui lui est éditable).
+5. [ ] **Barème de récompense de fin de journée** — actuellement juste
        "total d'étoiles affiché", pas de vraie récompense différenciée
        selon la quantité (cf. `docs/produit/concept.md`)
-5. [ ] **Direction artistique** — une fois le parcours éprouvé sur les
+6. [ ] **Direction artistique** — une fois le parcours éprouvé sur les
        deux enfants : intégrer les packs Bitglow ou affiner le
        procédural pour les pièces, brancher des sprites de décor sur
        l'app (aujourd'hui la scène reste un simple dégradé de fond)

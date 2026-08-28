@@ -23,6 +23,19 @@ fois ; les autres sont grisées tant que la précédente n'est pas finie.
 **L'ordre et les dépendances entre routines/missions sont paramétrables
 par les parents** — pas un enchaînement figé dans le code.
 
+Toutes les routines ne se prêtent pas à ce chaînage : "Aller se
+coucher" n'a **aucun rapport** avec "S'habiller"/"Se préparer à
+partir" — l'enchaîner quand même créait un vrai risque, découvert en
+ajoutant "Relancer une routine" (espace parent) : un parent corrigeant
+une routine de journée en soirée se retrouvait avec le coucher
+verrouillé juste avant l'heure de dormir. Le coucher se débloque donc
+par **l'heure**, pas par les autres routines — et réciproquement, c'est
+justement cette notion d'heure qui empêche l'autre risque (un enfant
+sautant direct au coucher, donc au déshabillage, sans avoir rien fait
+d'autre de sa journée). Un rappel qu'une dépendance entre deux routines
+doit avoir un vrai rapport de cause à effet, pas juste suivre l'ordre où
+elles ont été codées.
+
 ## Récompense : étoiles par routine → jauge de journée
 
 - Chaque routine terminée rapporte une **étoile**.
@@ -64,12 +77,53 @@ heure"), juste un ordre relatif.
 Premier pas concret vers le principe déjà posé plus haut ("Ordre et
 blocage, paramétrables par les parents") : un **mode édition protégé par
 le code parent** permet de réordonner et retirer les items du jour, et
-d'en ajouter d'autres — mais seulement en piochant dans ce qui existe
-déjà (routines/aventures/repas déjà définis), pas en créant une activité
-entièrement nouvelle depuis l'app. Ça reste un paramétrage **du jour**
-(qu'est-ce qu'on fait aujourd'hui et dans quel ordre), pas encore un
-paramétrage **du contenu** (créer une nouvelle routine, changer le code
-parent, etc. — cf. `TODO.md`).
+d'en ajouter d'autres — soit en piochant dans ce qui existe déjà
+(routines/aventures/repas déjà définis), soit en **créant une page
+entièrement nouvelle** depuis l'espace parent, pour une activité comme
+pour une routine ("Activités"/"Routines", cf. section dédiée
+ci-dessous). Ce mode édition est maintenant repris tel quel comme une
+des options de l'espace parent.
+
+**Le planning est la seule source de vérité pour ce qui est accessible
+aujourd'hui** : une activité apparaît dans "Partir à l'aventure" si et
+seulement si elle est dans le planning du jour — pas via un champ date
+séparé qu'il faudrait aussi penser à mettre à jour. Concrètement : créer
+une activité l'ajoute immédiatement au planning (donc à "Partir à
+l'aventure") ; la retirer du planning la retire aussi des sorties
+possibles. Les deux écrans (aperçu du jour, sorties jouables) sont deux
+vues du même état, pas deux systèmes à synchroniser à la main.
+
+## Espace parent : lié à l'espace enfant, pas un outil séparé
+
+Les réglages destinés aux parents (Alexandra notamment) vivent dans la
+**même application** que ce que voit Léon — même `app.js`, même
+`localStorage` — et pas dans un outil séparé (site d'admin, autre app).
+**Un changement fait dans l'espace parent a un effet immédiat sur
+l'espace enfant**, parce que c'est littéralement le même état qui est lu
+des deux côtés. Protégé par le même code parent que le reste, via un
+point d'entrée discret (pas caché — un enfant curieux tombe juste sur
+l'écran du code, rien de plus).
+
+**Relancer une routine** en fait partie, demandé explicitement : si
+l'état réel de l'enfant a changé depuis qu'une routine a été validée
+(ex. il s'est redéshabillé en rentrant à la maison), un parent doit
+pouvoir la rouvrir plutôt que de tout réinitialiser la journée. Réutilise
+le principe déjà posé ailleurs (correction avant validation) : on
+décoche ce qui n'est plus vrai, la routine redevient à faire pour
+l'enfant. L'étoile déjà donnée est reprise (pas donnée deux fois), pas
+un blocage/une punition — cohérent avec "le parent valide toujours au
+final" déjà posé plus bas.
+
+**"Activités" et "Routines"** (accès à tout ce qui existe + création)
+suivent le même principe de fond mais pas la même interaction, pour une
+vraie raison de modèle de données et pas juste par cohérence de façade :
+une activité a un interrupteur jour par jour (le planning décide si elle
+est proposée aujourd'hui, cf. plus haut), donc toucher une activité
+existante bascule sa présence dans le planning. Une routine, elle, fait
+partie du parcours tous les jours dès qu'elle existe — il n'y a pas
+d'interrupteur équivalent à proposer, donc la liste des routines reste
+en lecture seule ; "Relancer une routine" (ci-dessus) reste l'écran dédié
+pour agir sur une routine précise.
 
 ## Correction parent avant validation
 

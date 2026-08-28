@@ -11,6 +11,8 @@
   --accent-shadow: #8A4E1C;
   --accent-dark: #C97622;
   --accent-edge: #FFF6E8;
+  --rouge: #E8867A;
+  --rouge-edge: #FFEFEA;
   --text: #E8EDF7;
   --text-soft: #C3CEE6;
   --text-mute: #A9B6D4;
@@ -64,12 +66,15 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 .btn-voix:active { transform: translate(2px, 2px); box-shadow: none; }
 
-/* Retour discret (échappatoire pour un tap accidentel sur la mauvaise
-   routine) : volontairement moins voyant que .btn-voix — un enfant qui
-   a fini une étape ne doit pas confondre les deux. */
+/* Retour : flèche rouge dans le bandeau du haut, partagée par tous les
+   écrans qui ont une navigation arrière (retour au menu, à l'espace
+   parent, ou annulation d'un formulaire) — jamais un bouton texte en
+   bas d'écran, pour rester au même endroit et reconnaissable d'un coup
+   d'œil partout dans l'app. La couleur (rouge, plutôt que l'orange des
+   actions qui avancent) est ce qui la distingue de .btn-voix. */
 .btn-retour-ecran {
-  width: 48px; height: 48px; font-size: 22px; font-weight: 800; background: var(--surface-active);
-  border: 3px solid var(--surface-high); color: var(--text-soft); flex-shrink: 0;
+  width: 48px; height: 48px; font-size: 22px; font-weight: 800; background: var(--rouge);
+  border: 3px solid var(--rouge-edge); box-shadow: var(--shadow-hard); color: var(--deep); flex-shrink: 0;
 }
 .btn-retour-ecran:active { transform: translate(2px, 2px); box-shadow: none; }
 
@@ -211,6 +216,15 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 #btn-reset-test.maintien { opacity: 1; }
 #btn-reset-test.maintien::after { height: 100%; transition: height .9s linear; }
+
+/* Symétrique du reset, côté gauche — simple tap (pas d'appui long) : pas
+   destructif, ouvre juste l'écran du code parent. */
+#btn-espace-parent {
+  position: fixed; top: 8px; left: 8px; z-index: 999; width: 30px; height: 30px;
+  background: var(--surface-high); color: var(--text-soft); border: 2px solid var(--outline);
+  font-size: 15px; opacity: .5;
+}
+#btn-espace-parent:active { opacity: 1; transform: translate(1px, 1px); }
 
 .btn-continuer.maintien { background: var(--accent-shadow); }
 
@@ -401,6 +415,62 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   position: absolute; top: 20px; left: 9px; width: 66px; height: auto; image-rendering: pixelated;
   filter: grayscale(1) brightness(1.25) sepia(1) saturate(4) hue-rotate(-15deg) contrast(1.1);
   mix-blend-mode: multiply;
+}
+
+/* ---------- Espace parent ---------- */
+#parent-contenu, #parent-routines-liste, #parent-historique-liste, #parent-activites-liste, #parent-routines-catalogue-liste {
+  display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; padding-bottom: 12px;
+}
+.carte-parent-soustitre { font-size: 13px; font-weight: 500; color: var(--text-faint); margin-top: 3px; }
+/* option pas encore construite : même style "verrouillee" que le menu,
+   mais sans le cadenas — juste moins mis en avant, pas cliquable. */
+.carte-parent.verrouillee { cursor: default; }
+
+/* ---------- Formulaires parent (nouvelle activité / nouvelle routine) ---------- */
+#nouvelle-aventure-contenu, #nouvelle-routine-contenu { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 8px; }
+.champ-parent { display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 700; color: var(--text-soft); }
+.champ-parent input[type="text"] {
+  font: inherit; font-size: 17px; font-weight: 600; color: var(--text);
+  background: var(--surface); border: 2px solid var(--surface-high); padding: 10px 12px;
+}
+.champ-parent input[type="text"]::placeholder { color: var(--text-faint); font-weight: 500; }
+.champ-parent input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.champ-parent-case { flex-direction: row; align-items: center; gap: 10px; }
+.champ-parent-case input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--accent); }
+#na-emoji-grille, #nr-emoji-grille { display: flex; flex-wrap: wrap; gap: 8px; }
+.emoji-choix-btn {
+  width: 44px; height: 44px; font-size: 22px; background: var(--surface);
+  border: 2px solid var(--surface-high); opacity: .6;
+}
+.emoji-choix-btn.choisi { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); }
+
+/* lieu (chambre/salon) : même esprit que les boutons emoji, deux choix
+   mutuellement exclusifs plutôt qu'une grille. */
+.nr-lieu-choix { display: flex; gap: 8px; }
+.nr-lieu-btn {
+  flex: 1; padding: 10px; font-size: 15px; font-weight: 700; color: var(--text-soft);
+  background: var(--surface); border: 2px solid var(--surface-high); opacity: .6;
+}
+.nr-lieu-btn.choisi { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); color: var(--text); }
+
+/* une ligne de tâche = texte (large) + emoji (étroit) + zone (menu) sur
+   une même ligne, plutôt qu'un bloc par champ comme le reste du
+   formulaire — sinon 5 tâches rendraient le formulaire interminable. */
+.tache-parent { display: flex; align-items: center; gap: 8px; }
+.tache-parent-num {
+  width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; color: var(--text-faint); background: var(--surface); border: 2px solid var(--surface-high);
+}
+.tache-parent-texte { flex: 1; min-width: 0; }
+.tache-parent-emoji { width: 52px; flex-shrink: 0; text-align: center; }
+.tache-parent-texte, .tache-parent-emoji {
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--text);
+  background: var(--surface); border: 2px solid var(--surface-high); padding: 9px 10px;
+}
+.tache-parent-texte::placeholder, .tache-parent-emoji::placeholder { color: var(--text-faint); font-weight: 500; }
+.tache-parent-zone {
+  flex-shrink: 0; font: inherit; font-size: 13px; font-weight: 700; color: var(--text);
+  background: var(--surface); border: 2px solid var(--surface-high); padding: 9px 6px;
 }
 
 /* ---------- Fin ---------- */
