@@ -95,6 +95,21 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 .avatar-wrap { position: absolute; left: 50%; bottom: 14px; width: 122px; height: 190px; transform: translateX(-50%); }
 .avatar-wrap.pop { animation: popPerso .3s ease; }
 @keyframes popPerso { 0%{transform:translateX(-50%) scale(1);} 40%{transform:translateX(-50%) scale(1.12);} 100%{transform:translateX(-50%) scale(1);} }
+/* Invite à tirer sur l'avatar (tâche `avatarGlissable`, ex. "enlève tes
+   vêtements") : respiration douce et continue, pas d'à-coup — ne doit
+   pas se confondre avec .pop (retour immédiat après validation) ni
+   fatiguer l'œil comme .clignote (alerte). prefers-reduced-motion la
+   coupe déjà via la règle générique `*` en bas de fichier. */
+.avatar-wrap.invite-glisser { animation: respirerAvatar 1.6s ease-in-out infinite; }
+@keyframes respirerAvatar { 0%, 100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.05); } }
+/* Poignée invisible superposée à l'avatar (#avatar-poignee dans
+   index.html, remplie par app.js) : mêmes dimensions/position que
+   .avatar-wrap pour capter le geste exactement là où l'enfant voit
+   Léon — les calques de l'avatar ont pointer-events:none. */
+.poignee-glissable {
+  position: absolute; left: 50%; bottom: 14px; width: 122px; height: 190px; transform: translateX(-50%);
+  cursor: grab; touch-action: none;
+}
 
 .avatar-calque {
   position: absolute; inset: 0; width: 100%; height: 100%;

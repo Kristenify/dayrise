@@ -93,9 +93,14 @@ const ROUTINES = [
     // l'état des autres routines.
     disponibleApresHeure: 18,
     taches: [
-      { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👕", zone: "zone-torse",
+      // `avatarGlissable: true` (au lieu de `zone`) : contrairement aux
+      // autres tâches, ce n'est pas l'icône de la liste qu'on glisse vers
+      // l'avatar, mais l'avatar (habillé) lui-même qu'on tire hors de la
+      // scène — plus logique pour DÉshabiller que d'amener une carte
+      // jusqu'à lui (cf. rendreAvatarGlissable, plus bas).
+      { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👕",
         calque: ["calque-haut", "calque-pantalon", "calque-chaussettes", "calque-chaussures", "calque-manteau"],
-        retire: true },
+        retire: true, avatarGlissable: true },
       { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-dos" },
       { id: "dents",    texte: "Brosse-toi les dents.",                   emoji: "🪥", zone: "zone-visage", badge: "visage", badgeFait: "✨" },
       { id: "histoire", texte: "On lit l'histoire.",                      emoji: "📖", zone: "zone-jambes" },
@@ -823,12 +828,32 @@ function synchroniserRoutineEcran() {
     }
   }
 
+  // Avatar directement glissable pour une tâche `avatarGlissable` (ex.
+  // "enlève tes vêtements") : la poignée invisible est reconstruite à
+  // chaque rendu (comme #chemin plus bas) pour ne jamais accumuler
+  // d'écouteurs sur #avatar-wrap, qui lui reste le même élément DOM
+  // d'un rendu à l'autre (contrairement aux lignes de #chemin, recréées
+  // à chaque fois). L'avatar respire doucement (`.invite-glisser`) pour
+  // inviter le geste tant que cette tâche est en cours.
+  const avatarWrapRoutine = document.getElementById("avatar-wrap");
+  avatarWrapRoutine.classList.toggle("invite-glisser", !!(prochaine && prochaine.avatarGlissable));
+  const poignee = document.getElementById("avatar-poignee");
+  poignee.innerHTML = "";
+  if (prochaine && prochaine.avatarGlissable) {
+    const poigneeGlissable = document.createElement("div");
+    poigneeGlissable.className = "poignee-glissable";
+    poignee.appendChild(poigneeGlissable);
+    rendreAvatarGlissable(poigneeGlissable, avatarWrapRoutine, prochaine);
+  }
+
   // liste : toutes les tâches restent visibles, pour que l'enfant voie
   // d'un coup d'œil la quantité totale à accomplir. Plus aucune ligne
   // n'est tapable (retour de terrain : l'enfant hésitait entre taper la
   // ligne et glisser l'icône) — seule l'icône de l'étape en cours, agrandie,
   // est glissable ; le texte reste affiché à côté pendant le geste
   // (lecture globale). Les tâches faites descendent en bas de liste.
+  // Exception : une tâche `avatarGlissable` (ci-dessus) n'a pas d'icône
+  // glissable dans la liste — le geste se fait sur l'avatar, pas ici.
   const restantes = routine.taches.filter(t => !etatR.fait.includes(t.id));
   const faites = routine.taches.filter(t => etatR.fait.includes(t.id));
   const liste = document.getElementById("chemin"); liste.innerHTML = "";
@@ -837,9 +862,10 @@ function synchroniserRoutineEcran() {
     const enCours = prochaine && t.id === prochaine.id;
     const noeud = document.createElement("div");
     noeud.className = "noeud" + (fait ? " fait" : "") + (enCours ? " en-cours" : "");
-    const classeIcone = "pastille-mini" + (enCours ? " pastille-glissable" : "");
+    const glisserIci = enCours && !t.avatarGlissable;
+    const classeIcone = "pastille-mini" + (glisserIci ? " pastille-glissable" : "");
     noeud.innerHTML = `<div class="${classeIcone}">${t.emoji}</div><div class="texte-etape">${t.texte}</div><div class="coche-mini">✓</div>`;
-    if (enCours) rendreGlissable(noeud.querySelector(".pastille-glissable"), t);
+    if (glisserIci) rendreGlissable(noeud.querySelector(".pastille-glissable"), t);
     liste.appendChild(noeud);
   });
 
@@ -924,6 +950,69 @@ function rendreGlissable(el, etape) {
   el.addEventListener("pointermove", deplace);
   el.addEventListener("pointerup", fin);
   el.addEventListener("pointercancel", fin);
+}
+
+// Variante de rendreGlissable() pour une tâche `avatarGlissable` (ex.
+// "enlève tes vêtements") : ce qu'on glisse n'est pas une icône de la
+// liste vers une zone, mais l'avatar habillé lui-même, tiré hors de la
+// scène — succès si on le lâche sous le bas de #scene (pas de zone
+// précise à viser, cible volontairement large et sans ambiguïté avec la
+// tâche suivante "Range tes vêtements", qui a sa propre zone-dos).
+// `poignee` est une zone de tap invisible superposée à l'avatar
+// (#avatar-poignee, reconstruite à chaque rendu) : les calques de
+// l'avatar ont `pointer-events:none`, il faut donc un élément dédié
+// pour capter le geste. `avatarWrap` (le vrai #avatar-wrap, persistant
+// d'un rendu à l'autre) est ce qu'on clone pour l'effet visuel — contrairement
+// à l'icône d'une tâche normale, il n'est PAS recréé au rendu suivant, donc
+// sa visibilité doit être explicitement restaurée après succès (pas
+// seulement après échec) pour ne pas le laisser invisible pour de bon.
+function rendreAvatarGlissable(poignee, avatarWrap, etape) {
+  function debut(ev) {
+    ev.preventDefault();
+    const rect = avatarWrap.getBoundingClientRect();
+    const clone = avatarWrap.cloneNode(true);
+    Object.assign(clone.style, { position: "fixed", left: rect.left + "px", top: rect.top + "px",
+      width: rect.width + "px", height: rect.height + "px", zIndex: "100", margin: "0",
+      pointerEvents: "none", transform: "none" });
+    document.body.appendChild(clone);
+    avatarWrap.style.visibility = "hidden";
+    dragCtx = { el: avatarWrap, clone, etape, offsetX: ev.clientX - rect.left, offsetY: ev.clientY - rect.top,
+                startLeft: rect.left, startTop: rect.top };
+    poignee.setPointerCapture(ev.pointerId);
+  }
+  function deplace(ev) {
+    if (!dragCtx || dragCtx.el !== avatarWrap) return;
+    dragCtx.clone.style.left = (ev.clientX - dragCtx.offsetX) + "px";
+    dragCtx.clone.style.top = (ev.clientY - dragCtx.offsetY) + "px";
+  }
+  function fin(ev) {
+    if (!dragCtx || dragCtx.el !== avatarWrap) return;
+    const sr = document.getElementById("scene").getBoundingClientRect();
+    const cr = dragCtx.clone.getBoundingClientRect();
+    const succes = (cr.top + cr.height / 2) > sr.bottom;
+    if (succes) {
+      dragCtx.clone.style.transition = "transform .2s ease, opacity .2s ease";
+      dragCtx.clone.style.transform = "translateY(40px)";
+      dragCtx.clone.style.opacity = "0";
+      const clone = dragCtx.clone;
+      setTimeout(() => {
+        clone.remove();
+        avatarWrap.style.visibility = ""; // sinon reste invisible : cf. commentaire plus haut
+        marquerTache(etape.id, true);
+      }, 180);
+    } else {
+      dragCtx.clone.style.transition = "left .3s ease, top .3s ease";
+      dragCtx.clone.style.left = dragCtx.startLeft + "px";
+      dragCtx.clone.style.top = dragCtx.startTop + "px";
+      const clone = dragCtx.clone;
+      setTimeout(() => { clone.remove(); avatarWrap.style.visibility = ""; }, 300);
+    }
+    dragCtx = null;
+  }
+  poignee.addEventListener("pointerdown", debut);
+  poignee.addEventListener("pointermove", deplace);
+  poignee.addEventListener("pointerup", fin);
+  poignee.addEventListener("pointercancel", fin);
 }
 
 // ---------------------------------------------------------------------

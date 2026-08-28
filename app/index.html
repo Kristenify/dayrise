@@ -136,6 +136,13 @@
         <div class="badge-zone badge-visage" data-badge="visage"></div>
       </div>
 
+      <!-- Poignée invisible superposée à l'avatar, reconstruite par
+           synchroniserRoutineEcran() uniquement pour une tâche
+           `avatarGlissable` (ex. "enlève tes vêtements") — les calques
+           de l'avatar ont pointer-events:none, il faut cet élément pour
+           capter le geste (cf. rendreAvatarGlissable() dans app.js). -->
+      <div id="avatar-poignee"></div>
+
       <div class="zone-cible" id="zone-visage"></div>
       <div class="zone-cible" id="zone-torse"></div>
       <div class="zone-cible" id="zone-bassin"></div>
