@@ -364,11 +364,29 @@ prototype actuel.
       le bas) plutôt que de glisser une icône de liste jusqu'à lui —
       sens plus logique que pour s'habiller, où le vêtement n'existe pas
       encore sur l'avatar. `rendreAvatarGlissable()` (app.js), variante
-      de `rendreGlissable()` : clone `#avatar-wrap` au lieu d'une icône,
-      succès si lâché sous `#scene`. L'avatar respire doucement
-      (`.invite-glisser`) pendant que cette tâche est active, pour
-      remplacer l'invite visuelle que portait l'icône glissable
-      (retirée de la liste pour cette tâche précise).
+      de `rendreGlissable()` : succès si lâché sous `#scene`. Une flèche
+      ⬇ sous l'avatar (`#fleche-detacher`) indique la direction du geste
+      tant que la tâche est en cours — retour de terrain (le geste seul,
+      sans indice, n'était pas assez intuitif).
+  - [x] **Seuls les vêtements se détachent, pas l'avatar entier** —
+        correctif suite à un autre retour de terrain (le corps de Léon
+        disparaissait entièrement de la scène pendant le geste, pas
+        seulement ses habits — pas logique pour "enlève TES vêtements").
+        `rendreAvatarGlissable()` ne clone plus que les calques
+        actuellement visibles listés dans `etape.calque` (donc juste le
+        t-shirt/pantalon/etc.) ; le corps, le visage, restent en place
+        et visibles tout du long. Cacher/remontrer un calque pendant le
+        geste réutilise le même mécanisme que `synchroniserAvatar()`
+        (classe `visible`, jamais de style inline) pour rester cohérent
+        si la routine est relancée ensuite.
+  - [x] **Pile de vêtements pour "Range tes vêtements"** — demandé
+        explicitement en écho au point précédent : les habits qui
+        viennent de tomber ne disparaissent plus dans le vide, ils
+        réapparaissent en pile dans la scène (`#pile-vetements`,
+        `pileGlissable: true`) que l'enfant glisse ensuite vers
+        `zone-dos` — réutilise `rendreGlissable()` tel quel (seule la
+        source du glisser change, la liste vers la scène), pas de
+        nouvelle fonction nécessaire.
 - [x] **Refonte menu + routines + validation parent**, à partir des
       principes notés dans `docs/produit/` (routines indépendantes,
       relation mère-fille Routine ↔ Tâches, étoiles → jauge de journée,

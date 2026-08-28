@@ -143,6 +143,18 @@
            capter le geste (cf. rendreAvatarGlissable() dans app.js). -->
       <div id="avatar-poignee"></div>
 
+      <!-- Indique la direction du geste pour une tâche `avatarGlissable`
+           (visible tant qu'elle est en cours, cf. synchroniserRoutineEcran()
+           dans app.js) — retour de terrain : sans elle, personne ne
+           devine qu'il faut tirer l'avatar vers le bas. -->
+      <div id="fleche-detacher" aria-hidden="true">⬇</div>
+
+      <!-- Pile de vêtements (tâche `pileGlissable`, ex. "Range tes
+           vêtements") : matérialise dans la scène ce qui vient de tomber
+           pendant "Enlève tes vêtements", plutôt qu'un simple icône de
+           liste. Reconstruite à chaque rendu par app.js. -->
+      <div id="pile-vetements"></div>
+
       <div class="zone-cible" id="zone-visage"></div>
       <div class="zone-cible" id="zone-torse"></div>
       <div class="zone-cible" id="zone-bassin"></div>

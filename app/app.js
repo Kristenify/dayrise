@@ -101,7 +101,13 @@ const ROUTINES = [
       { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👕",
         calque: ["calque-haut", "calque-pantalon", "calque-chaussettes", "calque-chaussures", "calque-manteau"],
         retire: true, avatarGlissable: true },
-      { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-dos" },
+      // `pileGlissable: true` : contrairement aux autres tâches, ce n'est
+      // pas l'icône de la liste qui se glisse vers `zone` mais la pile de
+      // vêtements qui apparaît dans la scène une fois "enlever" fait (cf.
+      // #pile-vetements, synchroniserRoutineEcran()) — matérialise les
+      // habits qui viennent de tomber, plutôt que de les faire disparaître
+      // pour de bon avant même cette tâche.
+      { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-dos", pileGlissable: true },
       // `miniJeu: "dents"` (au lieu de `zone`) : cette tâche s'ouvre en
       // tapant sa ligne (cf. ouvrirMiniJeu()) plutôt qu'en y glissant
       // l'icône — lance l'écran dédié `screen-dents` (minuteur +
@@ -843,6 +849,7 @@ function synchroniserRoutineEcran() {
   // inviter le geste tant que cette tâche est en cours.
   const avatarWrapRoutine = document.getElementById("avatar-wrap");
   avatarWrapRoutine.classList.toggle("invite-glisser", !!(prochaine && prochaine.avatarGlissable));
+  document.getElementById("fleche-detacher").classList.toggle("visible", !!(prochaine && prochaine.avatarGlissable));
   const poignee = document.getElementById("avatar-poignee");
   poignee.innerHTML = "";
   if (prochaine && prochaine.avatarGlissable) {
@@ -850,6 +857,23 @@ function synchroniserRoutineEcran() {
     poigneeGlissable.className = "poignee-glissable";
     poignee.appendChild(poigneeGlissable);
     rendreAvatarGlissable(poigneeGlissable, avatarWrapRoutine, prochaine);
+  }
+
+  // Pile de vêtements pour une tâche `pileGlissable` (ex. "Range tes
+  // vêtements") : matérialise dans la scène ce qui vient de tomber
+  // pendant `avatarGlissable` (ci-dessus), plutôt que de le faire
+  // disparaître pour de bon avant même cette tâche. Reconstruite à
+  // chaque rendu (même raison que la poignée avatar) ; se glisse comme
+  // n'importe quelle icône de tâche normale (rendreGlissable(), vers
+  // `zone`), juste depuis la scène plutôt que depuis la liste.
+  const pileConteneur = document.getElementById("pile-vetements");
+  pileConteneur.innerHTML = "";
+  if (prochaine && prochaine.pileGlissable) {
+    const pile = document.createElement("div");
+    pile.className = "pile-glissable";
+    pile.textContent = "👕";
+    pileConteneur.appendChild(pile);
+    rendreGlissable(pile, prochaine);
   }
 
   // liste : toutes les tâches restent visibles, pour que l'enfant voie
@@ -868,7 +892,7 @@ function synchroniserRoutineEcran() {
     const enCours = prochaine && t.id === prochaine.id;
     const noeud = document.createElement("div");
     noeud.className = "noeud" + (fait ? " fait" : "") + (enCours ? " en-cours" : "") + (enCours && t.miniJeu ? " noeud-tapable" : "");
-    const glisserIci = enCours && !t.avatarGlissable && !t.miniJeu;
+    const glisserIci = enCours && !t.avatarGlissable && !t.miniJeu && !t.pileGlissable;
     const classeIcone = "pastille-mini" + (glisserIci ? " pastille-glissable" : "");
     noeud.innerHTML = `<div class="${classeIcone}">${t.emoji}</div><div class="texte-etape">${t.texte}</div><div class="coche-mini">✓</div>`;
     if (glisserIci) rendreGlissable(noeud.querySelector(".pastille-glissable"), t);
@@ -963,29 +987,47 @@ function rendreGlissable(el, etape) {
 
 // Variante de rendreGlissable() pour une tâche `avatarGlissable` (ex.
 // "enlève tes vêtements") : ce qu'on glisse n'est pas une icône de la
-// liste vers une zone, mais l'avatar habillé lui-même, tiré hors de la
-// scène — succès si on le lâche sous le bas de #scene (pas de zone
-// précise à viser, cible volontairement large et sans ambiguïté avec la
-// tâche suivante "Range tes vêtements", qui a sa propre zone-dos).
+// liste vers une zone, mais les vêtements ACTUELLEMENT PORTÉS (ceux
+// listés dans `etape.calque`) tirés hors de la scène — succès si on les
+// lâche sous le bas de #scene (pas de zone précise à viser, cible
+// volontairement large et sans ambiguïté avec la tâche suivante "Range
+// tes vêtements", qui a sa propre zone-dos).
+//
+// Retour de terrain (session précédente) : cloner tout #avatar-wrap et
+// le cacher pendant le geste faisait disparaître Léon entier de la
+// scène, pas juste ses habits — pas intuitif ("enlève TES vêtements",
+// pas "pars"). Ici seuls les calques visibles concernés sont clonés
+// (donc juste le t-shirt/pantalon/etc.) ; le reste de l'avatar (corps,
+// visage...) ne bouge jamais.
+//
 // `poignee` est une zone de tap invisible superposée à l'avatar
 // (#avatar-poignee, reconstruite à chaque rendu) : les calques de
 // l'avatar ont `pointer-events:none`, il faut donc un élément dédié
-// pour capter le geste. `avatarWrap` (le vrai #avatar-wrap, persistant
-// d'un rendu à l'autre) est ce qu'on clone pour l'effet visuel — contrairement
-// à l'icône d'une tâche normale, il n'est PAS recréé au rendu suivant, donc
-// sa visibilité doit être explicitement restaurée après succès (pas
-// seulement après échec) pour ne pas le laisser invisible pour de bon.
+// pour capter le geste, sur toute la silhouette (on peut attraper
+// n'importe quel vêtement visible en tapant n'importe où sur lui).
+// Cacher/remontrer un calque utilise le même mécanisme que
+// synchroniserAvatar() (classe `visible`, jamais de style inline) pour
+// qu'un futur passage de synchroniserAvatar() (ex. après un "Relancer
+// une routine" parent) ne se heurte pas à un style oublié.
 function rendreAvatarGlissable(poignee, avatarWrap, etape) {
   function debut(ev) {
     ev.preventDefault();
     const rect = avatarWrap.getBoundingClientRect();
-    const clone = avatarWrap.cloneNode(true);
+    const calques = Array.isArray(etape.calque) ? etape.calque : [etape.calque];
+    const imgs = calques
+      .map(c => avatarWrap.querySelector('.avatar-calque[data-calque="' + c + '"]'))
+      .filter(img => img && img.classList.contains("visible"));
+    const clone = document.createElement("div");
     Object.assign(clone.style, { position: "fixed", left: rect.left + "px", top: rect.top + "px",
-      width: rect.width + "px", height: rect.height + "px", zIndex: "100", margin: "0",
-      pointerEvents: "none", transform: "none" });
+      width: rect.width + "px", height: rect.height + "px", zIndex: "100", pointerEvents: "none" });
+    imgs.forEach(img => {
+      const imgClone = img.cloneNode(true); // clone AVANT de cacher l'original : garde la classe "visible" (opacity/scale)
+      Object.assign(imgClone.style, { position: "absolute", inset: "0", width: "100%", height: "100%" });
+      clone.appendChild(imgClone);
+      img.classList.remove("visible");
+    });
     document.body.appendChild(clone);
-    avatarWrap.style.visibility = "hidden";
-    dragCtx = { el: avatarWrap, clone, etape, offsetX: ev.clientX - rect.left, offsetY: ev.clientY - rect.top,
+    dragCtx = { el: avatarWrap, clone, etape, imgs, offsetX: ev.clientX - rect.left, offsetY: ev.clientY - rect.top,
                 startLeft: rect.left, startTop: rect.top };
     poignee.setPointerCapture(ev.pointerId);
   }
@@ -999,6 +1041,7 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
     const sr = document.getElementById("scene").getBoundingClientRect();
     const cr = dragCtx.clone.getBoundingClientRect();
     const succes = (cr.top + cr.height / 2) > sr.bottom;
+    const imgs = dragCtx.imgs;
     if (succes) {
       dragCtx.clone.style.transition = "transform .2s ease, opacity .2s ease";
       dragCtx.clone.style.transform = "translateY(40px)";
@@ -1006,7 +1049,9 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
       const clone = dragCtx.clone;
       setTimeout(() => {
         clone.remove();
-        avatarWrap.style.visibility = ""; // sinon reste invisible : cf. commentaire plus haut
+        // les vêtements restent cachés (classe déjà retirée) : la tâche
+        // est faite, marquerTache() -> synchroniserAvatar() confirme le
+        // même état, rien à restaurer ici contrairement à l'échec.
         marquerTache(etape.id, true);
       }, 180);
     } else {
@@ -1014,7 +1059,10 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
       dragCtx.clone.style.left = dragCtx.startLeft + "px";
       dragCtx.clone.style.top = dragCtx.startTop + "px";
       const clone = dragCtx.clone;
-      setTimeout(() => { clone.remove(); avatarWrap.style.visibility = ""; }, 300);
+      setTimeout(() => {
+        clone.remove();
+        imgs.forEach(img => img.classList.add("visible")); // remis sur le vrai avatar
+      }, 300);
     }
     dragCtx = null;
   }
