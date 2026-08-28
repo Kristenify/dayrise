@@ -646,6 +646,7 @@ function basculerEditionJournee() {
     construireJournee();
     return;
   }
+  ecranAvantValidation = document.querySelector(".screen.active").id;
   codeSaisi = "";
   modeCode = "verifier";
   document.getElementById("validation-sous-titre").textContent = "Un parent entre le code pour modifier la journée.";
@@ -937,6 +938,12 @@ function finDeRoutine() {
 // ---------------------------------------------------------------------
 let codeSaisi = "";
 let apresCodeValide = null;
+// Écran actif juste avant d'ouvrir screen-validation (n'importe laquelle
+// de ses 5 entrées : validation de routine, édition de la journée,
+// espace parent, changement de code, confirmation d'arrivée) — capturé
+// pour que le bouton retour du bandeau puisse y ramener sans avoir à
+// connaître spécifiquement d'où on vient.
+let ecranAvantValidation = null;
 // "verifier" (code existant, cas normal) | "nouveau1"/"nouveau2" (les
 // deux saisies successives d'un nouveau code, cf. demarrerChangementCode()).
 let modeCode = "verifier";
@@ -948,6 +955,7 @@ let premierNouveauCode = "";
 let actionCorrection = null;
 
 function allerValidation() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
   const routine = routineParId(routineActuelleId);
   codeSaisi = "";
   modeCode = "verifier";
@@ -1085,6 +1093,7 @@ function validerRoutine() {
 // docs/produit/concept.md pour la philosophie.
 // ---------------------------------------------------------------------
 function ouvrirEspaceParent() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
   codeSaisi = "";
   modeCode = "verifier";
   document.getElementById("validation-sous-titre").textContent = "Un parent entre le code pour accéder à l'espace parent.";
@@ -1231,6 +1240,7 @@ function construireHistorique() {
 // branche "nouveau1"/"nouveau2") — réutilise le même pavé que la
 // vérification du code existant, pas de nouvel écran.
 function demarrerChangementCode() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
   codeSaisi = "";
   modeCode = "nouveau1";
   premierNouveauCode = "";
@@ -1577,6 +1587,7 @@ function partirEnActivite() {
 // validation d'une routine, mais sans étape de correction (rien à
 // décocher pour une simple confirmation d'arrivée).
 function allerValidationArrivee() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
   const a = aventureParId(aventureActuelleId);
   codeSaisi = "";
   modeCode = "verifier";
@@ -1677,6 +1688,12 @@ protegerParAppuiLong(document.getElementById("btn-reset-test"), reinitialiserTou
 
 document.getElementById("btn-un-parent").onclick = allerValidation;
 document.getElementById("btn-valider-routine").onclick = () => { if (actionCorrection) actionCorrection(); };
+// Retour discret : ramène à l'écran actif juste avant l'ouverture de
+// screen-validation (cf. ecranAvantValidation, capturé à chacune de ses
+// 5 entrées) — rien n'est perdu, aucune des 5 entrées ne modifie l'état
+// avant que le code soit validé (sauf décocher/recocher en relecture,
+// qui reste tel quel, cf. construireCorrection()).
+document.getElementById("btn-retour-validation").onclick = () => afficherEcran(ecranAvantValidation || "screen-menu");
 
 document.getElementById("btn-depart").onclick = allerVersDepart;
 document.getElementById("btn-retour-menu").onclick = construireMenu;

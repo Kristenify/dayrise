@@ -75,6 +75,7 @@
   <!-- ============ Aventures / missions du jour ============ -->
   <div id="screen-missions" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-menu" aria-label="Retour au menu">←</button>
       <div class="prenom-actif">Les sorties du jour</div>
       <div></div>
     </div>
@@ -82,29 +83,28 @@
       <div id="missions-emoji">🚗</div>
       <div id="missions-texte" class="texte-consigne">Rien de prévu aujourd'hui !</div>
       <div id="missions-liste"></div>
-      <button class="btn-continuer" id="btn-retour-menu">Retour</button>
     </div>
   </div>
 
   <!-- ============ Ma journée (planning chronologique) ============ -->
   <div id="screen-journee" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-menu-journee" aria-label="Retour au menu">←</button>
       <div class="prenom-actif">Ma journée</div>
       <button class="btn-voix" id="btn-modifier-journee" aria-label="Modifier la journée">✏️</button>
       <div></div>
     </div>
     <div id="journee-contenu"></div>
-    <button class="btn-continuer" id="btn-retour-menu-journee">Retour</button>
   </div>
 
   <!-- ============ Mes récompenses (étoiles + pièces à collectionner) ============ -->
   <div id="screen-recompenses" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-menu-recompenses" aria-label="Retour au menu">←</button>
       <div class="prenom-actif">Mes récompenses</div>
       <div></div>
     </div>
     <div id="recompenses-contenu"></div>
-    <button class="btn-continuer" id="btn-retour-menu-recompenses">Retour</button>
   </div>
 
   <!-- ============ 1. Écran d'une routine (générique, alimenté par ROUTINES) ============ -->
@@ -162,6 +162,7 @@
   <!-- ============ 3. Validation parent (code + relecture/correction) ============ -->
   <div id="screen-validation" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-validation" aria-label="Retour">←</button>
       <div class="prenom-actif">Un parent valide</div>
       <div></div>
     </div>
@@ -188,60 +189,61 @@
   <!-- ============ Espace parent (hub) ============ -->
   <div id="screen-parent" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-menu-parent" aria-label="Retour au menu">←</button>
       <div class="prenom-actif">Espace parent</div>
       <div></div>
     </div>
     <div id="parent-contenu"></div>
-    <button class="btn-continuer" id="btn-retour-menu-parent">Retour</button>
   </div>
 
   <!-- ============ Espace parent : relancer une routine ============ -->
   <div id="screen-parent-routines" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-routines" aria-label="Retour à l'espace parent">←</button>
       <div class="prenom-actif">Relancer une routine</div>
       <div></div>
     </div>
     <div class="texte-consigne">Si l'état de Léon a changé (ex. il s'est redéshabillé), choisis la routine à relancer.</div>
     <div id="parent-routines-liste"></div>
-    <button class="btn-continuer" id="btn-retour-parent-routines">Retour</button>
   </div>
 
   <!-- ============ Espace parent : historique des journées ============ -->
   <div id="screen-parent-historique" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-historique" aria-label="Retour à l'espace parent">←</button>
       <div class="prenom-actif">Historique</div>
       <div></div>
     </div>
     <div id="parent-historique-liste"></div>
-    <button class="btn-continuer" id="btn-retour-parent-historique">Retour</button>
   </div>
 
   <!-- ============ Espace parent : activités ============ -->
   <div id="screen-parent-activites" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-activites" aria-label="Retour à l'espace parent">←</button>
       <div class="prenom-actif">Activités</div>
       <div></div>
     </div>
     <div class="texte-consigne">Touche une activité pour l'ajouter ou la retirer d'aujourd'hui.</div>
     <div id="parent-activites-liste"></div>
     <button class="btn-continuer" id="btn-nouvelle-activite">➕ Nouvelle activité</button>
-    <button class="btn-secondaire" id="btn-retour-parent-activites">Retour</button>
   </div>
 
   <!-- ============ Espace parent : catalogue des routines ============ -->
   <div id="screen-parent-routines-catalogue" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-routines-catalogue" aria-label="Retour à l'espace parent">←</button>
       <div class="prenom-actif">Routines</div>
       <div></div>
     </div>
     <div id="parent-routines-catalogue-liste"></div>
     <button class="btn-continuer" id="btn-nouvelle-routine">➕ Nouvelle routine</button>
-    <button class="btn-secondaire" id="btn-retour-parent-routines-catalogue">Retour</button>
   </div>
 
   <!-- ============ Espace parent : nouvelle routine ============ -->
   <div id="screen-parent-nouvelle-routine" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-nouvelle-routine" aria-label="Annuler">←</button>
       <div class="prenom-actif">Nouvelle routine</div>
       <div></div>
     </div>
@@ -331,12 +333,12 @@
       <div id="nr-erreur" class="texte-erreur"></div>
     </div>
     <button class="btn-continuer" id="btn-creer-routine">Créer et ajouter à la journée</button>
-    <button class="btn-secondaire" id="btn-retour-parent-nouvelle-routine">Annuler</button>
   </div>
 
   <!-- ============ Espace parent : nouvelle activité ============ -->
   <div id="screen-parent-nouvelle-aventure" class="screen">
     <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-nouvelle-aventure" aria-label="Annuler">←</button>
       <div class="prenom-actif">Nouvelle activité</div>
       <div></div>
     </div>
@@ -376,7 +378,6 @@
       <div id="na-erreur" class="texte-erreur"></div>
     </div>
     <button class="btn-continuer" id="btn-creer-aventure">Créer et ajouter à aujourd'hui</button>
-    <button class="btn-secondaire" id="btn-retour-parent-nouvelle-aventure">Annuler</button>
   </div>
 
   <!-- ============ 4. Récompense de fin de journée ============ -->

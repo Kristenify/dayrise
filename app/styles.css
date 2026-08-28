@@ -11,6 +11,8 @@
   --accent-shadow: #8A4E1C;
   --accent-dark: #C97622;
   --accent-edge: #FFF6E8;
+  --rouge: #E8867A;
+  --rouge-edge: #FFEFEA;
   --text: #E8EDF7;
   --text-soft: #C3CEE6;
   --text-mute: #A9B6D4;
@@ -64,12 +66,15 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 .btn-voix:active { transform: translate(2px, 2px); box-shadow: none; }
 
-/* Retour discret (échappatoire pour un tap accidentel sur la mauvaise
-   routine) : volontairement moins voyant que .btn-voix — un enfant qui
-   a fini une étape ne doit pas confondre les deux. */
+/* Retour : flèche rouge dans le bandeau du haut, partagée par tous les
+   écrans qui ont une navigation arrière (retour au menu, à l'espace
+   parent, ou annulation d'un formulaire) — jamais un bouton texte en
+   bas d'écran, pour rester au même endroit et reconnaissable d'un coup
+   d'œil partout dans l'app. La couleur (rouge, plutôt que l'orange des
+   actions qui avancent) est ce qui la distingue de .btn-voix. */
 .btn-retour-ecran {
-  width: 48px; height: 48px; font-size: 22px; font-weight: 800; background: var(--surface-active);
-  border: 3px solid var(--surface-high); color: var(--text-soft); flex-shrink: 0;
+  width: 48px; height: 48px; font-size: 22px; font-weight: 800; background: var(--rouge);
+  border: 3px solid var(--rouge-edge); box-shadow: var(--shadow-hard); color: var(--deep); flex-shrink: 0;
 }
 .btn-retour-ecran:active { transform: translate(2px, 2px); box-shadow: none; }
 
