@@ -357,8 +357,16 @@ function chargerPieces() {
 function sauverPieces(n) {
   try { localStorage.setItem("leon_pieces", JSON.stringify(n)); } catch (e) {}
 }
+// Seul point d'entrée qui écrit `leon_pieces` (avec `sauverPieces`,
+// jamais appelée ailleurs) : le total ne peut donc **jamais diminuer**,
+// même si `n` était un jour négatif par erreur (`Math.max(0, n)`) — les
+// pièces ne se remettent pas à zéro comme les étoiles, et rien dans
+// l'app ne doit pouvoir les retirer du compte, cf. plus haut ("dépensée
+// ... dans la vraie vie", pas une transaction dans l'app). Si Colette a
+// un jour son propre profil, réutiliser cette même fonction (avec sa
+// propre clé) plutôt qu'une variante parallèle, pour garder la garantie.
 function ajouterPieces(n) {
-  const total = chargerPieces() + n;
+  const total = chargerPieces() + Math.max(0, n);
   sauverPieces(total);
   return total;
 }
