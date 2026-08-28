@@ -102,7 +102,13 @@ const ROUTINES = [
         calque: ["calque-haut", "calque-pantalon", "calque-chaussettes", "calque-chaussures", "calque-manteau"],
         retire: true, avatarGlissable: true },
       { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-dos" },
-      { id: "dents",    texte: "Brosse-toi les dents.",                   emoji: "🪥", zone: "zone-visage", badge: "visage", badgeFait: "✨" },
+      // `miniJeu: "dents"` (au lieu de `zone`) : cette tâche s'ouvre en
+      // tapant sa ligne (cf. ouvrirMiniJeu()) plutôt qu'en y glissant
+      // l'icône — lance l'écran dédié `screen-dents` (minuteur +
+      // 6 zones). `badge`/`badgeFait` restent : le ✨ sur le visage de
+      // l'avatar continue de refléter que les dents sont faites, une
+      // fois le mini-jeu terminé (marquerTache() y est appelé pareil).
+      { id: "dents",    texte: "Brosse-toi les dents.",                   emoji: "🪥", miniJeu: "dents", badge: "visage", badgeFait: "✨" },
       { id: "histoire", texte: "On lit l'histoire.",                      emoji: "📖", zone: "zone-jambes" },
       { id: "coucher",  texte: "Je vais me coucher.",                     emoji: "😴", zone: "zone-pieds" },
     ],
@@ -861,11 +867,14 @@ function synchroniserRoutineEcran() {
     const fait = etatR.fait.includes(t.id);
     const enCours = prochaine && t.id === prochaine.id;
     const noeud = document.createElement("div");
-    noeud.className = "noeud" + (fait ? " fait" : "") + (enCours ? " en-cours" : "");
-    const glisserIci = enCours && !t.avatarGlissable;
+    noeud.className = "noeud" + (fait ? " fait" : "") + (enCours ? " en-cours" : "") + (enCours && t.miniJeu ? " noeud-tapable" : "");
+    const glisserIci = enCours && !t.avatarGlissable && !t.miniJeu;
     const classeIcone = "pastille-mini" + (glisserIci ? " pastille-glissable" : "");
     noeud.innerHTML = `<div class="${classeIcone}">${t.emoji}</div><div class="texte-etape">${t.texte}</div><div class="coche-mini">✓</div>`;
     if (glisserIci) rendreGlissable(noeud.querySelector(".pastille-glissable"), t);
+    // `miniJeu` (ex. "dents") : ouvre un écran dédié en tapant la ligne,
+    // plutôt qu'en y glissant l'icône (cf. ouvrirMiniJeu()).
+    if (enCours && t.miniJeu) noeud.onclick = () => ouvrirMiniJeu(t);
     liste.appendChild(noeud);
   });
 
@@ -1013,6 +1022,149 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
   poignee.addEventListener("pointermove", deplace);
   poignee.addEventListener("pointerup", fin);
   poignee.addEventListener("pointercancel", fin);
+}
+
+// ---------------------------------------------------------------------
+// Mini-jeu : brossage de dents (tâche `miniJeu: "dents"`) — écran dédié
+// (screen-dents), pas un simple glisser-déposer comme le reste (cf.
+// TODO.md, "Pas encore designé"). 6 zones dans l'ordre où les brosser
+// (haut-gauche → haut-devant → haut-droite → bas-gauche → bas-devant →
+// bas-droite), chacune avec sa part du minuteur total (3 minutes ÷ 6 =
+// 30s/zone). Il faut garder le doigt sur la zone EN COURS pour que son
+// temps décompte (`dentsEnBrossage`) — relâcher ou toucher une autre
+// zone met en pause, ça n'avance jamais tout seul ni ne peut sauter une
+// zone. Une fois les 6 zones épuisées, marque la tâche `dents` de la
+// routine en cours comme faite (même geste que les autres — son,
+// vibration, étoile de tâche via marquerTache()) et revient à
+// l'écran de routine.
+const ZONES_DENTS = ["haut-gauche", "haut-devant", "haut-droite", "bas-gauche", "bas-devant", "bas-droite"];
+const LIBELLES_ZONES_DENTS = {
+  "haut-gauche": "en haut, à gauche", "haut-devant": "en haut, devant", "haut-droite": "en haut, à droite",
+  "bas-gauche": "en bas, à gauche",   "bas-devant": "en bas, devant",   "bas-droite": "en bas, à droite",
+};
+const DUREE_BROSSAGE_SEC = 180; // 3 minutes au total
+const DUREE_PAR_ZONE = DUREE_BROSSAGE_SEC / ZONES_DENTS.length;
+
+let dentsEtapeRoutine = null; // la tâche `dents` de la routine en cours, pour marquerTache() à la fin
+let dentsZoneIndex = 0;
+let dentsTempsRestant = DUREE_PAR_ZONE;
+let dentsEnBrossage = false; // vrai tant que le doigt reste sur la zone en cours
+let dentsMinuteurId = null;
+
+// Point d'entrée générique pour toute tâche `miniJeu` (aujourd'hui, une
+// seule valeur possible : "dents") — dispatché depuis
+// synchroniserRoutineEcran() au tap sur la ligne de la tâche.
+function ouvrirMiniJeu(etape) {
+  if (etape.miniJeu === "dents") demarrerBrossageDents(etape);
+}
+
+function demarrerBrossageDents(etape) {
+  dentsEtapeRoutine = etape;
+  dentsZoneIndex = 0;
+  dentsTempsRestant = DUREE_PAR_ZONE;
+  dentsEnBrossage = false;
+  const barre = document.getElementById("dents-barre");
+  if (barre.childElementCount !== ZONES_DENTS.length) {
+    barre.innerHTML = "";
+    ZONES_DENTS.forEach(() => barre.appendChild(document.createElement("div")));
+  }
+  majAffichageDents();
+  afficherEcran("screen-dents");
+  dire("Brosse tes dents, zone par zone. Commence " + LIBELLES_ZONES_DENTS[ZONES_DENTS[0]] + ".");
+  if (dentsMinuteurId) clearInterval(dentsMinuteurId); // sécurité, ne devrait jamais rester actif
+  dentsMinuteurId = setInterval(tickDents, 250);
+}
+
+function tickDents() {
+  if (!dentsEnBrossage) return;
+  dentsTempsRestant = Math.max(0, dentsTempsRestant - 0.25);
+  majAffichageDents();
+  if (dentsTempsRestant <= 0) avancerZoneDents();
+}
+
+function avancerZoneDents() {
+  jouerSon();
+  if (navigator.vibrate) navigator.vibrate(30);
+  dentsZoneIndex++;
+  dentsEnBrossage = false;
+  if (dentsZoneIndex >= ZONES_DENTS.length) { finBrossageDents(); return; }
+  dentsTempsRestant = DUREE_PAR_ZONE;
+  majAffichageDents();
+  dire("Brosse maintenant " + LIBELLES_ZONES_DENTS[ZONES_DENTS[dentsZoneIndex]] + ".");
+}
+
+function finBrossageDents() {
+  clearInterval(dentsMinuteurId);
+  dentsMinuteurId = null;
+  dire("Bravo, tes dents sont propres !");
+  const etape = dentsEtapeRoutine;
+  dentsEtapeRoutine = null;
+  marquerTache(etape.id, true); // met à jour l'avatar (badge ✨), le son/vibration/étoile de tâche habituels
+  afficherEcran("screen-routine");
+}
+
+// Quitter avant la fin (bouton retour) : rien n'est encore enregistré
+// dans etat.routines (seul finBrossageDents() appelle marquerTache()),
+// donc rien à perdre — mais il faut couper le minuteur, sinon il continue
+// de tourner en arrière-plan et pourrait déclencher avancerZoneDents()
+// sur un écran qu'on a quitté.
+function quitterBrossageDents() {
+  if (dentsMinuteurId) { clearInterval(dentsMinuteurId); dentsMinuteurId = null; }
+  dentsEtapeRoutine = null;
+  afficherEcran("screen-routine");
+}
+
+// Écouteurs posés une seule fois (pas à chaque rendu, contrairement aux
+// lignes de #chemin) : les 6 `.zone-dent` sont des éléments statiques
+// d'index.html, jamais recréés — les repositionner ici accumulerait des
+// écouteurs en double à chaque partie. `estZoneActive()` ignore tout
+// appui hors de la zone actuellement à brosser (ex. l'enfant retouche
+// une zone déjà faite) plutôt que de le laisser faire avancer le minuteur
+// de la mauvaise zone.
+function initZonesDents() {
+  document.querySelectorAll(".zone-dent").forEach((zoneEl, i) => {
+    function estZoneActive() { return i === dentsZoneIndex; }
+    function debut(ev) {
+      if (!estZoneActive()) return;
+      ev.preventDefault();
+      dentsEnBrossage = true;
+      zoneEl.classList.add("brossage-actif");
+      zoneEl.setPointerCapture(ev.pointerId);
+    }
+    function fin() {
+      dentsEnBrossage = false;
+      zoneEl.classList.remove("brossage-actif");
+    }
+    zoneEl.addEventListener("pointerdown", debut);
+    zoneEl.addEventListener("pointerup", fin);
+    zoneEl.addEventListener("pointercancel", fin);
+    zoneEl.addEventListener("pointerleave", fin);
+  });
+}
+
+function formatChrono(secondes) {
+  const total = Math.ceil(secondes);
+  return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
+}
+
+function majAffichageDents() {
+  document.querySelectorAll(".zone-dent").forEach((zoneEl, i) => {
+    const remplissage = zoneEl.querySelector(".zone-dent-remplissage");
+    if (i < dentsZoneIndex) {
+      zoneEl.classList.add("faite"); zoneEl.classList.remove("active", "brossage-actif");
+      remplissage.style.height = "100%";
+    } else if (i === dentsZoneIndex) {
+      zoneEl.classList.remove("faite"); zoneEl.classList.add("active");
+      remplissage.style.height = ((1 - dentsTempsRestant / DUREE_PAR_ZONE) * 100) + "%";
+    } else {
+      zoneEl.classList.remove("faite", "active", "brossage-actif");
+      remplissage.style.height = "0%";
+    }
+  });
+  document.getElementById("dents-consigne").textContent = "Brosse " + LIBELLES_ZONES_DENTS[ZONES_DENTS[dentsZoneIndex]] + ".";
+  document.getElementById("dents-chrono").textContent = formatChrono(dentsTempsRestant);
+  const barre = document.getElementById("dents-barre");
+  [...barre.children].forEach((seg, i) => seg.classList.toggle("fait", i < dentsZoneIndex));
 }
 
 // ---------------------------------------------------------------------
@@ -1777,6 +1929,8 @@ setInterval(majHorloge, 15000);
 // ---------------------------------------------------------------------
 document.getElementById("btn-retour-routine").onclick = retourMenuDepuisRoutine;
 document.getElementById("btn-voix-routine").onclick = () => dire(document.getElementById("etape-courante").textContent);
+document.getElementById("btn-retour-dents").onclick = quitterBrossageDents;
+initZonesDents();
 document.getElementById("btn-voix-coffre").onclick = () => dire(document.getElementById("coffre-texte").textContent);
 document.getElementById("btn-voix-trajet").onclick = () => dire(document.getElementById("trajet-texte").textContent);
 document.getElementById("btn-voix-arrivee").onclick = () => dire(document.getElementById("arrivee-texte").textContent);

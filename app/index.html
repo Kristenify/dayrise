@@ -156,6 +156,32 @@
     <div id="chemin"></div>
   </div>
 
+  <!-- ============ Mini-jeu : brossage de dents ============ -->
+  <!-- Ouvert en tapant la ligne "Brosse-toi les dents." dans une routine
+       (cf. ouvrirMiniJeu()/miniJeu dans app.js) plutôt que par glisser.
+       6 zones dans l'ordre haut-gauche/haut-devant/haut-droite/
+       bas-gauche/bas-devant/bas-droite — l'ordre ici DOIT rester
+       identique à ZONES_DENTS (app.js), qui s'appuie sur l'ordre du DOM
+       plutôt que sur data-zone pour rester simple. -->
+  <div id="screen-dents" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-dents" aria-label="Retour à la routine">←</button>
+      <div class="prenom-actif">Brosse-toi les dents</div>
+      <div id="dents-barre"></div>
+    </div>
+    <div id="dents-consigne" class="texte-consigne"></div>
+    <div id="dents-bouche">
+      <div class="zone-dent" data-zone="haut-gauche"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
+      <div class="zone-dent" data-zone="haut-devant"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
+      <div class="zone-dent" data-zone="haut-droite"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
+      <div class="zone-dent" data-zone="bas-gauche"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
+      <div class="zone-dent" data-zone="bas-devant"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
+      <div class="zone-dent" data-zone="bas-droite"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
+    </div>
+    <div id="dents-chrono">3:00</div>
+    <div class="note-bas">Garde le doigt sur la zone qui brille pour la brosser.</div>
+  </div>
+
   <!-- ============ 2. Fin de routine : félicitations + appel au parent ============ -->
   <div id="screen-bravo-routine" class="screen">
     <div class="scene-centree">

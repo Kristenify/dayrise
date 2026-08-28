@@ -259,6 +259,11 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
    qui n'a pas été réellement fait avant de valider. */
 .noeud.correctible { opacity: 1; cursor: pointer; }
 .noeud.correctible:not(.fait) { border-color: var(--surface-high); }
+/* tâche `miniJeu` (ex. "Brosse-toi les dents.") : toute la ligne ouvre
+   l'écran dédié au tap, contrairement aux autres tâches en cours (pas
+   d'icône à glisser ici, cf. app.js). */
+.noeud.noeud-tapable { cursor: pointer; }
+.noeud.noeud-tapable:active { transform: translate(1px, 1px); }
 .pastille-mini { width: 38px; height: 38px; min-width: 38px; background: var(--surface-active); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
 .noeud.fait .pastille-mini { background: var(--accent); }
 /* icône de l'étape en cours : seule chose à glisser, nettement agrandie
@@ -274,6 +279,56 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 .noeud.fait .texte-etape { color: var(--accent-edge); }
 .coche-mini { font-size: 20px; color: var(--accent); opacity: 0; transition: opacity .2s ease; }
 .noeud.fait .coche-mini { opacity: 1; }
+
+/* ---------- Mini-jeu : brossage de dents ---------- */
+/* barre de progression globale (6 segments, une par zone) — même recette
+   que #barre-etapes, dupliquée plutôt que partagée : les deux vivent
+   dans des bandeaux différents avec des tailles de voisins différentes,
+   pas la peine de généraliser pour un seul autre usage. */
+#dents-barre { display: flex; gap: 2px; flex-wrap: nowrap; flex-shrink: 0; }
+#dents-barre > div {
+  width: 9px; height: 22px; background: var(--surface); border: 2px solid var(--surface-high);
+  transition: background .2s ease, border-color .2s ease;
+}
+#dents-barre > div.fait { background: var(--accent); border-color: var(--accent-edge); }
+
+#dents-consigne { margin-top: 4px; }
+
+/* grille 3x2 : rangée du haut = dents du haut, rangée du bas = dents du
+   bas ; colonnes gauche/devant/droite dans le même ordre qu'on les
+   brosse (cf. ZONES_DENTS, app.js). */
+#dents-bouche {
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr);
+  gap: 10px; height: 230px; margin: 10px 0;
+}
+.zone-dent {
+  position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 3px solid var(--surface-high);
+}
+.zone-dent-emoji { position: relative; z-index: 1; font-size: 40px; opacity: .5; transition: opacity .2s ease; }
+/* remplissage progressif pendant qu'on garde le doigt dessus (même
+   principe que #btn-reset-test::after) : une zone déjà faite reste
+   pleine (100%), la zone en cours se remplit avec dentsTempsRestant,
+   les suivantes restent vides. */
+.zone-dent-remplissage {
+  position: absolute; inset: auto 0 0 0; height: 0%; background: rgba(240,149,47,.4);
+  transition: height .1s linear;
+}
+.zone-dent.active { border-color: var(--accent-edge); border-width: 4px; }
+.zone-dent.active .zone-dent-emoji { opacity: 1; }
+.zone-dent.faite { border-color: var(--accent); }
+.zone-dent.faite .zone-dent-emoji { opacity: 1; }
+/* petit tremblement pendant qu'on brosse activement — retour visuel
+   immédiat que le geste "compte", sans avoir à détecter un vrai
+   mouvement de va-et-vient (pas nécessaire : garder le doigt dessus
+   suffit, cf. app.js). */
+.zone-dent.brossage-actif .zone-dent-emoji { animation: brosserDent .25s ease-in-out infinite; }
+@keyframes brosserDent { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+
+#dents-chrono {
+  text-align: center; font-size: 32px; font-weight: 800; font-family: monospace;
+  color: var(--accent-edge); margin: 4px 0 8px;
+}
 
 /* ---------- Scènes centrées (coffre / fin) ---------- */
 .scene-centree { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; gap: 10px; position: relative; }
