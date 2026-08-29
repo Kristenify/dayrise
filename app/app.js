@@ -471,7 +471,11 @@ function construireMenu() {
   // le code parent protège l'entrée en édition, pas juste un aller simple.
   journeeEnEdition = false;
 
-  if (toutesLesRoutines().every(r => etat.routines[r.id].valide) && !etat.journeeFaite) {
+  // Déclenché par "Aller se coucher" spécifiquement, pas par le fait que
+  // toutes les routines du jour soient validées : Léon peut très bien
+  // n'avoir rien fait d'autre de la journée et aller directement se
+  // coucher, ce doit quand même clôturer la journée.
+  if (etat.routines.soir.valide && !etat.journeeFaite) {
     allerFinDeJournee();
     return;
   }
@@ -505,6 +509,14 @@ function construireMenu() {
   // ni prise en compte pour bloquer une éventuelle suivante — débloquée
   // par l'heure plutôt que par les autres routines (cf. sa définition
   // dans ROUTINES pour le pourquoi).
+  //
+  // De même, seules les routines du catalogue par défaut (ROUTINES)
+  // s'enchaînent entre elles : une routine créée par un parent
+  // (chargerRoutinesPerso) est toujours disponible, ni bloquée par les
+  // précédentes ni prise en compte pour bloquer une suivante — sinon un
+  // petit-déjeuner ajouté par un parent se retrouverait verrouillé
+  // derrière "S'habiller"/"Se préparer à partir" du seul fait d'avoir été
+  // créé après elles, sans aucun rapport réel entre les deux.
   const liste = document.getElementById("liste-routines");
   liste.innerHTML = "";
   let toutPrecedentValide = true;
@@ -524,17 +536,19 @@ function construireMenu() {
       return;
     }
 
-    const debloquee = toutPrecedentValide && !etatR.valide;
+    const chainee = ROUTINES.some(rr => rr.id === r.id);
+    const verrouillee = chainee && !toutPrecedentValide;
+    const debloquee = !verrouillee && !etatR.valide;
     // "verrouillee" ne s'applique qu'à une routine PAS ENCORE validée —
     // sinon une routine déjà faite (ex. "Se préparer à partir") peut se
     // retrouver visuellement "verrouillée" après qu'un parent a relancé
     // une routine précédente depuis l'espace parent, alors qu'elle reste
     // bel et bien validée.
-    carte.className = "carte-routine" + (etatR.valide ? " faite" : (!toutPrecedentValide ? " verrouillee" : ""));
-    carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (toutPrecedentValide ? "" : "🔒")}</div>`;
+    carte.className = "carte-routine" + (etatR.valide ? " faite" : (verrouillee ? " verrouillee" : ""));
+    carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (verrouillee ? "🔒" : "")}</div>`;
     if (debloquee) carte.onclick = () => demarrerRoutine(r.id);
     liste.appendChild(carte);
-    toutPrecedentValide = toutPrecedentValide && etatR.valide;
+    if (chainee) toutPrecedentValide = toutPrecedentValide && etatR.valide;
   });
 
   afficherEcran("screen-menu");
@@ -1483,9 +1497,11 @@ function relancerRoutine(id) {
 
 // Si la routine était validée, on retire l'étoile qu'elle avait
 // rapportée : elle sera regagnée quand l'enfant la revalidera pour de
-// bon, sinon le compteur d'étoiles serait gonflé. `journeeFaite` repasse
-// à faux : la journée n'est plus "finie" tant que cette routine ne l'est
-// pas à nouveau.
+// bon, sinon le compteur d'étoiles serait gonflé. `journeeFaite` ne
+// repasse à faux que si c'est "Aller se coucher" qu'on relance — cf.
+// construireMenu() : c'est la seule routine qui conditionne la journée
+// "finie", relancer une autre routine (ex. correction sur "S'habiller"
+// après coup) n'a pas à rouvrir l'écran de clôture.
 function confirmerRelanceRoutine() {
   const etat = chargerEtat();
   const etatR = etat.routines[routineActuelleId];
@@ -1493,7 +1509,7 @@ function confirmerRelanceRoutine() {
     etatR.valide = false;
     etat.etoiles = Math.max(0, (etat.etoiles || 0) - 1);
   }
-  etat.journeeFaite = false;
+  if (routineActuelleId === "soir") etat.journeeFaite = false;
   sauverEtat(etat);
   synchroniserAvatar(etat);
   jouerSon();
@@ -1772,13 +1788,18 @@ function creerNouvelleRoutine() {
 }
 
 // ---------------------------------------------------------------------
-// 4. Récompense de fin de journée (une fois toutes les routines validées)
+// 4. Récompense de fin de journée (une fois "Aller se coucher" validée)
 // ---------------------------------------------------------------------
 function allerFinDeJournee() {
   const etat = chargerEtat();
-  document.getElementById("coffre-texte").textContent = "Toutes les routines sont finies, Léon !";
+  // Message de clôture de la journée, pas un récapitulatif des routines
+  // faites (cf. l'appelant : déclenché par "Aller se coucher" seule,
+  // même si Léon n'a rien fait d'autre de la journée). Identique à
+  // l'écrit et à l'oral (cf. `dire`).
+  const texte = "Bravo pour toutes les routines que tu as faites aujourd'hui Léon. Bonne nuit et à demain.";
+  document.getElementById("coffre-texte").textContent = texte;
   document.getElementById("coffre-recompense-texte").textContent = "+ " + (etat.etoiles || 0) + " ⭐ aujourd'hui";
-  ouvrirCoffre("Bravo Léon, toutes les routines de la journée sont finies !", ["⭐", "✨", "🎉", "⭐", "✨"], () => allerAFin());
+  ouvrirCoffre(texte, ["⭐", "✨", "🎉", "⭐", "✨"], () => allerAFin());
 }
 
 // Écran coffre : partagé entre la récompense de fin de journée (étoiles)
