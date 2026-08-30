@@ -580,12 +580,14 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   background: var(--surface); border: 2px solid var(--surface-high); padding: 9px 6px;
 }
 
-/* ---------- Fin ---------- */
-#screen-fin h1 { font-size: 26px; margin: 0; padding: 0 12px; }
-#fin-emoji { font-size: 96px; animation: rebond 1s ease infinite; }
 @keyframes rebond { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-14px);} }
-#fin-etoiles { font-size: 28px; font-weight: 800; color: var(--accent); margin: 6px 0 18px; }
+
+/* ---------- Dodo ---------- */
+/* Pulsation lente et douce (contraste voulu avec "rebond", festif) —
+   une scène de sommeil ne doit pas stimuler. */
+#dodo-emoji { font-size: 120px; animation: respire 4s ease-in-out infinite; }
+@keyframes respire { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 
 @media (prefers-reduced-motion: reduce) {
-  *, #fin-emoji, .pop { animation: none !important; }
+  *, .pop { animation: none !important; }
 }

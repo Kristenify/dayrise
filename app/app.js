@@ -1497,11 +1497,12 @@ function relancerRoutine(id) {
 
 // Si la routine était validée, on retire l'étoile qu'elle avait
 // rapportée : elle sera regagnée quand l'enfant la revalidera pour de
-// bon, sinon le compteur d'étoiles serait gonflé. `journeeFaite` ne
-// repasse à faux que si c'est "Aller se coucher" qu'on relance — cf.
-// construireMenu() : c'est la seule routine qui conditionne la journée
-// "finie", relancer une autre routine (ex. correction sur "S'habiller"
-// après coup) n'a pas à rouvrir l'écran de clôture.
+// bon, sinon le compteur d'étoiles serait gonflé. `journeeFaite` et le
+// verrou de sommeil (`leon_reveil`, cf. `endormir`) ne repassent à faux
+// que si c'est "Aller se coucher" qu'on relance — cf. construireMenu() :
+// c'est la seule routine qui conditionne la journée "finie", relancer
+// une autre routine (ex. correction sur "S'habiller" après coup) n'a pas
+// à rouvrir l'écran de clôture ni à réveiller l'app.
 function confirmerRelanceRoutine() {
   const etat = chargerEtat();
   const etatR = etat.routines[routineActuelleId];
@@ -1509,7 +1510,10 @@ function confirmerRelanceRoutine() {
     etatR.valide = false;
     etat.etoiles = Math.max(0, (etat.etoiles || 0) - 1);
   }
-  if (routineActuelleId === "soir") etat.journeeFaite = false;
+  if (routineActuelleId === "soir") {
+    etat.journeeFaite = false;
+    try { localStorage.removeItem("leon_reveil"); } catch (e) {}
+  }
   sauverEtat(etat);
   synchroniserAvatar(etat);
   jouerSon();
@@ -1788,18 +1792,61 @@ function creerNouvelleRoutine() {
 }
 
 // ---------------------------------------------------------------------
-// 4. Récompense de fin de journée (une fois "Aller se coucher" validée)
+// 4. Récompense de fin de journée (une fois "Aller se coucher" validée),
+// puis endormissement de l'app jusqu'au lendemain HEURE_REVEIL
 // ---------------------------------------------------------------------
+// Message de clôture de la journée, pas un récapitulatif des routines
+// faites (cf. les appelants : déclenché par "Aller se coucher" seule,
+// même si Léon n'a rien fait d'autre de la journée). Identique à l'écrit
+// et à l'oral (cf. `dire`).
+const TEXTE_FIN_JOURNEE = "Bravo pour toutes les routines que tu as faites aujourd'hui Léon. Bonne nuit et à demain.";
+const HEURE_REVEIL = 7;
+
+function afficherRecompenseFinDeJournee(etat) {
+  document.getElementById("coffre-texte").textContent = TEXTE_FIN_JOURNEE;
+  document.getElementById("coffre-recompense-texte").textContent = "+ " + (etat.etoiles || 0) + " ⭐ aujourd'hui";
+}
+
+// `leon_reveil` (horodatage ISO, prochain HEURE_REVEIL) est volontairement
+// une clé à part de `leon_journee` : cette dernière repart de zéro dès que
+// la date change (cf. `chargerEtat`), ce qui arrive à minuit — bien avant
+// l'heure de réveil. Le verrou doit survivre à ce passage de minuit pour
+// tenir jusqu'au matin.
+function prochainReveil(depuis) {
+  const reveil = new Date(depuis);
+  reveil.setHours(HEURE_REVEIL, 0, 0, 0);
+  if (reveil <= depuis) reveil.setDate(reveil.getDate() + 1);
+  return reveil;
+}
+
+function dortEncore() {
+  const reveil = localStorage.getItem("leon_reveil");
+  if (reveil && new Date() < new Date(reveil)) return true;
+  try { localStorage.removeItem("leon_reveil"); } catch (e) {}
+  return false;
+}
+
+// Écran "en sommeil" (screen-dodo) : aucune carte, aucun bouton, rien à
+// faire tant que `dortEncore()` est vrai. Seuls les boutons globaux
+// (⚙️ espace parent, ↺ reset — hors des .screen, toujours affichés)
+// restent atteignables : c'est le bypass parental exceptionnel, via le
+// code déjà existant (cf. ouvrirEspaceParent). construireMenu() ne
+// revérifie pas ce verrou : une fois le code entré, revenir à l'écran
+// enfant depuis l'espace parent suffit à le lever pour la session en
+// cours (il retient au prochain rechargement si l'heure n'est pas
+// encore passée, cf. `demarrer`).
+function endormir() {
+  const etat = chargerEtat();
+  etat.journeeFaite = true;
+  sauverEtat(etat);
+  try { localStorage.setItem("leon_reveil", prochainReveil(new Date()).toISOString()); } catch (e) {}
+  afficherEcran("screen-dodo");
+}
+
 function allerFinDeJournee() {
   const etat = chargerEtat();
-  // Message de clôture de la journée, pas un récapitulatif des routines
-  // faites (cf. l'appelant : déclenché par "Aller se coucher" seule,
-  // même si Léon n'a rien fait d'autre de la journée). Identique à
-  // l'écrit et à l'oral (cf. `dire`).
-  const texte = "Bravo pour toutes les routines que tu as faites aujourd'hui Léon. Bonne nuit et à demain.";
-  document.getElementById("coffre-texte").textContent = texte;
-  document.getElementById("coffre-recompense-texte").textContent = "+ " + (etat.etoiles || 0) + " ⭐ aujourd'hui";
-  ouvrirCoffre(texte, ["⭐", "✨", "🎉", "⭐", "✨"], () => allerAFin());
+  afficherRecompenseFinDeJournee(etat);
+  ouvrirCoffre(TEXTE_FIN_JOURNEE, ["⭐", "✨", "🎉", "⭐", "✨"], endormir);
 }
 
 // Écran coffre : partagé entre la récompense de fin de journée (étoiles)
@@ -1932,17 +1979,6 @@ function terminerAventure(a) {
   construireMenu();
 }
 
-// ---------------------------------------------------------------------
-// 5. Fin de journée (écran de clôture)
-// ---------------------------------------------------------------------
-function allerAFin() {
-  const etat = chargerEtat();
-  etat.journeeFaite = true;
-  sauverEtat(etat);
-  document.getElementById("fin-etoiles").textContent = (etat.etoiles || 0) + " ⭐";
-  afficherEcran("screen-fin");
-}
-
 function reinitialiserTout() {
   try { localStorage.removeItem("leon_journee"); } catch (e) {}
   derniereEtapeAnnoncee = null;
@@ -2043,7 +2079,6 @@ document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { 
 document.getElementById("btn-continuer-coffre").onclick = () => { if (coffreRetour) coffreRetour(); };
 document.getElementById("btn-arrive").onclick = allerValidationArrivee;
 document.getElementById("btn-cest-parti").onclick = partirEnActivite;
-protegerParAppuiLong(document.getElementById("btn-recommencer"), reinitialiserTout);
 
 // Service worker : rend l'app utilisable hors-ligne après un premier
 // chargement, indépendamment de la disponibilité d'un serveur particulier
@@ -2065,8 +2100,10 @@ if ("serviceWorker" in navigator) {
 // `chargerEtat()` répare déjà les cas courants sans perdre la journée.
 (function demarrer() {
   try {
-    const etat = chargerEtat();
-    if (etat.journeeFaite) { allerAFin(); return; }
+    // Encore en sommeil (tablette rouverte en pleine nuit) : reste sur
+    // l'écran dodo, avant même de toucher à `leon_journee` — pas
+    // d'interaction possible avant `dortEncore()` == false (cf. `endormir`).
+    if (dortEncore()) { afficherEcran("screen-dodo"); return; }
     construireMenu();
   } catch (e) {
     try { localStorage.removeItem("leon_journee"); } catch (e2) {}

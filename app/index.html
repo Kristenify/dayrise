@@ -456,6 +456,17 @@
     </div>
   </div>
 
+  <!-- ============ 4bis. Sommeil (jusqu'au réveil, cf. dortEncore()) ============ -->
+  <!-- Volontairement sans texte ni bouton : rien à faire, rien à lire —
+       juste une scène calme. Seuls les boutons globaux (⚙️/↺, hors des
+       .screen, tout en haut du body) restent atteignables, cf. leur
+       commentaire dans index.html pour le rôle de bypass parental. -->
+  <div id="screen-dodo" class="screen">
+    <div class="scene-centree">
+      <div id="dodo-emoji">😴</div>
+    </div>
+  </div>
+
   <!-- ============ 3. Le trajet ============ -->
   <div id="screen-trajet" class="screen">
     <div class="barre-haut">
@@ -513,16 +524,6 @@
       <div id="arrivee-programme"></div>
     </div>
     <button class="btn-continuer" id="btn-cest-parti">C'est parti</button>
-  </div>
-
-  <!-- ============ 5. Fin de journée ============ -->
-  <div id="screen-fin" class="screen">
-    <div class="scene-centree">
-      <div id="fin-emoji">🎉</div>
-      <h1>Journée terminée, Léon !</h1>
-      <div id="fin-etoiles"></div>
-      <button class="btn-continuer" id="btn-recommencer" title="Maintenir pour recommencer la journée">Maintenir pour recommencer</button>
-    </div>
   </div>
 
 </div>
