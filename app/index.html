@@ -207,6 +207,20 @@
     <div class="note-bas">Le minuteur avance tout seul, zone par zone.</div>
   </div>
 
+  <!-- ============ 1bis. Histoire du soir (routine "Aller se coucher") ============ -->
+  <div id="screen-histoire" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-histoire" aria-label="Retour à la routine">←</button>
+      <div class="prenom-actif">L'histoire du soir</div>
+      <button class="btn-voix" id="btn-voix-histoire" aria-label="Réécouter">🔊</button>
+    </div>
+    <div id="histoire-image"></div>
+    <div id="histoire-texte" class="texte-consigne"></div>
+    <!-- C'est un parent qui appuie une fois la lecture terminée (cf.
+         commentaire de ouvrirHistoire() dans app.js) — pas l'enfant. -->
+    <button class="btn-continuer" id="btn-fini-histoire">L'histoire est finie</button>
+  </div>
+
   <!-- ============ 2. Fin de routine : félicitations + appel au parent ============ -->
   <div id="screen-bravo-routine" class="screen">
     <div class="scene-centree">

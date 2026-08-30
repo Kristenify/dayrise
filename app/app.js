@@ -115,7 +115,11 @@ const ROUTINES = [
       // l'avatar continue de refléter que les dents sont faites, une
       // fois le mini-jeu terminé (marquerTache() y est appelé pareil).
       { id: "dents",    texte: "Brosse-toi les dents.",                   emoji: "🪥", miniJeu: "dents", badge: "visage", badgeFait: "✨" },
-      { id: "histoire", texte: "On lit l'histoire.",                      emoji: "📖", zone: "zone-jambes" },
+      // `miniJeu: "histoire"` (au lieu de `zone`), même principe que
+      // "dents" ci-dessus : ouvre l'écran dédié `screen-histoire`
+      // (image + texte) en tapant la ligne, plutôt qu'un glisser-déposer
+      // — pas de geste à faire, juste un moment calme sur le canapé.
+      { id: "histoire", texte: "On lit l'histoire.",                      emoji: "📖", miniJeu: "histoire" },
       { id: "coucher",  texte: "Je vais me coucher.",                     emoji: "😴", zone: "zone-pieds" },
     ],
   },
@@ -1127,6 +1131,7 @@ let dentsMinuteurId = null;
 // synchroniserRoutineEcran() au tap sur la ligne de la tâche.
 function ouvrirMiniJeu(etape) {
   if (etape.miniJeu === "dents") demarrerBrossageDents(etape);
+  if (etape.miniJeu === "histoire") ouvrirHistoire(etape);
 }
 
 function demarrerBrossageDents(etape) {
@@ -1191,6 +1196,40 @@ function finBrossageDents() {
 function quitterBrossageDents() {
   if (dentsMinuteurId) { clearInterval(dentsMinuteurId); dentsMinuteurId = null; }
   dentsEtapeRoutine = null;
+  afficherEcran("screen-routine");
+}
+
+// ---------------------------------------------------------------------
+// Mini-jeu : histoire du soir (tâche `miniJeu: "histoire"`) — écran dédié
+// (screen-histoire), même principe que les dents ci-dessus mais sans
+// minuteur : juste une image (parent/enfants sur le canapé, cf.
+// app/assets/scenes/histoire-soir.jpg) et un texte, le temps que la
+// lecture ait vraiment lieu à côté de la tablette. C'est un parent qui
+// appuie sur "L'histoire est finie" une fois la lecture terminée (comme
+// "On est arrivés"/"C'est parti" en aventure) — pas l'enfant, il n'y a
+// rien à faire ici, juste à écouter.
+const TEXTE_HISTOIRE = "On lit l'histoire du soir, on reste assis calmement sur le canapé et on profite de ce moment de détente et de partage.";
+let histoireEtapeRoutine = null;
+
+function ouvrirHistoire(etape) {
+  histoireEtapeRoutine = etape;
+  document.getElementById("histoire-texte").textContent = TEXTE_HISTOIRE;
+  afficherEcran("screen-histoire");
+  dire(TEXTE_HISTOIRE);
+}
+
+// Échappatoire pour un tap accidentel sur la ligne, même principe que
+// retourMenuDepuisRoutine() : rien n'est encore enregistré (seul
+// finHistoire() appelle marquerTache()), donc rien à perdre.
+function quitterHistoire() {
+  histoireEtapeRoutine = null;
+  afficherEcran("screen-routine");
+}
+
+function finHistoire() {
+  const etape = histoireEtapeRoutine;
+  histoireEtapeRoutine = null;
+  marquerTache(etape.id, true);
   afficherEcran("screen-routine");
 }
 
@@ -1715,7 +1754,7 @@ function construireRoutinesCatalogue() {
 // moins une requise). Pas de `calque` proposé (ça demanderait un sprite
 // existant pour chaque nouveau vêtement/objet) : chaque tâche a son
 // propre emoji, affiché tel quel, sans effet persistant sur l'avatar —
-// comme "Range tes vêtements"/"On lit l'histoire" dans "Aller se
+// comme "Range tes vêtements"/"Je vais me coucher" dans "Aller se
 // coucher" aujourd'hui.
 const EMOJI_ROUTINE = ["🪥","🛁","🧦","🧸","📚","🍽️","🧴","✏️","🧹","🚿","🎒","👕","🧼","⏰","🌟","🧦"];
 const ZONE_PAR_DEFAUT_ROUTINE = "zone-torse";
@@ -2029,6 +2068,9 @@ document.getElementById("btn-retour-routine").onclick = retourMenuDepuisRoutine;
 document.getElementById("btn-voix-routine").onclick = () => dire(document.getElementById("etape-courante").textContent);
 document.getElementById("btn-retour-dents").onclick = quitterBrossageDents;
 document.getElementById("btn-pause-dents").onclick = toggleDentsPause;
+document.getElementById("btn-retour-histoire").onclick = quitterHistoire;
+document.getElementById("btn-voix-histoire").onclick = () => dire(document.getElementById("histoire-texte").textContent);
+document.getElementById("btn-fini-histoire").onclick = finHistoire;
 document.getElementById("btn-voix-coffre").onclick = () => dire(document.getElementById("coffre-texte").textContent);
 document.getElementById("btn-voix-trajet").onclick = () => dire(document.getElementById("trajet-texte").textContent);
 document.getElementById("btn-voix-arrivee").onclick = () => dire(document.getElementById("arrivee-texte").textContent);

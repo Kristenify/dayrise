@@ -367,6 +367,16 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   color: var(--accent-edge); margin: 4px 0 8px;
 }
 
+/* ---------- Histoire du soir ---------- */
+/* Même principe que #fenetre-voiture (cf. Trajet) : boîte à bords fixes,
+   image en fond plutôt qu'un <img>, pour rester cohérent avec les autres
+   scènes de l'app. */
+#histoire-image {
+  height: 260px; border: 3px solid var(--surface-high);
+  background: url("assets/scenes/histoire-soir.jpg") center / cover;
+  margin-bottom: 8px; flex-shrink: 0;
+}
+
 /* ---------- Scènes centrées (coffre / fin) ---------- */
 .scene-centree { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; gap: 10px; position: relative; }
 #coffre-emoji { font-size: 96px; }
