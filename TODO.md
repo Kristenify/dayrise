@@ -351,24 +351,59 @@ prototype actuel.
       tapant sa ligne (`ouvrirMiniJeu()`) plutôt qu'en y glissant
       l'icône. Minuteur de 3 minutes réparties en 6 zones dans l'ordre
       où les brosser (haut-gauche → haut-devant → haut-droite →
-      bas-gauche → bas-devant → bas-droite, 30s chacune) : il faut
-      garder le doigt sur la zone en cours pour que son temps décompte
-      (relâcher ou toucher une autre zone met en pause, aucune zone ne
-      peut être sautée). Une fois les 6 zones épuisées, revient à la
-      routine avec la tâche marquée faite — même geste que les autres
-      (son, vibration, étoile de tâche, badge ✨ sur le visage de
-      l'avatar, toujours via `marquerTache()`).
+      bas-gauche → bas-devant → bas-droite, 30s chacune). Une fois les
+      6 zones épuisées, revient à la routine avec la tâche marquée
+      faite — même geste que les autres (son, vibration, étoile de
+      tâche, badge ✨ sur le visage de l'avatar, toujours via
+      `marquerTache()`).
+  - [x] **Aucune action requise pendant le brossage** — demandé
+        explicitement : la version initiale demandait de garder le
+        doigt sur la zone en cours, ce qui faisait concurrence au vrai
+        geste de brossage (l'enfant a besoin de ses mains pour la vraie
+        brosse à dents, pas pour l'écran). Le minuteur démarre et
+        avance tout seul dès l'ouverture (`dentsEnCours`, vrai par
+        défaut) ; la seule interaction possible est un bouton
+        Pause/Reprendre dédié (`toggleDentsPause()`), jamais requis.
+  > **Le principe du mini-jeu de brossage est validé** (retour explicite),
+  > mais **pas figé** — d'autres améliorations sont prévues plus tard,
+  > pas encore précisées à ce stade. Ne pas considérer `screen-dents`
+  > comme la version finale en cas de refonte future du parcours.
 - [x] **"Enlève tes vêtements" glisse l'avatar, pas la carte** — pour se
       déshabiller (1ʳᵉ tâche de "Aller se coucher"), on tire maintenant
       l'avatar habillé (`avatarGlissable: true`) hors de la scène (vers
       le bas) plutôt que de glisser une icône de liste jusqu'à lui —
       sens plus logique que pour s'habiller, où le vêtement n'existe pas
       encore sur l'avatar. `rendreAvatarGlissable()` (app.js), variante
-      de `rendreGlissable()` : clone `#avatar-wrap` au lieu d'une icône,
-      succès si lâché sous `#scene`. L'avatar respire doucement
-      (`.invite-glisser`) pendant que cette tâche est active, pour
-      remplacer l'invite visuelle que portait l'icône glissable
-      (retirée de la liste pour cette tâche précise).
+      de `rendreGlissable()` : succès si lâché sous `#scene`. Une flèche
+      ⬇ sous l'avatar (`#fleche-detacher`) indique la direction du geste
+      tant que la tâche est en cours — retour de terrain (le geste seul,
+      sans indice, n'était pas assez intuitif).
+  - [x] **Seuls les vêtements se détachent, pas l'avatar entier** —
+        correctif suite à un autre retour de terrain (le corps de Léon
+        disparaissait entièrement de la scène pendant le geste, pas
+        seulement ses habits — pas logique pour "enlève TES vêtements").
+        `rendreAvatarGlissable()` ne clone plus que les calques
+        actuellement visibles listés dans `etape.calque` (donc juste le
+        t-shirt/pantalon/etc.) ; le corps, le visage, restent en place
+        et visibles tout du long. Cacher/remontrer un calque pendant le
+        geste réutilise le même mécanisme que `synchroniserAvatar()`
+        (classe `visible`, jamais de style inline) pour rester cohérent
+        si la routine est relancée ensuite.
+  - [x] **Pile de vêtements pour "Range tes vêtements"** — demandé
+        explicitement en écho au point précédent : les habits qui
+        viennent de tomber ne disparaissent plus dans le vide, ils
+        réapparaissent en pile dans la scène (`#pile-vetements`,
+        `pileGlissable: true`) que l'enfant glisse ensuite vers un
+        panier — réutilise `rendreGlissable()` tel quel (seule la
+        source du glisser change, la liste vers la scène), pas de
+        nouvelle fonction nécessaire.
+  - [x] **Panier de linge visible en permanence** — demandé
+        explicitement : `zone-dos` (invisible, ne s'affiche qu'au
+        survol pendant un glisser) remplacée par `zone-panier`, associée
+        à un panier 🧺 réellement visible à côté de Léon
+        (`#panier-linge`) dès le début de "Aller se coucher" — pas
+        seulement pendant la tâche "ranger" — pour que la cible soit
+        connue avant même que les vêtements ne tombent.
 - [x] **Refonte menu + routines + validation parent**, à partir des
       principes notés dans `docs/produit/` (routines indépendantes,
       relation mère-fille Routine ↔ Tâches, étoiles → jauge de journée,

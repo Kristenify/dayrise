@@ -102,6 +102,15 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
    coupe déjà via la règle générique `*` en bas de fichier. */
 .avatar-wrap.invite-glisser { animation: respirerAvatar 1.6s ease-in-out infinite; }
 @keyframes respirerAvatar { 0%, 100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.05); } }
+/* Flèche "tire par ici" sous l'avatar, seule tant qu'une tâche
+   `avatarGlissable` est en cours (cf. app.js) — indique la direction du
+   geste avant même le premier essai, plutôt que de laisser deviner. */
+#fleche-detacher {
+  position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
+  font-size: 22px; opacity: 0; pointer-events: none; transition: opacity .2s ease;
+}
+#fleche-detacher.visible { opacity: .85; animation: rebondBas 1s ease-in-out infinite; }
+@keyframes rebondBas { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(7px); } }
 /* Poignée invisible superposée à l'avatar (#avatar-poignee dans
    index.html, remplie par app.js) : mêmes dimensions/position que
    .avatar-wrap pour capter le geste exactement là où l'enfant voit
@@ -110,6 +119,29 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   position: absolute; left: 50%; bottom: 14px; width: 122px; height: 190px; transform: translateX(-50%);
   cursor: grab; touch-action: none;
 }
+/* Pile de vêtements (#pile-vetements dans index.html, remplie par
+   app.js pour une tâche `pileGlissable`) : posée au sol, à l'écart de
+   l'avatar et de zone-dos (la cible), pour que le geste "ramasser puis
+   ranger" ait une vraie distance à parcourir plutôt que de partir déjà
+   sur la cible. */
+#pile-vetements { position: absolute; left: 16px; bottom: 12px; width: 60px; height: 60px; }
+/* Panier de linge : visible en permanence pendant "Aller se coucher"
+   (cf. app.js), pas juste au moment de "ranger" — repère fixe avant
+   même que les vêtements ne tombent. Même emplacement que #zone-panier
+   ci-dessous, purement visuel (pointer-events:none). */
+#panier-linge {
+  position: absolute; right: 16px; bottom: 12px; width: 60px; height: 60px;
+  display: flex; align-items: center; justify-content: center; font-size: 36px;
+  opacity: 0; transition: opacity .2s ease; pointer-events: none;
+}
+#panier-linge.visible { opacity: 1; }
+.pile-glissable {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  font-size: 32px; background: var(--surface-active); border: 3px solid var(--surface-high);
+  box-shadow: var(--shadow-hard); cursor: grab; touch-action: none;
+  animation: pileApparait .3s ease;
+}
+@keyframes pileApparait { 0% { transform: scale(0); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
 
 .avatar-calque {
   position: absolute; inset: 0; width: 100%; height: 100%;
@@ -213,6 +245,11 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 #zone-jambes  { left: 50%; margin-left: -51px; top: 146px; width: 102px; height: 42px; }
 #zone-pieds   { left: 50%; margin-left: -56px; top: 168px; width: 112px; height: 36px; }
 #zone-dos     { left: 50%; margin-left: 31px;  top: 73px;  width: 50px;  height: 50px; }
+/* cible du panier de linge (tâche "ranger", pileGlissable) : superposée
+   à #panier-linge, au sol à côté de l'avatar, à l'opposé de
+   #pile-vetements pour que le geste "ramasser puis ranger" ait une
+   vraie distance à parcourir. */
+#zone-panier  { right: 16px; bottom: 12px; width: 60px; height: 60px; }
 
 #etape-courante {
   text-align: center; font-size: 23px; font-weight: 700; min-height: 32px; margin-bottom: 10px;
@@ -543,12 +580,14 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   background: var(--surface); border: 2px solid var(--surface-high); padding: 9px 6px;
 }
 
-/* ---------- Fin ---------- */
-#screen-fin h1 { font-size: 26px; margin: 0; padding: 0 12px; }
-#fin-emoji { font-size: 96px; animation: rebond 1s ease infinite; }
 @keyframes rebond { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-14px);} }
-#fin-etoiles { font-size: 28px; font-weight: 800; color: var(--accent); margin: 6px 0 18px; }
+
+/* ---------- Dodo ---------- */
+/* Pulsation lente et douce (contraste voulu avec "rebond", festif) —
+   une scène de sommeil ne doit pas stimuler. */
+#dodo-emoji { font-size: 120px; animation: respire 4s ease-in-out infinite; }
+@keyframes respire { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 
 @media (prefers-reduced-motion: reduce) {
-  *, #fin-emoji, .pop { animation: none !important; }
+  *, .pop { animation: none !important; }
 }

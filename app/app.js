@@ -101,7 +101,13 @@ const ROUTINES = [
       { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👕",
         calque: ["calque-haut", "calque-pantalon", "calque-chaussettes", "calque-chaussures", "calque-manteau"],
         retire: true, avatarGlissable: true },
-      { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-dos" },
+      // `pileGlissable: true` : contrairement aux autres tâches, ce n'est
+      // pas l'icône de la liste qui se glisse vers `zone` mais la pile de
+      // vêtements qui apparaît dans la scène une fois "enlever" fait (cf.
+      // #pile-vetements, synchroniserRoutineEcran()) — matérialise les
+      // habits qui viennent de tomber, plutôt que de les faire disparaître
+      // pour de bon avant même cette tâche.
+      { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-panier", pileGlissable: true },
       // `miniJeu: "dents"` (au lieu de `zone`) : cette tâche s'ouvre en
       // tapant sa ligne (cf. ouvrirMiniJeu()) plutôt qu'en y glissant
       // l'icône — lance l'écran dédié `screen-dents` (minuteur +
@@ -465,7 +471,11 @@ function construireMenu() {
   // le code parent protège l'entrée en édition, pas juste un aller simple.
   journeeEnEdition = false;
 
-  if (toutesLesRoutines().every(r => etat.routines[r.id].valide) && !etat.journeeFaite) {
+  // Déclenché par "Aller se coucher" spécifiquement, pas par le fait que
+  // toutes les routines du jour soient validées : Léon peut très bien
+  // n'avoir rien fait d'autre de la journée et aller directement se
+  // coucher, ce doit quand même clôturer la journée.
+  if (etat.routines.soir.valide && !etat.journeeFaite) {
     allerFinDeJournee();
     return;
   }
@@ -499,6 +509,14 @@ function construireMenu() {
   // ni prise en compte pour bloquer une éventuelle suivante — débloquée
   // par l'heure plutôt que par les autres routines (cf. sa définition
   // dans ROUTINES pour le pourquoi).
+  //
+  // De même, seules les routines du catalogue par défaut (ROUTINES)
+  // s'enchaînent entre elles : une routine créée par un parent
+  // (chargerRoutinesPerso) est toujours disponible, ni bloquée par les
+  // précédentes ni prise en compte pour bloquer une suivante — sinon un
+  // petit-déjeuner ajouté par un parent se retrouverait verrouillé
+  // derrière "S'habiller"/"Se préparer à partir" du seul fait d'avoir été
+  // créé après elles, sans aucun rapport réel entre les deux.
   const liste = document.getElementById("liste-routines");
   liste.innerHTML = "";
   let toutPrecedentValide = true;
@@ -518,17 +536,19 @@ function construireMenu() {
       return;
     }
 
-    const debloquee = toutPrecedentValide && !etatR.valide;
+    const chainee = ROUTINES.some(rr => rr.id === r.id);
+    const verrouillee = chainee && !toutPrecedentValide;
+    const debloquee = !verrouillee && !etatR.valide;
     // "verrouillee" ne s'applique qu'à une routine PAS ENCORE validée —
     // sinon une routine déjà faite (ex. "Se préparer à partir") peut se
     // retrouver visuellement "verrouillée" après qu'un parent a relancé
     // une routine précédente depuis l'espace parent, alors qu'elle reste
     // bel et bien validée.
-    carte.className = "carte-routine" + (etatR.valide ? " faite" : (!toutPrecedentValide ? " verrouillee" : ""));
-    carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (toutPrecedentValide ? "" : "🔒")}</div>`;
+    carte.className = "carte-routine" + (etatR.valide ? " faite" : (verrouillee ? " verrouillee" : ""));
+    carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (verrouillee ? "🔒" : "")}</div>`;
     if (debloquee) carte.onclick = () => demarrerRoutine(r.id);
     liste.appendChild(carte);
-    toutPrecedentValide = toutPrecedentValide && etatR.valide;
+    if (chainee) toutPrecedentValide = toutPrecedentValide && etatR.valide;
   });
 
   afficherEcran("screen-menu");
@@ -819,6 +839,10 @@ function synchroniserRoutineEcran() {
   synchroniserAvatar(etat);
   document.getElementById("nom-routine").textContent = routine.nom;
   document.getElementById("scene").classList.toggle("scene-salon", routine.lieu === "salon");
+  // Panier de linge : présent en permanence pendant "Aller se coucher",
+  // pas seulement pendant la tâche "ranger" — sert de repère fixe avant
+  // même que les vêtements ne tombent (cf. #panier-linge, index.html).
+  document.getElementById("panier-linge").classList.toggle("visible", routine.id === "soir");
 
   // prochaine tâche à faire (première non cochée), seule jouable : les
   // suivantes n'ont pas d'icône glissable tant que celle-ci n'est pas
@@ -843,6 +867,7 @@ function synchroniserRoutineEcran() {
   // inviter le geste tant que cette tâche est en cours.
   const avatarWrapRoutine = document.getElementById("avatar-wrap");
   avatarWrapRoutine.classList.toggle("invite-glisser", !!(prochaine && prochaine.avatarGlissable));
+  document.getElementById("fleche-detacher").classList.toggle("visible", !!(prochaine && prochaine.avatarGlissable));
   const poignee = document.getElementById("avatar-poignee");
   poignee.innerHTML = "";
   if (prochaine && prochaine.avatarGlissable) {
@@ -850,6 +875,23 @@ function synchroniserRoutineEcran() {
     poigneeGlissable.className = "poignee-glissable";
     poignee.appendChild(poigneeGlissable);
     rendreAvatarGlissable(poigneeGlissable, avatarWrapRoutine, prochaine);
+  }
+
+  // Pile de vêtements pour une tâche `pileGlissable` (ex. "Range tes
+  // vêtements") : matérialise dans la scène ce qui vient de tomber
+  // pendant `avatarGlissable` (ci-dessus), plutôt que de le faire
+  // disparaître pour de bon avant même cette tâche. Reconstruite à
+  // chaque rendu (même raison que la poignée avatar) ; se glisse comme
+  // n'importe quelle icône de tâche normale (rendreGlissable(), vers
+  // `zone`), juste depuis la scène plutôt que depuis la liste.
+  const pileConteneur = document.getElementById("pile-vetements");
+  pileConteneur.innerHTML = "";
+  if (prochaine && prochaine.pileGlissable) {
+    const pile = document.createElement("div");
+    pile.className = "pile-glissable";
+    pile.textContent = "👕";
+    pileConteneur.appendChild(pile);
+    rendreGlissable(pile, prochaine);
   }
 
   // liste : toutes les tâches restent visibles, pour que l'enfant voie
@@ -868,7 +910,7 @@ function synchroniserRoutineEcran() {
     const enCours = prochaine && t.id === prochaine.id;
     const noeud = document.createElement("div");
     noeud.className = "noeud" + (fait ? " fait" : "") + (enCours ? " en-cours" : "") + (enCours && t.miniJeu ? " noeud-tapable" : "");
-    const glisserIci = enCours && !t.avatarGlissable && !t.miniJeu;
+    const glisserIci = enCours && !t.avatarGlissable && !t.miniJeu && !t.pileGlissable;
     const classeIcone = "pastille-mini" + (glisserIci ? " pastille-glissable" : "");
     noeud.innerHTML = `<div class="${classeIcone}">${t.emoji}</div><div class="texte-etape">${t.texte}</div><div class="coche-mini">✓</div>`;
     if (glisserIci) rendreGlissable(noeud.querySelector(".pastille-glissable"), t);
@@ -963,29 +1005,47 @@ function rendreGlissable(el, etape) {
 
 // Variante de rendreGlissable() pour une tâche `avatarGlissable` (ex.
 // "enlève tes vêtements") : ce qu'on glisse n'est pas une icône de la
-// liste vers une zone, mais l'avatar habillé lui-même, tiré hors de la
-// scène — succès si on le lâche sous le bas de #scene (pas de zone
-// précise à viser, cible volontairement large et sans ambiguïté avec la
-// tâche suivante "Range tes vêtements", qui a sa propre zone-dos).
+// liste vers une zone, mais les vêtements ACTUELLEMENT PORTÉS (ceux
+// listés dans `etape.calque`) tirés hors de la scène — succès si on les
+// lâche sous le bas de #scene (pas de zone précise à viser, cible
+// volontairement large et sans ambiguïté avec la tâche suivante "Range
+// tes vêtements", qui a sa propre zone-dos).
+//
+// Retour de terrain (session précédente) : cloner tout #avatar-wrap et
+// le cacher pendant le geste faisait disparaître Léon entier de la
+// scène, pas juste ses habits — pas intuitif ("enlève TES vêtements",
+// pas "pars"). Ici seuls les calques visibles concernés sont clonés
+// (donc juste le t-shirt/pantalon/etc.) ; le reste de l'avatar (corps,
+// visage...) ne bouge jamais.
+//
 // `poignee` est une zone de tap invisible superposée à l'avatar
 // (#avatar-poignee, reconstruite à chaque rendu) : les calques de
 // l'avatar ont `pointer-events:none`, il faut donc un élément dédié
-// pour capter le geste. `avatarWrap` (le vrai #avatar-wrap, persistant
-// d'un rendu à l'autre) est ce qu'on clone pour l'effet visuel — contrairement
-// à l'icône d'une tâche normale, il n'est PAS recréé au rendu suivant, donc
-// sa visibilité doit être explicitement restaurée après succès (pas
-// seulement après échec) pour ne pas le laisser invisible pour de bon.
+// pour capter le geste, sur toute la silhouette (on peut attraper
+// n'importe quel vêtement visible en tapant n'importe où sur lui).
+// Cacher/remontrer un calque utilise le même mécanisme que
+// synchroniserAvatar() (classe `visible`, jamais de style inline) pour
+// qu'un futur passage de synchroniserAvatar() (ex. après un "Relancer
+// une routine" parent) ne se heurte pas à un style oublié.
 function rendreAvatarGlissable(poignee, avatarWrap, etape) {
   function debut(ev) {
     ev.preventDefault();
     const rect = avatarWrap.getBoundingClientRect();
-    const clone = avatarWrap.cloneNode(true);
+    const calques = Array.isArray(etape.calque) ? etape.calque : [etape.calque];
+    const imgs = calques
+      .map(c => avatarWrap.querySelector('.avatar-calque[data-calque="' + c + '"]'))
+      .filter(img => img && img.classList.contains("visible"));
+    const clone = document.createElement("div");
     Object.assign(clone.style, { position: "fixed", left: rect.left + "px", top: rect.top + "px",
-      width: rect.width + "px", height: rect.height + "px", zIndex: "100", margin: "0",
-      pointerEvents: "none", transform: "none" });
+      width: rect.width + "px", height: rect.height + "px", zIndex: "100", pointerEvents: "none" });
+    imgs.forEach(img => {
+      const imgClone = img.cloneNode(true); // clone AVANT de cacher l'original : garde la classe "visible" (opacity/scale)
+      Object.assign(imgClone.style, { position: "absolute", inset: "0", width: "100%", height: "100%" });
+      clone.appendChild(imgClone);
+      img.classList.remove("visible");
+    });
     document.body.appendChild(clone);
-    avatarWrap.style.visibility = "hidden";
-    dragCtx = { el: avatarWrap, clone, etape, offsetX: ev.clientX - rect.left, offsetY: ev.clientY - rect.top,
+    dragCtx = { el: avatarWrap, clone, etape, imgs, offsetX: ev.clientX - rect.left, offsetY: ev.clientY - rect.top,
                 startLeft: rect.left, startTop: rect.top };
     poignee.setPointerCapture(ev.pointerId);
   }
@@ -999,6 +1059,7 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
     const sr = document.getElementById("scene").getBoundingClientRect();
     const cr = dragCtx.clone.getBoundingClientRect();
     const succes = (cr.top + cr.height / 2) > sr.bottom;
+    const imgs = dragCtx.imgs;
     if (succes) {
       dragCtx.clone.style.transition = "transform .2s ease, opacity .2s ease";
       dragCtx.clone.style.transform = "translateY(40px)";
@@ -1006,7 +1067,9 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
       const clone = dragCtx.clone;
       setTimeout(() => {
         clone.remove();
-        avatarWrap.style.visibility = ""; // sinon reste invisible : cf. commentaire plus haut
+        // les vêtements restent cachés (classe déjà retirée) : la tâche
+        // est faite, marquerTache() -> synchroniserAvatar() confirme le
+        // même état, rien à restaurer ici contrairement à l'échec.
         marquerTache(etape.id, true);
       }, 180);
     } else {
@@ -1014,7 +1077,10 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
       dragCtx.clone.style.left = dragCtx.startLeft + "px";
       dragCtx.clone.style.top = dragCtx.startTop + "px";
       const clone = dragCtx.clone;
-      setTimeout(() => { clone.remove(); avatarWrap.style.visibility = ""; }, 300);
+      setTimeout(() => {
+        clone.remove();
+        imgs.forEach(img => img.classList.add("visible")); // remis sur le vrai avatar
+      }, 300);
     }
     dragCtx = null;
   }
@@ -1030,10 +1096,15 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
 // TODO.md, "Pas encore designé"). 6 zones dans l'ordre où les brosser
 // (haut-gauche → haut-devant → haut-droite → bas-gauche → bas-devant →
 // bas-droite), chacune avec sa part du minuteur total (3 minutes ÷ 6 =
-// 30s/zone). Il faut garder le doigt sur la zone EN COURS pour que son
-// temps décompte (`dentsEnBrossage`) — relâcher ou toucher une autre
-// zone met en pause, ça n'avance jamais tout seul ni ne peut sauter une
-// zone. Une fois les 6 zones épuisées, marque la tâche `dents` de la
+// 30s/zone).
+//
+// Volontairement AUCUNE action requise de l'enfant pendant le brossage
+// (demandé explicitement) : il doit se concentrer sur le geste réel
+// avec sa vraie brosse à dents, pas sur l'écran. Le minuteur démarre
+// tout seul à l'ouverture et avance tout seul, zone après zone
+// (`dentsEnCours`, vrai par défaut) — la seule interaction possible est
+// de le mettre en pause/reprendre (bouton dédié, cf. toggleDentsPause()),
+// jamais requise. Une fois les 6 zones épuisées, marque la tâche `dents` de la
 // routine en cours comme faite (même geste que les autres — son,
 // vibration, étoile de tâche via marquerTache()) et revient à
 // l'écran de routine.
@@ -1048,7 +1119,7 @@ const DUREE_PAR_ZONE = DUREE_BROSSAGE_SEC / ZONES_DENTS.length;
 let dentsEtapeRoutine = null; // la tâche `dents` de la routine en cours, pour marquerTache() à la fin
 let dentsZoneIndex = 0;
 let dentsTempsRestant = DUREE_PAR_ZONE;
-let dentsEnBrossage = false; // vrai tant que le doigt reste sur la zone en cours
+let dentsEnCours = true; // le minuteur avance tout seul par défaut ; false seulement si mis en pause
 let dentsMinuteurId = null;
 
 // Point d'entrée générique pour toute tâche `miniJeu` (aujourd'hui, une
@@ -1062,7 +1133,7 @@ function demarrerBrossageDents(etape) {
   dentsEtapeRoutine = etape;
   dentsZoneIndex = 0;
   dentsTempsRestant = DUREE_PAR_ZONE;
-  dentsEnBrossage = false;
+  dentsEnCours = true; // démarre tout seul, cf. commentaire plus haut
   const barre = document.getElementById("dents-barre");
   if (barre.childElementCount !== ZONES_DENTS.length) {
     barre.innerHTML = "";
@@ -1075,8 +1146,16 @@ function demarrerBrossageDents(etape) {
   dentsMinuteurId = setInterval(tickDents, 250);
 }
 
+// Seule action possible pendant le brossage — jamais requise, juste
+// disponible (ex. interruption). Ne modifie ni la zone ni le temps
+// restant, juste si le minuteur avance.
+function toggleDentsPause() {
+  dentsEnCours = !dentsEnCours;
+  majAffichageDents();
+}
+
 function tickDents() {
-  if (!dentsEnBrossage) return;
+  if (!dentsEnCours) return;
   dentsTempsRestant = Math.max(0, dentsTempsRestant - 0.25);
   majAffichageDents();
   if (dentsTempsRestant <= 0) avancerZoneDents();
@@ -1086,9 +1165,10 @@ function avancerZoneDents() {
   jouerSon();
   if (navigator.vibrate) navigator.vibrate(30);
   dentsZoneIndex++;
-  dentsEnBrossage = false;
   if (dentsZoneIndex >= ZONES_DENTS.length) { finBrossageDents(); return; }
   dentsTempsRestant = DUREE_PAR_ZONE;
+  // dentsEnCours n'est pas touché : le minuteur enchaîne sur la zone
+  // suivante sans s'arrêter, sauf si l'enfant/parent l'a mis en pause.
   majAffichageDents();
   dire("Brosse maintenant " + LIBELLES_ZONES_DENTS[ZONES_DENTS[dentsZoneIndex]] + ".");
 }
@@ -1114,34 +1194,6 @@ function quitterBrossageDents() {
   afficherEcran("screen-routine");
 }
 
-// Écouteurs posés une seule fois (pas à chaque rendu, contrairement aux
-// lignes de #chemin) : les 6 `.zone-dent` sont des éléments statiques
-// d'index.html, jamais recréés — les repositionner ici accumulerait des
-// écouteurs en double à chaque partie. `estZoneActive()` ignore tout
-// appui hors de la zone actuellement à brosser (ex. l'enfant retouche
-// une zone déjà faite) plutôt que de le laisser faire avancer le minuteur
-// de la mauvaise zone.
-function initZonesDents() {
-  document.querySelectorAll(".zone-dent").forEach((zoneEl, i) => {
-    function estZoneActive() { return i === dentsZoneIndex; }
-    function debut(ev) {
-      if (!estZoneActive()) return;
-      ev.preventDefault();
-      dentsEnBrossage = true;
-      zoneEl.classList.add("brossage-actif");
-      zoneEl.setPointerCapture(ev.pointerId);
-    }
-    function fin() {
-      dentsEnBrossage = false;
-      zoneEl.classList.remove("brossage-actif");
-    }
-    zoneEl.addEventListener("pointerdown", debut);
-    zoneEl.addEventListener("pointerup", fin);
-    zoneEl.addEventListener("pointercancel", fin);
-    zoneEl.addEventListener("pointerleave", fin);
-  });
-}
-
 function formatChrono(secondes) {
   const total = Math.ceil(secondes);
   return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
@@ -1155,6 +1207,7 @@ function majAffichageDents() {
       remplissage.style.height = "100%";
     } else if (i === dentsZoneIndex) {
       zoneEl.classList.remove("faite"); zoneEl.classList.add("active");
+      zoneEl.classList.toggle("brossage-actif", dentsEnCours); // anime tant que le minuteur avance, plus lié au toucher
       remplissage.style.height = ((1 - dentsTempsRestant / DUREE_PAR_ZONE) * 100) + "%";
     } else {
       zoneEl.classList.remove("faite", "active", "brossage-actif");
@@ -1165,6 +1218,8 @@ function majAffichageDents() {
   document.getElementById("dents-chrono").textContent = formatChrono(dentsTempsRestant);
   const barre = document.getElementById("dents-barre");
   [...barre.children].forEach((seg, i) => seg.classList.toggle("fait", i < dentsZoneIndex));
+  const btnPause = document.getElementById("btn-pause-dents");
+  btnPause.textContent = dentsEnCours ? "⏸️ Pause" : "▶️ Reprendre";
 }
 
 // ---------------------------------------------------------------------
@@ -1442,9 +1497,12 @@ function relancerRoutine(id) {
 
 // Si la routine était validée, on retire l'étoile qu'elle avait
 // rapportée : elle sera regagnée quand l'enfant la revalidera pour de
-// bon, sinon le compteur d'étoiles serait gonflé. `journeeFaite` repasse
-// à faux : la journée n'est plus "finie" tant que cette routine ne l'est
-// pas à nouveau.
+// bon, sinon le compteur d'étoiles serait gonflé. `journeeFaite` et le
+// verrou de sommeil (`leon_reveil`, cf. `endormir`) ne repassent à faux
+// que si c'est "Aller se coucher" qu'on relance — cf. construireMenu() :
+// c'est la seule routine qui conditionne la journée "finie", relancer
+// une autre routine (ex. correction sur "S'habiller" après coup) n'a pas
+// à rouvrir l'écran de clôture ni à réveiller l'app.
 function confirmerRelanceRoutine() {
   const etat = chargerEtat();
   const etatR = etat.routines[routineActuelleId];
@@ -1452,7 +1510,10 @@ function confirmerRelanceRoutine() {
     etatR.valide = false;
     etat.etoiles = Math.max(0, (etat.etoiles || 0) - 1);
   }
-  etat.journeeFaite = false;
+  if (routineActuelleId === "soir") {
+    etat.journeeFaite = false;
+    try { localStorage.removeItem("leon_reveil"); } catch (e) {}
+  }
   sauverEtat(etat);
   synchroniserAvatar(etat);
   jouerSon();
@@ -1731,13 +1792,61 @@ function creerNouvelleRoutine() {
 }
 
 // ---------------------------------------------------------------------
-// 4. Récompense de fin de journée (une fois toutes les routines validées)
+// 4. Récompense de fin de journée (une fois "Aller se coucher" validée),
+// puis endormissement de l'app jusqu'au lendemain HEURE_REVEIL
 // ---------------------------------------------------------------------
+// Message de clôture de la journée, pas un récapitulatif des routines
+// faites (cf. les appelants : déclenché par "Aller se coucher" seule,
+// même si Léon n'a rien fait d'autre de la journée). Identique à l'écrit
+// et à l'oral (cf. `dire`).
+const TEXTE_FIN_JOURNEE = "Bravo pour toutes les routines que tu as faites aujourd'hui Léon. Bonne nuit et à demain.";
+const HEURE_REVEIL = 7;
+
+function afficherRecompenseFinDeJournee(etat) {
+  document.getElementById("coffre-texte").textContent = TEXTE_FIN_JOURNEE;
+  document.getElementById("coffre-recompense-texte").textContent = "+ " + (etat.etoiles || 0) + " ⭐ aujourd'hui";
+}
+
+// `leon_reveil` (horodatage ISO, prochain HEURE_REVEIL) est volontairement
+// une clé à part de `leon_journee` : cette dernière repart de zéro dès que
+// la date change (cf. `chargerEtat`), ce qui arrive à minuit — bien avant
+// l'heure de réveil. Le verrou doit survivre à ce passage de minuit pour
+// tenir jusqu'au matin.
+function prochainReveil(depuis) {
+  const reveil = new Date(depuis);
+  reveil.setHours(HEURE_REVEIL, 0, 0, 0);
+  if (reveil <= depuis) reveil.setDate(reveil.getDate() + 1);
+  return reveil;
+}
+
+function dortEncore() {
+  const reveil = localStorage.getItem("leon_reveil");
+  if (reveil && new Date() < new Date(reveil)) return true;
+  try { localStorage.removeItem("leon_reveil"); } catch (e) {}
+  return false;
+}
+
+// Écran "en sommeil" (screen-dodo) : aucune carte, aucun bouton, rien à
+// faire tant que `dortEncore()` est vrai. Seuls les boutons globaux
+// (⚙️ espace parent, ↺ reset — hors des .screen, toujours affichés)
+// restent atteignables : c'est le bypass parental exceptionnel, via le
+// code déjà existant (cf. ouvrirEspaceParent). construireMenu() ne
+// revérifie pas ce verrou : une fois le code entré, revenir à l'écran
+// enfant depuis l'espace parent suffit à le lever pour la session en
+// cours (il retient au prochain rechargement si l'heure n'est pas
+// encore passée, cf. `demarrer`).
+function endormir() {
+  const etat = chargerEtat();
+  etat.journeeFaite = true;
+  sauverEtat(etat);
+  try { localStorage.setItem("leon_reveil", prochainReveil(new Date()).toISOString()); } catch (e) {}
+  afficherEcran("screen-dodo");
+}
+
 function allerFinDeJournee() {
   const etat = chargerEtat();
-  document.getElementById("coffre-texte").textContent = "Toutes les routines sont finies, Léon !";
-  document.getElementById("coffre-recompense-texte").textContent = "+ " + (etat.etoiles || 0) + " ⭐ aujourd'hui";
-  ouvrirCoffre("Bravo Léon, toutes les routines de la journée sont finies !", ["⭐", "✨", "🎉", "⭐", "✨"], () => allerAFin());
+  afficherRecompenseFinDeJournee(etat);
+  ouvrirCoffre(TEXTE_FIN_JOURNEE, ["⭐", "✨", "🎉", "⭐", "✨"], endormir);
 }
 
 // Écran coffre : partagé entre la récompense de fin de journée (étoiles)
@@ -1870,17 +1979,6 @@ function terminerAventure(a) {
   construireMenu();
 }
 
-// ---------------------------------------------------------------------
-// 5. Fin de journée (écran de clôture)
-// ---------------------------------------------------------------------
-function allerAFin() {
-  const etat = chargerEtat();
-  etat.journeeFaite = true;
-  sauverEtat(etat);
-  document.getElementById("fin-etoiles").textContent = (etat.etoiles || 0) + " ⭐";
-  afficherEcran("screen-fin");
-}
-
 function reinitialiserTout() {
   try { localStorage.removeItem("leon_journee"); } catch (e) {}
   derniereEtapeAnnoncee = null;
@@ -1930,7 +2028,7 @@ setInterval(majHorloge, 15000);
 document.getElementById("btn-retour-routine").onclick = retourMenuDepuisRoutine;
 document.getElementById("btn-voix-routine").onclick = () => dire(document.getElementById("etape-courante").textContent);
 document.getElementById("btn-retour-dents").onclick = quitterBrossageDents;
-initZonesDents();
+document.getElementById("btn-pause-dents").onclick = toggleDentsPause;
 document.getElementById("btn-voix-coffre").onclick = () => dire(document.getElementById("coffre-texte").textContent);
 document.getElementById("btn-voix-trajet").onclick = () => dire(document.getElementById("trajet-texte").textContent);
 document.getElementById("btn-voix-arrivee").onclick = () => dire(document.getElementById("arrivee-texte").textContent);
@@ -1981,7 +2079,6 @@ document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { 
 document.getElementById("btn-continuer-coffre").onclick = () => { if (coffreRetour) coffreRetour(); };
 document.getElementById("btn-arrive").onclick = allerValidationArrivee;
 document.getElementById("btn-cest-parti").onclick = partirEnActivite;
-protegerParAppuiLong(document.getElementById("btn-recommencer"), reinitialiserTout);
 
 // Service worker : rend l'app utilisable hors-ligne après un premier
 // chargement, indépendamment de la disponibilité d'un serveur particulier
@@ -2003,8 +2100,10 @@ if ("serviceWorker" in navigator) {
 // `chargerEtat()` répare déjà les cas courants sans perdre la journée.
 (function demarrer() {
   try {
-    const etat = chargerEtat();
-    if (etat.journeeFaite) { allerAFin(); return; }
+    // Encore en sommeil (tablette rouverte en pleine nuit) : reste sur
+    // l'écran dodo, avant même de toucher à `leon_journee` — pas
+    // d'interaction possible avant `dortEncore()` == false (cf. `endormir`).
+    if (dortEncore()) { afficherEcran("screen-dodo"); return; }
     construireMenu();
   } catch (e) {
     try { localStorage.removeItem("leon_journee"); } catch (e2) {}
