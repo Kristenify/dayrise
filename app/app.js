@@ -130,6 +130,7 @@ const PROFILS = {
     routines: () => ROUTINES_LEON,
     aventuresPropres: () => AVENTURES_LEON,
     chambre: "assets/scenes/chambre-leon.jpg",
+    dodo: "assets/avatar/leon-dodo.png",
     sprites: {
       base: "assets/avatar/leon-base.png",
       calques: [
@@ -149,6 +150,7 @@ const PROFILS = {
     routines: () => ROUTINES_COLETTE,
     aventuresPropres: () => AVENTURES_COLETTE,
     chambre: "assets/scenes/chambre-colette.jpg",
+    dodo: "assets/avatar/colette-dodo.png",
     sprites: {
       base: "assets/avatar/colette-base.png",
       calques: [
@@ -757,10 +759,19 @@ function appliquerProfilAuDom() {
     if (el) el.textContent = profil.prenom;
   });
   ["avatar-wrap-menu", "avatar-wrap", "avatar-wrap-arrivee"].forEach(construireCalquesAvatar);
-  // Chambre du profil actif en fond de l'écran "en sommeil" — un futur
-  // profil sans fichier `chambre` livré dégrade sans erreur (simple
-  // `url()` manquante) : #screen-dodo reste juste sans image de fond.
-  document.getElementById("screen-dodo").style.backgroundImage = "url('" + profil.chambre + "')";
+  // L'écran "en sommeil" reste volontairement SANS la photo de chambre
+  // (contrairement à #scene pendant une routine, cf.
+  // synchroniserRoutineEcran()) : fond sombre et uni pour ne pas être
+  // lumineux juste avant/pendant le sommeil — cf. #screen-dodo dans
+  // styles.css.
+  //
+  // Avatar endormi (allongé de tout son long, yeux fermés, sous une
+  // couette) plutôt qu'un simple emoji générique — propre à chaque
+  // enfant comme le reste de l'avatar (cf. PROFILS[id].dodo, généré par
+  // scripts/generate_sprites_detailed_preview.py, draw_dodo()). Ses
+  // couleurs sont volontairement atténuées en CSS (cf. #dodo-avatar dans
+  // styles.css), même logique de sobriété que l'absence de décor.
+  document.getElementById("dodo-avatar").src = profil.dodo;
 }
 
 // ---------------------------------------------------------------------

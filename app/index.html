@@ -574,10 +574,15 @@
   <!-- Volontairement sans texte ni bouton : rien à faire, rien à lire —
        juste une scène calme. Seuls les boutons globaux (⚙️/↺, hors des
        .screen, tout en haut du body) restent atteignables, cf. leur
-       commentaire dans index.html pour le rôle de bypass parental. -->
+       commentaire dans index.html pour le rôle de bypass parental.
+       #dodo-avatar (src posé par appliquerProfilAuDom(), cf. app.js) :
+       l'avatar du profil actif allongé, yeux fermés, sous une couette —
+       pas le sprite debout habituel. #dodo-zzz reste un emoji animé en
+       CSS, pas dessiné dans le sprite (cf. scripts/generate_sprites_detailed_preview.py). -->
   <div id="screen-dodo" class="screen">
     <div class="scene-centree">
-      <div id="dodo-emoji">😴</div>
+      <img id="dodo-avatar" src="" alt="">
+      <div id="dodo-zzz">💤</div>
     </div>
   </div>
 

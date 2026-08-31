@@ -675,14 +675,30 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
    l'émoji seul.
    (spécificité #id.class > .class.class, l'emporte sur `.screen.active`) */
 #screen-dodo.active { position: absolute; inset: 0; }
-#screen-dodo { background-color: var(--deep); background-position: center; background-size: cover; }
-/* Pulsation lente et douce (contraste voulu avec "rebond", festif) —
-   une scène de sommeil ne doit pas stimuler. */
-#dodo-emoji {
-  font-size: 120px; animation: respire 4s ease-in-out infinite;
-  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, .45));
+/* Fond sombre et uni, volontairement SANS décor (pas de photo de chambre
+   ici, contrairement à #scene pendant une routine) : un écran de sommeil
+   ne doit pas être lumineux — cf. commentaire de #dodo-avatar plus bas
+   pour la même logique appliquée à l'avatar lui-même. */
+#screen-dodo { background-color: var(--deep); }
+/* Avatar endormi (#dodo-avatar, src posé par appliquerProfilAuDom() —
+   cf. app.js), allongé de tout son long (sprite vertical, cf.
+   generate_sprites_detailed_preview.py) : pulsation lente et douce
+   (contraste voulu avec "rebond", festif) — une scène de sommeil ne doit
+   pas stimuler. `filter` fait office de pellicule qui atténue les
+   couleurs (luminosité et saturation réduites, pas de grayscale complet
+   — on doit encore reconnaître l'enfant) plutôt que de les montrer aussi
+   vives qu'à l'écran de routine, éveillé. image-rendering pixelated
+   comme .avatar-calque, même style pixel art. */
+#dodo-avatar {
+  width: 200px; image-rendering: pixelated;
+  animation: respire 4s ease-in-out infinite;
+  filter: brightness(.55) saturate(.6) drop-shadow(0 4px 14px rgba(0, 0, 0, .45));
 }
 @keyframes respire { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+/* "Zzz" : reste un emoji animé à part, pas dessiné dans le sprite (cf.
+   generate_sprites_detailed_preview.py) — flotte doucement au-dessus. */
+#dodo-zzz { position: absolute; top: 18%; right: 22%; font-size: 40px; animation: flotterZzz 3s ease-in-out infinite; }
+@keyframes flotterZzz { 0%,100% { transform: translateY(0); opacity: .85; } 50% { transform: translateY(-10px); opacity: 1; } }
 
 /* ---------- Réveil (bonjour / as-tu bien dormi / humeur) ---------- */
 #reveil-emoji { font-size: 80px; }

@@ -41,6 +41,8 @@ const A_METTRE_EN_CACHE = [
   "./assets/avatar/colette-chaussettes.png",
   "./assets/avatar/colette-chaussures.png",
   "./assets/avatar/colette-manteau.png",
+  "./assets/avatar/leon-dodo.png",
+  "./assets/avatar/colette-dodo.png",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/scenes/fenetre-voiture.jpg",
