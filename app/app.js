@@ -1634,8 +1634,8 @@ function allerValidation() {
   majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
   apresCodeValide = () => {
     document.getElementById("correction-note").textContent = "Décoche ce qui n'a pas vraiment été fait, puis valide.";
-    document.getElementById("btn-valider-routine").textContent = "Valider — donner l'étoile ⭐";
-    actionCorrection = validerRoutine;
+    document.getElementById("btn-valider-routine").textContent = "Déverrouiller le coffre 🔒";
+    actionCorrection = ouvrirCoffreRoutine;
     construireCorrection();
     document.getElementById("correction-wrap").classList.remove("hidden");
   };
@@ -1741,15 +1741,26 @@ function construireCorrection() {
   });
 }
 
-function validerRoutine() {
-  const etat = chargerEtat();
-  etat.routines[routineActuelleId].valide = true;
-  etat.etoiles = (etat.etoiles || 0) + 1;
-  sauverEtat(etat);
-  jouerSon();
-  if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-  routineActuelleId = null;
-  construireMenu();
+// Appelée quand le parent tape "Déverrouiller le coffre" en fin de
+// correction : ça déverrouille le coffre (l'enfant peut l'ouvrir), mais
+// ça ne donne PAS encore l'étoile — voir ouvrirCoffre()/ouvrirCadenasCoffre()
+// plus bas, où `avantOuverture` (ci-dessous) s'exécute seulement quand
+// l'enfant tape lui-même sur le coffre. Le geste d'ouverture revient à
+// l'enfant, la validation reste au parent (code + correction déjà faits).
+// `emojiRevele: "⭐"` : à l'ouverture, le coffre révèle l'étoile
+// elle-même, pas un cadeau générique.
+function ouvrirCoffreRoutine() {
+  const idRoutine = routineActuelleId;
+  ouvrirCoffre(null, null, () => { routineActuelleId = null; construireMenu(); }, () => {
+    const etat = chargerEtat();
+    etat.routines[idRoutine].valide = true;
+    etat.etoiles = (etat.etoiles || 0) + 1;
+    sauverEtat(etat);
+    const routine = routineParId(idRoutine);
+    document.getElementById("coffre-texte").textContent = routine.felicitation;
+    document.getElementById("coffre-recompense-texte").textContent = "+ 1 ⭐ (" + etat.etoiles + " aujourd'hui)";
+    return { texteVoix: routine.felicitation, symbolesConfettis: ["⭐", "✨", "🎉"], emojiRevele: "⭐" };
+  });
 }
 
 // ---------------------------------------------------------------------
@@ -2345,22 +2356,73 @@ function allerFinDeJournee() {
   ouvrirCoffre(texteFinJournee(profilActif()), ["⭐", "✨", "🎉", "⭐", "✨"], endormir);
 }
 
-// Écran coffre : partagé entre la récompense de fin de journée (étoiles)
-// et la récompense d'une aventure (pièce, cf. `terminerAventure`) — même
-// geste d'ouverture, seuls le texte et la monnaie des confettis changent.
-// `retour` est appelé quand le bouton "Terminé !" est pressé (pas
-// toujours la même destination selon d'où vient la récompense).
+// Écran coffre : partagé entre la récompense de fin de journée (étoiles),
+// la récompense d'une aventure (pièce, cf. `terminerAventure`) et
+// désormais l'étoile d'une routine (cf. `ouvrirCoffreRoutine`) — même
+// geste d'ouverture, seuls le texte, l'emoji révélé et la monnaie des
+// confettis changent. `retour` est appelé quand le bouton "Terminé !"
+// est pressé (pas toujours la même destination selon d'où vient la
+// récompense).
+//
+// `avantOuverture` (optionnel) : pour une routine, le coffre arrive
+// VERROUILLÉ — mais reste visuellement LE MÊME COFFRE (#coffre-emoji,
+// toujours 🎁, jamais remplacé par un cadenas ou une autre icône :
+// l'enfant doit voir un coffre à ouvrir, pas un symbole abstrait), juste
+// rendu tapable (`.coffre-fermable`, respire doucement pour inviter le
+// tap) avec le badge "FERMÉ". C'est ce tap (cf. `ouvrirCadenasCoffre`),
+// PAS l'arrivée sur cet écran, qui appelle `avantOuverture()` : c'est ce
+// moment-là, pas la validation du parent qui précède, qui doit vraiment
+// donner l'étoile. `avantOuverture` doit mettre à jour l'état ET
+// renseigner `#coffre-texte`/`#coffre-recompense-texte`, puis renvoyer
+// `{ texteVoix, symbolesConfettis, emojiRevele }` — `emojiRevele` (ex.
+// "⭐") remplace le 🎁 au moment de l'ouverture, pour que ce soit
+// l'étoile elle-même qui apparaisse, pas un cadeau générique. Sans
+// `avantOuverture` (fin de journée, aventures) : comportement inchangé,
+// ouverture immédiate, 🎁 reste 🎁.
 let coffreRetour = null;
-function ouvrirCoffre(texteVoix, symbolesConfettis, retour) {
+let coffreAvantOuverture = null;
+function ouvrirCoffre(texteVoix, symbolesConfettis, retour, avantOuverture) {
   coffreRetour = retour;
   document.getElementById("coffre-titre").textContent = "Bravo " + profilActif().prenom + " !";
   afficherEcran("screen-coffre");
+  const emoji = document.getElementById("coffre-emoji");
+  emoji.textContent = "🎁";
+  emoji.classList.remove("pop-ouverture");
+  emoji.classList.toggle("coffre-fermable", !!avantOuverture);
+  document.getElementById("coffre-statut").classList.toggle("hidden", !avantOuverture);
+  document.getElementById("coffre-recompense").classList.toggle("hidden", !!avantOuverture);
+  if (avantOuverture) {
+    coffreAvantOuverture = avantOuverture;
+    document.getElementById("coffre-texte").textContent = "Le coffre est déverrouillé. Appuie dessus pour l'ouvrir !";
+    dire("Le coffre est déverrouillé. Appuie dessus pour l'ouvrir !");
+    return;
+  }
+  jouerOuvertureCoffre(texteVoix, symbolesConfettis, "🎁");
+}
+
+function jouerOuvertureCoffre(texteVoix, symbolesConfettis, emojiRevele) {
   dire(texteVoix);
   jouerSon();
   if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
   const emoji = document.getElementById("coffre-emoji");
+  emoji.textContent = emojiRevele;
   emoji.classList.remove("pop-ouverture"); void emoji.offsetWidth; emoji.classList.add("pop-ouverture");
   lancerConfettis(symbolesConfettis);
+}
+
+// Tap sur #coffre-emoji (tapable seulement si `ouvrirCoffre()` a reçu un
+// `avantOuverture`, cf. `.coffre-fermable` plus haut — sans quoi ce tap
+// ne fait rien, ex. sur le coffre déjà ouvert de fin de journée) : c'est
+// ICI, pas avant, que la récompense est vraiment donnée (ex. étoile de
+// routine), et que 🎁 devient l'étoile elle-même.
+function ouvrirCadenasCoffre() {
+  if (!coffreAvantOuverture) return;
+  const { texteVoix, symbolesConfettis, emojiRevele } = coffreAvantOuverture();
+  coffreAvantOuverture = null;
+  document.getElementById("coffre-emoji").classList.remove("coffre-fermable");
+  document.getElementById("coffre-statut").classList.add("hidden");
+  document.getElementById("coffre-recompense").classList.remove("hidden");
+  jouerOuvertureCoffre(texteVoix, symbolesConfettis, emojiRevele);
 }
 
 // petite volée de particules qui s'envolent à l'ouverture de la
@@ -2667,6 +2729,7 @@ document.getElementById("btn-retour-parent-appareil").onclick = () => { construi
 // (fin de journée vs retour d'aventure) : `coffreRetour` est fixé par
 // `ouvrirCoffre()` juste avant l'ouverture de l'écran.
 document.getElementById("btn-continuer-coffre").onclick = () => { if (coffreRetour) coffreRetour(); };
+document.getElementById("coffre-emoji").onclick = ouvrirCadenasCoffre;
 document.getElementById("btn-arrive").onclick = allerValidationArrivee;
 document.getElementById("btn-cest-parti").onclick = partirEnActivite;
 

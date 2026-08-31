@@ -322,7 +322,7 @@
     <div id="correction-wrap" class="hidden">
       <div id="correction-note">Décoche ce qui n'a pas vraiment été fait, puis valide.</div>
       <div id="correction-liste"></div>
-      <button class="btn-continuer" id="btn-valider-routine">Valider — donner l'étoile ⭐</button>
+      <button class="btn-continuer" id="btn-valider-routine">Déverrouiller le coffre 🔒</button>
     </div>
   </div>
 
@@ -531,7 +531,16 @@
     <button class="btn-continuer" id="btn-creer-aventure">Créer et ajouter à aujourd'hui</button>
   </div>
 
-  <!-- ============ 4. Récompense de fin de journée ============ -->
+  <!-- ============ 4. Récompense (fin de journée, aventure, routine) ============ -->
+  <!-- Pour une routine (cf. ouvrirCoffreRoutine() dans app.js), le coffre
+       arrive VERROUILLÉ : #coffre-emoji reste le même coffre fermé (🎁,
+       cf. commentaire dans styles.css) — pas de cadenas séparé, c'est
+       bien le coffre lui-même que l'enfant doit voir et taper. Le parent
+       vient de le déverrouiller avec le code, mais c'est l'enfant qui
+       tape sur le coffre pour l'ouvrir pour de vrai : ce tap révèle
+       l'étoile (pas un cadeau) et donne la récompense, pas la validation
+       du parent. Fin de journée et aventures gardent l'ouverture
+       automatique d'aujourd'hui (jamais verrouillé, toujours 🎁). -->
   <div id="screen-coffre" class="screen">
     <div class="barre-haut">
       <div class="prenom-actif" id="coffre-titre">Bravo Léon !</div>
@@ -540,7 +549,8 @@
     </div>
     <div class="scene-centree">
       <div id="coffre-particules"></div>
-      <div id="coffre-emoji">🎁</div>
+      <button id="coffre-emoji" aria-label="Ouvrir le coffre">🎁</button>
+      <div id="coffre-statut" class="hidden">FERMÉ</div>
     </div>
     <div id="coffre-texte" class="texte-consigne"></div>
     <div id="coffre-recompense">
