@@ -109,6 +109,15 @@ Certaines sorties sont propres à un enfant — Léon voit Elsa
 (psychomotricienne) et Pauline (orthophoniste), Colette voit Arianne
 (psychomotricienne) — d'autres sont communes aux deux, comme l'école.
 
+Une séance chez une praticienne suit un déroulé à part, une fois sur
+place : c'est elle, avec le code, qui démarre la séance et garde
+l'appareil pendant qu'elle a lieu ; l'enfant n'a plus la main à partir
+de ce moment-là. À la fin, toujours avec le code, elle note comment ça
+s'est passé (une note en étoiles obligatoire, une appréciation écrite
+optionnelle) avant que le trajet retour ne commence. Cette note est
+réservée aux parents — elle n'apparaît que dans l'historique, jamais
+dans un écran accessible à l'enfant.
+
 ### « Ma journée »
 
 Un planning affiche, dans l'ordre chronologique, les routines, sorties

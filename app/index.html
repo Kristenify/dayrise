@@ -94,6 +94,7 @@
       <button class="btn-debug-item" id="btn-debug-parent">⚙️ Espace parent</button>
       <button class="btn-debug-item" id="btn-debug-parent-routines">🔁 Relancer une routine</button>
       <button class="btn-debug-item" id="btn-debug-parent-historique">📅 Historique</button>
+      <button class="btn-debug-item" id="btn-debug-parent-seances">🧑‍⚕️ Notes des séances</button>
       <button class="btn-debug-item" id="btn-debug-parent-activites">🗺️ Activités</button>
       <button class="btn-debug-item" id="btn-debug-parent-routines-catalogue">🧩 Routines</button>
       <button class="btn-debug-item" id="btn-debug-parent-appareil">📱 Cet appareil</button>
@@ -355,6 +356,16 @@
       <div></div>
     </div>
     <div id="parent-historique-liste"></div>
+  </div>
+
+  <!-- ============ Espace parent : notes des séances (praticiennes) ============ -->
+  <div id="screen-parent-seances" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-seances" aria-label="Retour à l'espace parent">←</button>
+      <div class="prenom-actif">Notes des séances</div>
+      <div></div>
+    </div>
+    <div id="parent-seances-liste"></div>
   </div>
 
   <!-- ============ Espace parent : activités ============ -->
@@ -662,6 +673,51 @@
       <div id="arrivee-programme"></div>
     </div>
     <button class="btn-continuer" id="btn-cest-parti">C'est parti</button>
+  </div>
+
+  <!-- ============ Séance chez une praticienne (en cours) ============ -->
+  <!-- N'apparaît que pour une aventure avec une praticienne précise
+       (personne, cf. terminerVisite() dans app.js) — Pauline, Elsa,
+       Arianne. C'est elle qui garde l'appareil ici, pas l'enfant : rien
+       à faire pour personne avant qu'elle tape "Terminer la séance". -->
+  <div id="screen-seance" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif" id="seance-titre">Chez Pauline</div>
+      <div></div>
+      <div></div>
+    </div>
+    <div class="scene-centree">
+      <div id="seance-emoji">🧑‍⚕️</div>
+      <div class="texte-consigne" id="seance-texte">Séance en cours.</div>
+    </div>
+    <div class="note-bas">L'appareil reste avec la praticienne jusqu'à la fin de la séance.</div>
+    <button class="btn-continuer" id="btn-terminer-seance">Terminer la séance</button>
+  </div>
+
+  <!-- ============ Séance : note + appréciation (réservé aux parents) ============ -->
+  <!-- N'apparaît qu'après le code (cf. terminerSeanceCode() dans app.js) —
+       jamais montré à l'enfant, jamais consultable depuis l'espace
+       enfant : seule la note passée existe côté parent, dans
+       l'historique (cf. texteSeancesHistorique()). -->
+  <div id="screen-seance-note" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Comment s'est passée la séance ?</div>
+      <div></div>
+      <div></div>
+    </div>
+    <div id="seance-note-contenu">
+      <div class="champ-parent">
+        <span>Note (obligatoire)</span>
+        <div id="seance-note-etoiles"></div>
+      </div>
+      <label class="champ-parent">
+        <span>Appréciation (optionnel)</span>
+        <textarea id="seance-appreciation" rows="4" placeholder="Ex : bien participé, un peu fatigué·e en fin de séance..."></textarea>
+      </label>
+      <div id="seance-note-erreur" class="texte-erreur"></div>
+    </div>
+    <div class="note-bas">Réservé aux parents — jamais visible pour l'enfant.</div>
+    <button class="btn-continuer" id="btn-valider-seance">Valider</button>
   </div>
 
 </div>
