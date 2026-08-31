@@ -20,7 +20,7 @@
  * quel enfant tel appareil affichera, et le coût (quelques petits PNG)
  * est négligeable pour un usage à la maison.
  */
-const CACHE_NAME = "dayrise-v7";
+const CACHE_NAME = "dayrise-v8";
 const A_METTRE_EN_CACHE = [
   "./",
   "./index.html",
@@ -41,6 +41,8 @@ const A_METTRE_EN_CACHE = [
   "./assets/avatar/colette-chaussettes.png",
   "./assets/avatar/colette-chaussures.png",
   "./assets/avatar/colette-manteau.png",
+  "./assets/avatar/leon-dodo.png",
+  "./assets/avatar/colette-dodo.png",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/scenes/fenetre-voiture.jpg",

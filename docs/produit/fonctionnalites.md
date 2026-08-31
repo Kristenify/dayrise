@@ -41,9 +41,11 @@ prénom, son avatar et ses routines. Trois contraintes façonnent chaque
 ### Le réveil
 
 Avant l'heure du réveil, l'application reste « endormie » : l'écran
-montre la chambre de l'enfant, un décor illustré propre à chacun —
-un bypass réservé aux parents permet de l'ouvrir en cas de besoin
-exceptionnel. Une fois l'heure passée, un simple tap sur cet écran
+montre l'avatar de l'enfant allongé de tout son long, yeux fermés, sous
+sa couette — un fond sombre et volontairement sans décor, pour ne pas
+être lumineux à cette heure — un bypass réservé aux parents permet de
+l'ouvrir en cas de besoin exceptionnel. Une fois l'heure passée, un
+simple tap sur cet écran
 lance un petit rituel avant d'arriver dans sa chambre : « Bonjour
 Léon » (réponse « Bonjour toi »), « As-tu bien dormi ? » (oui/non),
 puis « Comment te sens-tu ? » avec un choix d'images (malade,

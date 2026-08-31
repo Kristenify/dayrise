@@ -76,7 +76,7 @@ def save(img, name):
 # ---------------------------------------------------------------------------
 # Corps de base (tête, visage, pyjama) — partagé, personnalisé par enfant
 # ---------------------------------------------------------------------------
-def draw_head(d, skin, hair, hair_line, messy):
+def draw_head(d, skin, hair, hair_line, messy, eyes_closed=False):
     d.ellipse([10, 8, 27, 23], fill=skin)
     d.rectangle([9, 15, 11, 18], fill=skin)
     d.rectangle([26, 15, 28, 18], fill=skin)
@@ -99,10 +99,17 @@ def draw_head(d, skin, hair, hair_line, messy):
     d.rectangle([14, 14, 16, 14], fill=hair_line)
     d.rectangle([21, 14, 23, 14], fill=hair_line)
 
-    d.rectangle([14, 16, 16, 17], fill=EYE)
-    d.rectangle([21, 16, 23, 17], fill=EYE)
-    d.point((14, 16), fill=SPARKLE)
-    d.point((21, 16), fill=SPARKLE)
+    if eyes_closed:
+        # Yeux fermés (sommeil) : un simple trait incurvé plutôt que le
+        # bloc + reflet des yeux ouverts — convention pixel art courante,
+        # se lit sans ambiguïté à cette taille.
+        d.line([(13, 17), (17, 16)], fill=EYE, width=1)
+        d.line([(20, 16), (24, 17)], fill=EYE, width=1)
+    else:
+        d.rectangle([14, 16, 16, 17], fill=EYE)
+        d.rectangle([21, 16, 23, 17], fill=EYE)
+        d.point((14, 16), fill=SPARKLE)
+        d.point((21, 16), fill=SPARKLE)
 
     d.ellipse([11, 18, 13, 19], fill=BLUSH)
     d.ellipse([24, 18, 26, 19], fill=BLUSH)
@@ -340,10 +347,70 @@ CHILDREN = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Écran "en sommeil" (screen-dodo, app.js) : l'enfant allongé de tout son
+# long, yeux fermés, sous une couette — PAS un calque du paper-doll
+# ci-dessus (canvas dédié, vertical, pas 36×56) : c'est une scène à part,
+# pas une étape d'habillage. Vue de dessus (tête en haut sur l'oreiller,
+# pieds tout en bas sous la couette) pour représenter TOUTE la hauteur de
+# l'enfant, pas juste tête et buste. Réutilise draw_head() telle quelle
+# (mêmes coordonnées que le paper-doll debout, cf. plus haut) avec
+# eyes_closed=True — un oreiller derrière et une couette par-dessus
+# l'entourent, à la couleur du pyjama de l'enfant (cf.
+# CHILDREN[...]["pyjama"]) pour rester dans sa palette, avec une bosse de
+# chaque côté tout en bas pour suggérer les pieds sous la couette. Le
+# "Zzz" reste un emoji animé en CSS (cf. index.html), pas dessiné ici.
+DODO_W, DODO_H = 40, 84
+
+
+def draw_dodo(skin, hair, messy, couette, outline_color, thickness):
+    hair_line = darken(hair, 0.6)
+    oreiller = (247, 244, 236, 255)
+    oreiller_ombre = darken(oreiller, 0.9)
+    couette_hi = lighten(couette, 0.22)
+    couette_ombre = darken(couette, 0.75)
+
+    img = Image.new("RGBA", (DODO_W, DODO_H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    # Oreiller : posé derrière/sous la tête, dépasse largement de chaque
+    # côté (une tête qui dort est toujours plus étroite que l'oreiller).
+    d.rounded_rectangle([1, 3, 38, 25], radius=4, fill=oreiller)
+    d.rounded_rectangle([1, 20, 38, 25], radius=4, fill=oreiller_ombre)
+
+    draw_head(d, skin, hair, hair_line, messy, eyes_closed=True)
+
+    # Couette : recouvre tout le reste du corps, du menton jusqu'aux
+    # pieds tout en bas du canvas — dépasse des bords gauche/droit/bas
+    # (pas juste jusqu'au bord) pour donner l'impression qu'elle continue
+    # hors champ plutôt que de s'arrêter pile au cadre.
+    d.rounded_rectangle([-4, 19, DODO_W + 4, DODO_H + 4], radius=8, fill=couette)
+    d.rounded_rectangle([-4, 19, DODO_W + 4, 23], radius=8, fill=couette_hi)
+    for lx in (10, 20, 30):
+        d.line([(lx, 23), (lx, DODO_H - 14)], fill=couette_ombre, width=1)
+
+    # Pieds : deux petites bosses sous la couette tout en bas — sans elles,
+    # la couette lit comme un simple rectangle plutôt qu'un corps allongé
+    # de tout son long.
+    d.rounded_rectangle([8, DODO_H - 16, 19, DODO_H - 4], radius=5, fill=couette)
+    d.rounded_rectangle([21, DODO_H - 16, 32, DODO_H - 4], radius=5, fill=couette)
+    d.rounded_rectangle([8, DODO_H - 16, 19, DODO_H - 11], radius=5, fill=couette_hi)
+    d.rounded_rectangle([21, DODO_H - 16, 32, DODO_H - 11], radius=5, fill=couette_hi)
+
+    return add_outline(img, outline_color, thickness)
+
+
+def save_dodo(img, name):
+    img.resize((DODO_W * SCALE, DODO_H * SCALE), Image.NEAREST).save(f"{OUT}/{name}.png")
+
+
 def main():
     for name, c in CHILDREN.items():
         base = build_avatar(c["skin"], c["hair"], c["messy"], c["pyjama"], c["outline"], c["thickness"])
         save(base, f"{name}_pyjama")
+
+        dodo = draw_dodo(c["skin"], c["hair"], c["messy"], c["pyjama"], c["outline"], c["thickness"])
+        save_dodo(dodo, f"{name}_dodo")
 
         shirt = draw_shirt(c["shirt"], c["outline"], c["thickness"])
         pull = draw_pull(c["pull"], c["outline"], c["thickness"])
