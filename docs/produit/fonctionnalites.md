@@ -117,8 +117,10 @@ l'appareil pendant qu'elle a lieu ; l'enfant n'a plus la main à partir
 de ce moment-là. À la fin, toujours avec le code, elle note comment ça
 s'est passé (une note en étoiles obligatoire, une appréciation écrite
 optionnelle) avant que le trajet retour ne commence. Cette note est
-réservée aux parents — elle n'apparaît que dans l'historique, jamais
-dans un écran accessible à l'enfant.
+réservée aux parents — jamais visible dans un écran accessible à
+l'enfant — et se retrouve dans un écran dédié de l'espace parent,
+« Notes des séances », en plus de l'historique du jour où elle a eu
+lieu.
 
 ### « Ma journée »
 
@@ -137,6 +139,9 @@ synchroniser séparément) :
 - **Historique des journées** — chaque jour archivé avec ses étoiles,
   ses routines faites, et désormais **les réponses du réveil**
   (sommeil, humeur).
+- **Notes des séances** — toutes les notes laissées par les
+  praticiennes, les plus récentes d'abord, sans avoir à les chercher
+  jour par jour dans l'historique.
 - **Changer le code parent.**
 - **Modifier le planning du jour.**
 - **Créer des activités et des routines sur mesure**, sans toucher au

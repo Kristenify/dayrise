@@ -414,6 +414,44 @@ prototype actuel.
       [`concept.md`](docs/produit/concept.md),
       [`parcours-journee.md`](docs/produit/parcours-journee.md),
       [`modele-de-donnees.md`](docs/produit/modele-de-donnees.md).
+- [x] **Généraliser l'architecture à Colette** (2ᵉ profil, demandé
+      explicitement) — chaque enfant a désormais son propre catalogue de
+      routines (`ROUTINES_LEON`/`ROUTINES_COLETTE` dans `app.js` : mêmes
+      `id`/`nom`/ordre — "par défaut identiques", comme demandé — mais
+      des tâches et des vêtements propres à chacun, culotte/haut/robe
+      pour Colette au lieu de caleçon/t-shirt/pantalon) et son propre
+      avatar (`app/assets/avatar/colette-*.png`, générés via
+      `scripts/generate_sprites_detailed_preview.py` — nouvelle forme
+      `draw_robe()` : une vraie silhouette évasée en trapèze, pas juste
+      le pantalon de Léon recolorié). Toutes les clés `localStorage`
+      propres à un enfant (journée, étoiles, pièces, historique,
+      routines/aventures perso, réveil) sont préfixées par le profil
+      actif (`cle()`, dans `app.js`) ; Léon garde exactement ses clés
+      `leon_...` d'aujourd'hui, aucune migration, zéro risque sur sa
+      tablette réelle. **Chaque enfant a son propre appareil** —
+      volontairement PAS un sélecteur de profil dans une même app
+      partagée (Colette n'a pas encore de tablette à elle) :
+      `resoudreProfilActif()` détermine une bonne fois pour toutes quel
+      enfant un appareil donné affiche (`?enfant=` une fois dans l'URL,
+      retenu ensuite dans `localStorage` sur CET appareil — même
+      mécanisme que `?debug=1`), avec un nouvel écran parent **"Cet
+      appareil"** pour le configurer/changer sans toucher à l'URL — pense
+      aussi à un 3ᵉ enfant futur (ajouter une entrée à `PROFILS` suffit).
+      Code parent et mode debug restent partagés par appareil (mêmes
+      parents des deux côtés). Testé dans le navigateur (bascule entre
+      les deux profils via le panneau debug, avatar/routines/aventures/
+      validation parent vérifiés pour Colette) — **pas encore en usage
+      réel avec Colette**, qui n'a pas encore d'appareil.
+  - [x] **Nouvelles activités/praticiennes** — Elsa (psychomotricienne,
+        Léon) et Arianne (psychomotricienne, Colette) rejoignent Pauline
+        (orthophoniste, Léon) sur le même modèle d'aventure ;
+        **l'école** est commune aux deux enfants
+        (`AVENTURES_COMMUNES`), ce qui n'existait pas encore comme
+        troisième catégorie à côté des aventures propres à un enfant
+        (`AVENTURES_LEON`/`AVENTURES_COLETTE`). Branchées sur les écrans
+        trajet/arrivée génériques déjà existants, sans nouvel écran —
+        leur enchaînement propre reste à concevoir, cf. "Prochaines
+        étapes" ci-dessous.
 
 ## Prochaines étapes (par ordre de priorité)
 
@@ -437,31 +475,58 @@ prototype actuel.
        après tous les ajouts récents ; rien n'a régressé.
 2. [ ] **Contenu des missions** — première aventure de contenu réel
        ajoutée ("Le magasin de bricolage", cf. "Fait" ci-dessus), mais
-       `AVENTURES` reste en dur dans `app.js` (comme `ROUTINES`) : pas
-       encore d'écran parent pour en programmer/reprogrammer. Reste à
-       faire : plus d'aventures (orthophoniste redevient programmable
-       avec une vraie date, vélo...) et leur paramétrage côté parent.
-       Cf. `docs/produit/concept.md`.
-3. [ ] **Généraliser à Colette** — ses propres routines + calibrage doux
-       (handoff, écran 05 "deuxième peau"), preuve que l'architecture
-       tient avec un 2ᵉ profil
-4. [ ] **Rendre le contenu pilotable côté parent** — plusieurs briques
+       les aventures restent en dur dans `app.js` (`AVENTURES_COMMUNES`/
+       `AVENTURES_LEON`/`AVENTURES_COLETTE`, comme `ROUTINES_LEON`/
+       `ROUTINES_COLETTE`) : pas encore d'écran parent pour en
+       programmer/reprogrammer. Reste à faire : plus d'aventures
+       (Pauline redevient programmable avec une vraie date, vélo...) et
+       leur paramétrage côté parent. Cf. `docs/produit/concept.md`.
+3. [ ] **Enchaînement d'écrans propre aux sorties chez une praticienne**
+       (Pauline, Elsa, Arianne) — priorité immédiate suite à l'ajout
+       d'Elsa/Arianne (cf. "Fait" ci-dessus). Aujourd'hui, une sortie
+       chez une praticienne réutilise le même trajet/arrivée générique
+       que n'importe quelle sortie (magasin de bricolage...) : pas
+       encore l'écran praticienne dédié (mockup 11 du handoff, cf.
+       `docs/design-handoff/`) évoqué dans "Ce qui n'est volontairement
+       PAS couvert" de `app/README.md`. À préciser : ce qui doit
+       vraiment différer d'une sortie générique (photo/portrait de la
+       praticienne ? déroulé de la séance ? retour à froid pour l'enfant
+       après ?).
+4. [ ] **Calibrage sensoriel par enfant** — réglages propres à chaque
+       profil (contraste, densité, mouvement, débit vocal — handoff,
+       écran 05 "deuxième peau"), au-delà de la seule différence déjà en
+       place (contour plus doux pour Colette, plus appuyé pour Léon,
+       cf. `scripts/generate_sprites_detailed_preview.py`,
+       `OUTLINE_SOFT`/`OUTLINE_HIGH`). L'architecture multi-profil
+       elle-même (routines/avatar/aventures/stockage par enfant, chacun
+       sur son propre appareil) est faite, cf. "Fait" plus haut.
+5. [ ] **Rendre le contenu pilotable côté parent** — plusieurs briques
        faites via l'espace parent (cf. "Fait" plus haut) : réordonner/
        retirer/ajouter les *items du planning du jour*, relancer une
        routine, changer le code, consulter l'historique. Reste en dur
-       dans `app.js` : le contenu de `ROUTINES` et `AVENTURES`
-       elles-mêmes (impossible de créer/modifier une routine ou une
-       aventure depuis l'app, seulement de piocher dans ce qui existe
-       déjà pour le planning) ; le verrouillage séquentiel entre
-       routines (toujours figé dans le code, indépendant de l'ordre du
-       planning qui lui est éditable).
-5. [ ] **Barème de récompense de fin de journée** — actuellement juste
+       dans `app.js` : le contenu des routines/aventures elles-mêmes
+       (impossible de créer/modifier une routine ou une aventure depuis
+       l'app, seulement de piocher dans ce qui existe déjà pour le
+       planning) ; le verrouillage séquentiel entre routines (toujours
+       figé dans le code, indépendant de l'ordre du planning qui lui est
+       éditable).
+6. [ ] **Barème de récompense de fin de journée** — actuellement juste
        "total d'étoiles affiché", pas de vraie récompense différenciée
        selon la quantité (cf. `docs/produit/concept.md`)
-6. [ ] **Direction artistique** — une fois le parcours éprouvé sur les
+7. [ ] **Direction artistique** — une fois le parcours éprouvé sur les
        deux enfants : intégrer les packs Bitglow ou affiner le
        procédural pour les pièces, brancher des sprites de décor sur
        l'app (aujourd'hui la scène reste un simple dégradé de fond)
+8. [ ] **Visuel du brossage de dents** (`screen-dents`) — montrer une
+       bouche ouverte illustrée avec une brosse à dents qui brosse
+       visuellement la zone en cours parmi les 6, plutôt que le
+       minuteur/zones abstraits actuels. Concrétise une des
+       "améliorations prévues plus tard, pas encore précisées" notées
+       dans le bloc "Mini-jeu brossage de dents" (section Fait
+       ci-dessus). Reste à déterminer : style (illustration statique +
+       animation CSS, sprite dédié...), et si ça touche seulement
+       l'habillage visuel ou aussi le déroulé (minuteur, 6 zones dans
+       l'ordre).
 
 ## Mis de côté (code présent, pas branché)
 
@@ -480,3 +545,40 @@ prototype actuel.
 - Écran parent de composition de la journée
 - Boutique des prix / contenu du coffre par enfant
 - Écran de renfort (dépassement de temps)
+- **Verrouillage horaire de l'app** (contrainte parentale, pas encore
+  détaillée) — au moins pour les enfants, l'app doit rester inutilisable,
+  bloquée en "sommeil", avant 7h, sauf bypass parental pour circonstances
+  exceptionnelles ; le soir, elle se rendort automatiquement une fois la
+  routine du coucher terminée. Distinct de `disponibleApresHeure`
+  (déblocage d'une routine précise par l'heure, déjà en place pour
+  "Aller se coucher", cf. "Fait" ci-dessus) : ici il s'agirait de
+  verrouiller l'app entière, pas juste une routine. Reste à définir : à
+  quoi ressemble l'écran "en sommeil", comment le bypass parental se
+  déclenche (code déjà existant ?), et si ça s'applique à l'espace parent
+  ou seulement à l'espace enfant.
+- **Écran "Comment te sens-tu ?" au réveil** — avant les routines du
+  matin, demander l'état émotionnel de l'enfant, réponses sous forme de
+  pictogrammes (émotions, état...) — lesquels reste à déterminer.
+  Potentiellement à l'ouverture de l'app une fois sortie du mode
+  "sommeil" (cf. "Verrouillage horaire de l'app" juste au-dessus), mais
+  le lien entre les deux n'est pas encore décidé.
+- **Écran dédié pour la tâche "histoire"** (routine "Aller se coucher")
+  — remplacerait l'étape actuelle (une tâche comme les autres) par :
+  1) un choix "qui lit l'histoire, papa ou maman ?", 2) une image
+  correspondante (papa ou maman + les enfants en train de lire —
+  **images à fournir par l'utilisateur, pas encore livrées**, bloquant),
+  3) un bouton "L'histoire est finie" appuyé par le **parent**, pas
+  l'enfant, qui valide la tâche. Rupture avec le principe actuel où
+  l'enfant fait le geste et le parent ne valide qu'en fin de routine —
+  se rapproche plutôt de "On est arrivés" (missions, cf. "Fait"
+  ci-dessus), où c'est déjà le parent qui presse un bouton de
+  confirmation en cours de route plutôt qu'à la toute fin.
+- **Météo avant "S'habiller"** — à terme, avant que l'enfant commence
+  cette routine, un module météo (ou simplement une instruction
+  invitant à regarder par la fenêtre pour observer le temps qu'il fait)
+  permettrait d'adapter la routine en conséquence (ex. ajouter "mettre
+  un pull" ou "mettre un collant chaud" selon la météo). Reste à
+  définir : source de la météo (API vs. observation par l'enfant
+  lui-même) et comment des tâches deviennent conditionnelles/
+  saisonnières dans le modèle de routine actuel (aujourd'hui une liste
+  fixe de tâches par enfant, cf. `ROUTINES_LEON`/`ROUTINES_COLETTE`).
