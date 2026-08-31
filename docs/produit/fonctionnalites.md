@@ -82,8 +82,12 @@ peut toujours aller se coucher normalement.
 
 Une routine terminée déclenche des félicitations, puis un appel à un
 parent : code à 4 chiffres, écran de relecture où chaque tâche peut
-être décochée si besoin, puis validation. Une étoile est gagnée et
-vient remplir la jauge du jour.
+être décochée si besoin, puis validation — qui déverrouille le coffre
+de la routine plutôt que de donner l'étoile directement. Le coffre
+apparaît fermé (badge « FERMÉ »), toujours sous la forme d'un coffre :
+c'est l'enfant qui appuie dessus pour l'ouvrir, et c'est ce geste-là qui
+fait sortir l'étoile elle-même (pas un cadeau générique) et remplit la
+jauge du jour.
 
 ### Les récompenses
 

@@ -415,9 +415,22 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 
 /* ---------- Scènes centrées (coffre / fin) ---------- */
 .scene-centree { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; gap: 10px; position: relative; }
-#coffre-emoji { font-size: 96px; }
+/* #coffre-emoji est un <button> (pas juste un <div>) : pour une routine
+   verrouillée (cf. ouvrirCoffreRoutine() dans app.js), c'est LUI, le
+   coffre fermé (🎁, toujours le même emoji, jamais un cadenas séparé —
+   l'enfant doit voir un coffre à ouvrir, pas un symbole abstrait), que
+   l'enfant tape pour l'ouvrir. Reset des styles de bouton pour rester
+   visuellement identique à un simple emoji dans le cas non verrouillé
+   (fin de journée, aventures — jamais tapable, le tap ne fait rien,
+   cf. ouvrirCadenasCoffre()). */
+#coffre-emoji { font-size: 96px; background: none; border: none; padding: 0; }
 #coffre-emoji.pop-ouverture { animation: popOuverture .5s ease; }
 @keyframes popOuverture { 0%{transform:scale(1);} 45%{transform:scale(1.35) rotate(-4deg);} 100%{transform:scale(1);} }
+
+/* Coffre verrouillé, en attente du tap de l'enfant : respire doucement
+   pour inviter le geste, même principe que .avatar-wrap.invite-glisser. */
+#coffre-emoji.coffre-fermable { cursor: pointer; animation: respirerCoffre 1.6s ease-in-out infinite; }
+@keyframes respirerCoffre { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 
 #bravo-routine-emoji { font-size: 80px; animation: rebond 1s ease infinite; }
 #bravo-routine-titre { font-size: 24px; font-weight: 800; padding: 0 12px; }
