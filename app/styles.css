@@ -232,6 +232,7 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 .btn-secondaire:active { transform: translate(2px, 2px); }
 
 #missions-emoji { font-size: 80px; }
+#seance-emoji { font-size: 80px; }
 #missions-liste { display: flex; flex-direction: column; gap: 12px; width: 100%; margin-top: 8px; }
 
 .zone-cible {
@@ -583,7 +584,7 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 .carte-parent.verrouillee { cursor: default; }
 
 /* ---------- Formulaires parent (nouvelle activité / nouvelle routine) ---------- */
-#nouvelle-aventure-contenu, #nouvelle-routine-contenu { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 8px; }
+#nouvelle-aventure-contenu, #nouvelle-routine-contenu, #seance-note-contenu { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 8px; }
 .champ-parent { display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 700; color: var(--text-soft); }
 .champ-parent input[type="text"] {
   font: inherit; font-size: 17px; font-weight: 600; color: var(--text);
@@ -591,6 +592,24 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 .champ-parent input[type="text"]::placeholder { color: var(--text-faint); font-weight: 500; }
 .champ-parent input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.champ-parent textarea {
+  font: inherit; font-size: 17px; font-weight: 500; color: var(--text);
+  background: var(--surface); border: 2px solid var(--surface-high); padding: 10px 12px;
+  resize: vertical;
+}
+.champ-parent textarea::placeholder { color: var(--text-faint); font-weight: 500; }
+.champ-parent textarea:focus { outline: none; border-color: var(--accent); }
+
+/* Note de séance (praticienne) en étoiles à choisir, 1 à 5 — même esprit
+   que .emoji-choix-btn (bouton "éteint" tant que non choisi), mais
+   cumulatif : choisir la 4ᵉ étoile allume aussi les 3 précédentes,
+   cf. construireEtoilesNoteSeance() dans app.js. */
+#seance-note-etoiles { display: flex; gap: 6px; }
+.etoile-note-btn {
+  width: 52px; height: 52px; font-size: 28px; background: var(--surface);
+  border: 2px solid var(--surface-high); opacity: .35;
+}
+.etoile-note-btn.choisie { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); }
 .champ-parent-case { flex-direction: row; align-items: center; gap: 10px; }
 .champ-parent-case input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--accent); }
 #na-emoji-grille, #nr-emoji-grille { display: flex; flex-wrap: wrap; gap: 8px; }

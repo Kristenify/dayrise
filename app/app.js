@@ -546,7 +546,7 @@ function cleJour() {
 function etatParDefaut() {
   const routines = {};
   toutesLesRoutines().forEach(r => { routines[r.id] = { fait: [], valide: false }; });
-  return { jour: cleJour(), routines, etoiles: 0, journeeFaite: false, reveilFait: false, reveil: { bienDormi: null, humeur: null }, planning: planningParDefaut() };
+  return { jour: cleJour(), routines, etoiles: 0, journeeFaite: false, reveilFait: false, reveil: { bienDormi: null, humeur: null }, planning: planningParDefaut(), seances: [] };
 }
 // Répare un état du jour dont la forme est incomplète (ex. un champ
 // ajouté par une mise à jour de l'app depuis la dernière sauvegarde de
@@ -571,6 +571,7 @@ function etatRepare(etat) {
   if (typeof etat.journeeFaite !== "boolean") etat.journeeFaite = false;
   if (typeof etat.reveilFait !== "boolean") etat.reveilFait = false;
   if (!etat.reveil || typeof etat.reveil !== "object") etat.reveil = { bienDormi: null, humeur: null };
+  if (!Array.isArray(etat.seances)) etat.seances = [];
   return etat;
 }
 
@@ -592,6 +593,12 @@ function archiverJournee(etat) {
       routinesValidees: toutesLesRoutines().filter(r => etat.routines[r.id] && etat.routines[r.id].valide).map(r => r.id),
       journeeFaite: !!etat.journeeFaite,
       reveil: etat.reveil || { bienDormi: null, humeur: null },
+      // Notes de séance (cf. validerSeance()) : réservées aux parents,
+      // jamais montrées à l'enfant (aucun écran enfant ne lit
+      // `etat.seances`) — c'est pour ça qu'elles doivent survivre au
+      // changement de jour comme le reste de l'historique, plutôt que
+      // d'être jetées avec `leon_journee`.
+      seances: Array.isArray(etat.seances) ? etat.seances : [],
     });
     while (historique.length > 90) historique.shift();
     localStorage.setItem(cle("historique"), JSON.stringify(historique));
@@ -1945,6 +1952,7 @@ function construireHistorique() {
       `<span class="texte-journee">` +
         `<span>${j.jour} — ${j.etoiles} ⭐ — ${resume}</span>` +
         texteReveilHistorique(j.reveil) +
+        texteSeancesHistorique(j.seances) +
       `</span>`;
     conteneur.appendChild(ligne);
   });
@@ -1963,6 +1971,22 @@ function texteReveilHistorique(reveil) {
   const h = reveil.humeur && EMOJI_HUMEUR.find(e => e.id === reveil.humeur);
   if (h) parts.push(h.emoji + " " + h.texte);
   return parts.length ? `<span class="texte-journee-reveil">${parts.join(" · ")}</span>` : "";
+}
+
+// Notes de séance (praticienne, cf. validerSeance()) sous une journée
+// archivée — réservées à cette vue parent, jamais affichées à l'enfant
+// (cf. commentaire dans archiverJournee()). Une ligne par séance ce
+// jour-là (note en étoiles + appréciation si renseignée) ; chaîne vide
+// pour les journées sans séance ou d'avant cette fonctionnalité (pas de
+// `seances` dans l'archive).
+function texteSeancesHistorique(seances) {
+  if (!Array.isArray(seances) || seances.length === 0) return "";
+  return seances.map(s => {
+    const qui = s.personne ? "Chez " + s.personne : s.lieu;
+    const etoiles = "⭐".repeat(s.note || 0);
+    const appreciation = s.appreciation ? " — " + s.appreciation : "";
+    return `<span class="texte-journee-reveil">🧑‍⚕️ ${qui} : ${etoiles}${appreciation}</span>`;
+  }).join("");
 }
 
 // Deux saisies identiques de suite avant d'enregistrer (cf. `validerCode()`,
@@ -2428,11 +2452,133 @@ function allerAArrivee() {
   dire(a.texteArrivee);
 }
 
-// "C'est parti" (côté arrivée) ne termine pas l'aventure tout de suite :
-// on repart d'abord vers la maison (trajet retour), et c'est cette
-// arrivée-là, une fois validée par un parent, qui déclenche la
-// récompense (cf. allerValidationArrivee).
+// "C'est parti" (côté arrivée) : deux cas bien différents derrière le
+// même bouton (#btn-cest-parti). Pour une aventure "praticienne" (a un
+// champ `personne` — Pauline, Elsa, Arianne), l'enfant ne pilote plus
+// rien à partir d'ici : c'est LA PRATICIENNE qui doit valider avec le
+// code pour démarrer la séance (cf. `demarrerSeanceCode()`), garder
+// l'appareil le temps de la séance, puis le revalider avec le code pour
+// la terminer et noter comment ça s'est passé. Pour les autres aventures
+// (magasin, école — pas de praticienne précise), rien ne change :
+// `partirEnActivite()` reste tel quel, direct vers le trajet retour.
+function terminerVisite() {
+  const a = aventureParId(aventureActuelleId);
+  if (a.personne) { demarrerSeanceCode(); return; }
+  partirEnActivite();
+}
+
+// "C'est parti" ne termine pas l'aventure tout de suite : on repart
+// d'abord vers la maison (trajet retour), et c'est cette arrivée-là, une
+// fois validée par un parent, qui déclenche la récompense (cf.
+// allerValidationArrivee).
 function partirEnActivite() {
+  sensTrajet = "retour";
+  allerAuTrajet();
+}
+
+// Code parent détourné ici pour la praticienne : même pavé numérique que
+// partout ailleurs (cf. `apresCodeValide`), mais c'est elle qui le
+// connaît/le tape, pas un parent au sens propre — le texte le dit
+// explicitement pour ne pas laisser croire à l'enfant qu'il doit ou peut
+// le faire lui-même.
+function demarrerSeanceCode() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
+  const a = aventureParId(aventureActuelleId);
+  codeSaisi = "";
+  modeCode = "verifier";
+  document.getElementById("validation-sous-titre").textContent =
+    "La praticienne entre le code pour commencer la séance.";
+  document.getElementById("correction-wrap").classList.add("hidden");
+  document.getElementById("pavecode-wrap").classList.remove("hidden");
+  document.getElementById("pavecode-erreur").textContent = "";
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
+  apresCodeValide = () => demarrerSeance(a);
+  afficherEcran("screen-validation");
+}
+
+// Séance en cours (screen-seance) : volontairement minimal, rien à faire
+// ni pour l'enfant ni pour la praticienne avant la fin — juste le bouton
+// "Terminer la séance", pour elle, quand c'est fini. C'est elle qui garde
+// l'appareil jusque-là (cf. commentaire de `terminerVisite()`).
+function demarrerSeance(a) {
+  document.getElementById("seance-titre").textContent = a.lieu;
+  document.getElementById("seance-emoji").textContent = a.personne.emoji;
+  const texte = "Séance avec " + a.personne.nom + " en cours.";
+  document.getElementById("seance-texte").textContent = texte;
+  dire(texte);
+  afficherEcran("screen-seance");
+}
+
+// Tap sur "Terminer la séance" : redemande le code (c'est bien la
+// praticienne qui clôt la séance, pas l'enfant qui aurait pu ramasser
+// l'appareil resté sur la table) avant de montrer le formulaire de note.
+function terminerSeanceCode() {
+  ecranAvantValidation = document.querySelector(".screen.active").id;
+  codeSaisi = "";
+  modeCode = "verifier";
+  document.getElementById("validation-sous-titre").textContent =
+    "La praticienne entre le code pour terminer la séance.";
+  document.getElementById("correction-wrap").classList.add("hidden");
+  document.getElementById("pavecode-wrap").classList.remove("hidden");
+  document.getElementById("pavecode-erreur").textContent = "";
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
+  apresCodeValide = () => ouvrirNoteSeance();
+  afficherEcran("screen-validation");
+}
+
+// Note de séance (screen-seance-note) : à destination des parents,
+// jamais affichée à l'enfant (cf. `texteSeancesHistorique()`) — la note
+// (1 à 5 étoiles) est obligatoire pour valider, l'appréciation écrite
+// reste optionnelle. Le formulaire n'apparaît qu'APRÈS le code (cf.
+// `terminerSeanceCode()`), jamais avant : rien de saisi ne peut se perdre
+// sur un code refusé, il n'y a simplement pas encore de formulaire à ce
+// moment-là.
+let noteSeanceChoisie = 0;
+function ouvrirNoteSeance() {
+  noteSeanceChoisie = 0;
+  document.getElementById("seance-appreciation").value = "";
+  document.getElementById("seance-note-erreur").textContent = "";
+  construireEtoilesNoteSeance();
+  afficherEcran("screen-seance-note");
+}
+
+function construireEtoilesNoteSeance() {
+  const conteneur = document.getElementById("seance-note-etoiles");
+  conteneur.innerHTML = "";
+  for (let i = 1; i <= 5; i++) {
+    const b = document.createElement("button");
+    b.className = "etoile-note-btn" + (i <= noteSeanceChoisie ? " choisie" : "");
+    b.textContent = "⭐";
+    b.setAttribute("aria-label", i + " étoile" + (i > 1 ? "s" : ""));
+    b.onclick = () => { noteSeanceChoisie = i; construireEtoilesNoteSeance(); };
+    conteneur.appendChild(b);
+  }
+}
+
+// Enregistre la séance dans `etat.seances` (cf. `archiverJournee()` pour
+// pourquoi ça survit au changement de jour comme le reste de
+// l'historique) puis enchaîne sur le trajet retour, exactement comme
+// `partirEnActivite()` pour une aventure sans praticienne — la séance
+// elle-même est terminée, il ne reste que le retour à la maison.
+function validerSeance() {
+  if (noteSeanceChoisie === 0) {
+    document.getElementById("seance-note-erreur").textContent = "Choisis une note avant de valider.";
+    return;
+  }
+  const a = aventureParId(aventureActuelleId);
+  const etat = chargerEtat();
+  if (!Array.isArray(etat.seances)) etat.seances = [];
+  etat.seances.push({
+    aventureId: a.id,
+    lieu: a.lieu,
+    personne: a.personne ? a.personne.nom : null,
+    note: noteSeanceChoisie,
+    appreciation: document.getElementById("seance-appreciation").value.trim(),
+  });
+  sauverEtat(etat);
+  dire("Note enregistrée.");
   sensTrajet = "retour";
   allerAuTrajet();
 }
@@ -2551,6 +2697,10 @@ function construireDebug() {
   toutesLesAventures().forEach(a => {
     aventures.appendChild(boutonDebug("🚗 Trajet — " + a.lieu, puisFermerDebug(() => { aventureActuelleId = a.id; sensTrajet = "aller"; allerAuTrajet(); })));
     aventures.appendChild(boutonDebug("📍 Arrivée — " + a.lieu, puisFermerDebug(() => { aventureActuelleId = a.id; allerAArrivee(); })));
+    if (a.personne) {
+      aventures.appendChild(boutonDebug("🧑‍⚕️ Séance — " + a.lieu, puisFermerDebug(() => { aventureActuelleId = a.id; demarrerSeance(a); })));
+      aventures.appendChild(boutonDebug("📝 Note de séance — " + a.lieu, puisFermerDebug(() => { aventureActuelleId = a.id; ouvrirNoteSeance(); })));
+    }
   });
 }
 
@@ -2668,7 +2818,9 @@ document.getElementById("btn-retour-parent-appareil").onclick = () => { construi
 // `ouvrirCoffre()` juste avant l'ouverture de l'écran.
 document.getElementById("btn-continuer-coffre").onclick = () => { if (coffreRetour) coffreRetour(); };
 document.getElementById("btn-arrive").onclick = allerValidationArrivee;
-document.getElementById("btn-cest-parti").onclick = partirEnActivite;
+document.getElementById("btn-cest-parti").onclick = terminerVisite;
+document.getElementById("btn-terminer-seance").onclick = terminerSeanceCode;
+document.getElementById("btn-valider-seance").onclick = validerSeance;
 
 // Tap sur l'écran dodo : n'agit que si l'heure est passée (cf.
 // `ouvrirReveil`/`demarrer`) — avant ça, `dortEncore()` garde l'écran
