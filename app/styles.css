@@ -278,6 +278,42 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 #btn-espace-parent:active { opacity: 1; transform: translate(1px, 1px); }
 
+/* Mode debug (tests, jamais vu par Léon — cf. modeDebugActif() dans
+   app.js) : même famille visuelle que les deux boutons ci-dessus, mais
+   volontairement décalé pour ne pas les chevaucher. */
+#btn-debug {
+  position: fixed; top: 8px; left: 44px; z-index: 999; width: 30px; height: 30px;
+  background: var(--surface-high); color: var(--text-soft); border: 2px solid var(--outline);
+  font-size: 15px; opacity: .5;
+}
+#btn-debug:active { opacity: 1; transform: translate(1px, 1px); }
+
+/* Volontairement d'allure "outil", pas pixel art comme le reste — pour
+   qu'il n'y ait aucune ambiguïté entre un vrai écran et le panneau. */
+#debug-panel {
+  position: fixed; inset: 0; z-index: 1000; overflow-y: auto;
+  background: rgba(10, 13, 22, .97); color: #D7E0F5; font-family: monospace;
+  padding: 16px; box-sizing: border-box;
+}
+#debug-entete { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+#debug-entete strong { font-size: 16px; }
+#btn-debug-fermer {
+  width: 30px; height: 30px; background: var(--surface-high); color: var(--text-soft);
+  border: 2px solid var(--outline); font-family: monospace;
+}
+.debug-bloc { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--surface-high); }
+.debug-bloc-titre { font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+.debug-ligne { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.debug-note { font-size: 12px; color: var(--text-soft); margin-top: 4px; }
+.btn-debug-item {
+  display: block; width: 100%; box-sizing: border-box; text-align: left; padding: 8px 10px; margin-bottom: 6px;
+  background: var(--surface); color: #D7E0F5; border: 1px solid var(--surface-high); font-family: monospace; font-size: 13px;
+}
+.btn-debug-item:active { background: var(--surface-active); }
+.btn-debug-item.btn-debug-inline { display: inline-block; width: auto; margin-bottom: 0; }
+#debug-heure-valeur { font-size: 14px; min-width: 48px; text-align: center; }
+#debug-code-parent { font-size: 16px; letter-spacing: 2px; color: var(--accent); }
+
 .btn-continuer.maintien { background: var(--accent-shadow); }
 
 #chemin { padding-bottom: 20px; overflow-y: auto; flex: 1; }
@@ -439,17 +475,19 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   position: absolute; inset: 0;
   background: url("assets/scenes/fenetre-voiture.jpg") center / cover;
 }
-/* Léon vu de l'intérieur, tête de profil au premier plan devant la
-   fenêtre — silhouette plutôt qu'un sprite détaillé : à contre-jour
-   devant la vitre, un aplat sombre suffit et évite de dessiner un
-   nouveau visage de profil. */
-#silhouette-leon {
+/* L'enfant (Léon ou Colette, cf. PROFILS dans app.js) vu de l'intérieur,
+   tête de profil au premier plan devant la fenêtre — silhouette plutôt
+   qu'un sprite détaillé : à contre-jour devant la vitre, un aplat sombre
+   suffit et évite de dessiner un visage de profil par enfant. Un seul
+   élément partagé, pas une variante par profil : une silhouette à
+   contre-jour n'a pas besoin de distinguer les deux. */
+#silhouette-enfant {
   position: absolute; left: -14px; bottom: -10px; width: 150px; height: 200px;
   fill: var(--outline);
 }
 /* trajet retour (vers la maison) : silhouette retournée, seul indice
    visuel du changement de sens (cf. app.js, sensTrajet). */
-#scene-trajet.retour #silhouette-leon { left: auto; right: -14px; transform: scaleX(-1); }
+#scene-trajet.retour #silhouette-enfant { left: auto; right: -14px; transform: scaleX(-1); }
 .label-trajet { font-size: 14px; letter-spacing: 1.5px; font-weight: 800; color: var(--text-faint); margin-bottom: 8px; }
 .note-bas { text-align: center; font-size: 15px; color: var(--text-faint); margin-bottom: 10px; }
 
@@ -594,9 +632,24 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 @keyframes rebond { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-14px);} }
 
 /* ---------- Dodo ---------- */
+/* Chambre du profil actif en fond plein écran (image posée en JS via
+   appliquerProfilAuDom() — profil-dépendante, contrairement aux autres
+   scènes fixes de ce fichier) ; l'émoji flotte par-dessus. Contrairement
+   à la règle générale (`.screen.active` repasse en `position: relative`,
+   pour qu'un contenu long pousse la page en scroll normal), cet écran
+   reste sans contenu scrollable : on le garde en `position: absolute;
+   inset: 0` (comme un écran inactif) pour qu'il occupe tout `#app` et que
+   le fond le couvre entièrement, plutôt que de se limiter à la hauteur de
+   l'émoji seul.
+   (spécificité #id.class > .class.class, l'emporte sur `.screen.active`) */
+#screen-dodo.active { position: absolute; inset: 0; }
+#screen-dodo { background-color: var(--deep); background-position: center; background-size: cover; }
 /* Pulsation lente et douce (contraste voulu avec "rebond", festif) —
    une scène de sommeil ne doit pas stimuler. */
-#dodo-emoji { font-size: 120px; animation: respire 4s ease-in-out infinite; }
+#dodo-emoji {
+  font-size: 120px; animation: respire 4s ease-in-out infinite;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, .45));
+}
 @keyframes respire { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
 
 /* ---------- Réveil (bonjour / as-tu bien dormi / humeur) ---------- */

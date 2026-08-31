@@ -1,0 +1,144 @@
+# Dayrise — Fonctionnalités
+
+*Document vivant, tenu à jour au fil des sessions de développement à
+chaque fonctionnalité livrée. Objectif : donner une vue d'ensemble claire
+de ce que fait l'application, utilisable pour en parler (famille,
+professionnels, futurs collaborateurs...) sans avoir à lire le code. Pour
+le détail technique, voir [`app/README.md`](../../app/README.md) ; pour
+l'avancement au jour le jour (chantiers en cours, pas encore fait), voir
+[`TODO.md`](../../TODO.md) à la racine.*
+
+## En une phrase
+
+Dayrise est une application pour tablette qui aide un enfant à accomplir
+ses routines du quotidien — se réveiller, s'habiller, se préparer, se
+coucher... — en autonomie, sous la forme d'un petit jeu doux en pixel
+art, sans avoir besoin de savoir lire.
+
+## Pour qui, et pourquoi
+
+Conçue au départ pour Léon (8 ans), et désormais également pour sa sœur
+Colette (5 ans) : tous deux TSA et TDAH. Chaque enfant a son propre
+appareil (ce n'est pas un sélecteur de profil dans une même app
+partagée) ; les deux affichent la même application, chacun avec son
+prénom, son avatar et ses routines. Trois contraintes façonnent chaque
+écran :
+
+- **Pas besoin de savoir lire** — tout est jouable à l'oreille (voix
+  automatique à chaque étape, rejouable) et à l'image (pictogrammes,
+  sprites, couleurs), jamais au texte seul.
+- **L'enfant garde la main** — aucune étape n'est minutée de façon
+  anxiogène, aucune navigation n'est imposée de force ; quand quelque
+  chose est verrouillé, l'app l'explique calmement plutôt que de
+  bloquer sans raison.
+- **Sur la tablette familiale, hors-ligne** — installée comme une
+  vraie application (icône sur l'écran d'accueil), elle continue de
+  fonctionner sans connexion internet une fois ouverte une première
+  fois.
+
+## Le parcours d'une journée
+
+### Le réveil
+
+Avant l'heure du réveil, l'application reste « endormie » : l'écran
+montre la chambre de l'enfant, un décor illustré propre à chacun —
+un bypass réservé aux parents permet de l'ouvrir en cas de besoin
+exceptionnel. Une fois l'heure passée, un simple tap sur cet écran
+lance un petit rituel avant d'arriver dans sa chambre : « Bonjour
+Léon » (réponse « Bonjour toi »), « As-tu bien dormi ? » (oui/non),
+puis « Comment te sens-tu ? » avec un choix d'images (malade,
+fatigué, en pleine forme, normal, triste, content).
+
+### Le menu de la journée
+
+Un menu affiche les routines du jour, la première seule accessible :
+les suivantes se débloquent au fur et à mesure, dans l'ordre. Un
+avatar de l'enfant, habillé progressivement au fil de ses tâches, et
+une jauge d'étoiles donnent une vue d'ensemble en un coup d'œil.
+
+### Les routines
+
+Chaque routine (s'habiller, se préparer à partir, aller se coucher...)
+est une suite de petites tâches à accomplir une par une, en glissant
+une icône vers l'enfant — jamais plusieurs choses à la fois. Léon et
+Colette ont les mêmes routines, dans le même ordre — mais pas
+forcément les mêmes tâches à l'intérieur : Colette met une culotte, un
+haut et une robe là où Léon met un caleçon, un t-shirt et un pantalon,
+chacun avec l'avatar qui lui ressemble. Deux tâches ont un traitement
+particulier :
+
+- **Le brossage des dents** est un mini-jeu avec un minuteur qui
+  avance tout seul, sans rien à taper pendant le geste — les mains
+  restent libres pour la vraie brosse à dents.
+- **L'histoire du soir** ouvre un écran dédié (image + texte), et
+  c'est le parent, présent pour la lecture, qui valide la fin de
+  l'étape — pas l'enfant.
+
+La routine du coucher se débloque à une heure fixe, indépendamment des
+autres routines : un enfant qui n'a rien fait d'autre de la journée
+peut toujours aller se coucher normalement.
+
+### La validation par un parent
+
+Une routine terminée déclenche des félicitations, puis un appel à un
+parent : code à 4 chiffres, écran de relecture où chaque tâche peut
+être décochée si besoin, puis validation. Une étoile est gagnée et
+vient remplir la jauge du jour.
+
+### Les récompenses
+
+Une fois toutes les routines validées, une récompense de fin de
+journée s'ouvre automatiquement (confettis, total d'étoiles). Un écran
+« Mes récompenses » présente les étoiles du jour et les pièces gagnées
+comme de vrais objets à collectionner.
+
+### Les sorties (« Partir à l'aventure »)
+
+Une sortie programmée (ex. le magasin de bricolage, une séance chez une
+praticienne, l'école) se joue en deux temps : le trajet (avec sa propre
+petite scène) puis l'arrivée, avant de rentrer à la maison — chaque
+étape confirmée par un parent. Une sortie peut rapporter des pièces,
+une monnaie à part des étoiles, qui ne repart jamais à zéro d'un jour
+sur l'autre.
+
+Certaines sorties sont propres à un enfant — Léon voit Elsa
+(psychomotricienne) et Pauline (orthophoniste), Colette voit Arianne
+(psychomotricienne) — d'autres sont communes aux deux, comme l'école.
+
+### « Ma journée »
+
+Un planning affiche, dans l'ordre chronologique, les routines, sorties
+et repas du jour — modifiable par un parent (réorganiser, ajouter,
+retirer).
+
+## L'espace parent
+
+Protégé par un code, accessible en permanence depuis un bouton
+discret, directement connecté à ce que voit l'enfant (rien à
+synchroniser séparément) :
+
+- **Relancer une routine** si la situation a changé (ex. l'enfant
+  s'est redéshabillé après coup).
+- **Historique des journées** — chaque jour archivé avec ses étoiles,
+  ses routines faites, et désormais **les réponses du réveil**
+  (sommeil, humeur).
+- **Changer le code parent.**
+- **Modifier le planning du jour.**
+- **Créer des activités et des routines sur mesure**, sans toucher au
+  code.
+- **Cet appareil** — indique quel enfant cet appareil affiche (Léon ou
+  Colette), pour configurer un appareil une bonne fois pour toutes.
+
+## En bref, côté technique
+
+Installée une fois sur la tablette, l'application continue de
+fonctionner **sans connexion internet**. Pas de compte à créer, pas de
+donnée envoyée à un serveur : tout reste sur la tablette.
+
+## Et ensuite
+
+Toujours en développement actif. Pistes en cours : concevoir
+l'enchaînement d'écrans propre aux sorties chez une praticienne (au-delà
+du trajet/arrivée génériques actuels), rendre le contenu (routines,
+sorties) paramétrable par un parent sans limite, affiner la direction
+artistique des décors — détail à jour dans [`TODO.md`](../../TODO.md).

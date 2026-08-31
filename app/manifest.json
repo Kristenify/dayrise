@@ -1,7 +1,7 @@
 {
-  "name": "Dayrise — Léon",
+  "name": "Dayrise",
   "short_name": "Dayrise",
-  "description": "Routine du jour pour Léon",
+  "description": "Routines du jour en autonomie, en pixel art",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
