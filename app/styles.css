@@ -575,7 +575,7 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 
 /* ---------- Espace parent ---------- */
-#parent-contenu, #parent-routines-liste, #parent-historique-liste, #parent-activites-liste, #parent-routines-catalogue-liste {
+#parent-contenu, #parent-routines-liste, #parent-historique-liste, #parent-seances-liste, #parent-activites-liste, #parent-routines-catalogue-liste {
   display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; padding-bottom: 12px;
 }
 .carte-parent-soustitre { font-size: 13px; font-weight: 500; color: var(--text-faint); margin-top: 3px; }

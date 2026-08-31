@@ -1802,6 +1802,11 @@ function construireEspaceParent() {
       action: () => { construireHistorique(); afficherEcran("screen-parent-historique"); },
     },
     {
+      emoji: "🧑‍⚕️", titre: "Notes des séances",
+      soustitre: "Relire les notes laissées par les praticiennes",
+      action: () => { construireParentSeances(); afficherEcran("screen-parent-seances"); },
+    },
+    {
       emoji: "🔑", titre: "Changer le code parent",
       soustitre: "Code à 4 chiffres, actuellement " + codeParentActuel().replace(/./g, "•"),
       action: () => { demarrerChangementCode(); },
@@ -1987,6 +1992,45 @@ function texteSeancesHistorique(seances) {
     const appreciation = s.appreciation ? " — " + s.appreciation : "";
     return `<span class="texte-journee-reveil">🧑‍⚕️ ${qui} : ${etoiles}${appreciation}</span>`;
   }).join("");
+}
+
+// Vue dédiée aux notes de séance, accessible directement depuis le menu
+// parent plutôt que noyées jour par jour dans l'Historique (cf.
+// texteSeancesHistorique() ci-dessus, toujours utilisée là-bas) — plus
+// rapide à relire quand on veut juste suivre le retour des praticiennes.
+// Reprend les séances du jour en cours (etat.seances, pas encore
+// archivées) puis celles déjà archivées, de la plus récente à la plus
+// ancienne. Jamais accessible à l'enfant, comme texteSeancesHistorique().
+function construireParentSeances() {
+  const conteneur = document.getElementById("parent-seances-liste");
+  conteneur.innerHTML = "";
+  const etat = chargerEtat();
+  let historique = [];
+  try { historique = JSON.parse(localStorage.getItem(cle("historique")) || "[]"); } catch (e) {}
+  const lignes = (etat.seances || []).map(s => ({ jour: etat.jour, seance: s }));
+  historique.slice().reverse().forEach(j => {
+    (j.seances || []).forEach(s => lignes.push({ jour: j.jour, seance: s }));
+  });
+  if (lignes.length === 0) {
+    const vide = document.createElement("div");
+    vide.className = "recompenses-vide";
+    vide.textContent = "Pas encore de séance notée.";
+    conteneur.appendChild(vide);
+    return;
+  }
+  lignes.forEach(({ jour, seance: s }) => {
+    const qui = s.personne ? "Chez " + s.personne : s.lieu;
+    const etoiles = "⭐".repeat(s.note || 0);
+    const ligne = document.createElement("div");
+    ligne.className = "ligne-journee";
+    ligne.innerHTML =
+      `<span class="emoji-journee">🧑‍⚕️</span>` +
+      `<span class="texte-journee">` +
+        `<span>${jour} — ${qui} — ${etoiles}</span>` +
+        (s.appreciation ? `<span class="texte-journee-reveil">${s.appreciation}</span>` : "") +
+      `</span>`;
+    conteneur.appendChild(ligne);
+  });
 }
 
 // Deux saisies identiques de suite avant d'enregistrer (cf. `validerCode()`,
@@ -2796,6 +2840,7 @@ document.getElementById("btn-espace-parent").onclick = ouvrirEspaceParent;
 document.getElementById("btn-retour-menu-parent").onclick = construireMenu;
 document.getElementById("btn-retour-parent-routines").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 document.getElementById("btn-retour-parent-historique").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("btn-retour-parent-seances").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 
 document.getElementById("na-nom").addEventListener("blur", suggererTextesActivite);
 document.getElementById("btn-creer-aventure").onclick = creerNouvelleAventure;
@@ -2854,6 +2899,7 @@ document.getElementById("btn-debug-coffre").onclick = puisFermerDebug(allerFinDe
 document.getElementById("btn-debug-parent").onclick = puisFermerDebug(() => { construireEspaceParent(); afficherEcran("screen-parent"); });
 document.getElementById("btn-debug-parent-routines").onclick = puisFermerDebug(() => { construireParentRoutines(); afficherEcran("screen-parent-routines"); });
 document.getElementById("btn-debug-parent-historique").onclick = puisFermerDebug(() => { construireHistorique(); afficherEcran("screen-parent-historique"); });
+document.getElementById("btn-debug-parent-seances").onclick = puisFermerDebug(() => { construireParentSeances(); afficherEcran("screen-parent-seances"); });
 document.getElementById("btn-debug-parent-activites").onclick = puisFermerDebug(() => { construireParentActivites(); afficherEcran("screen-parent-activites"); });
 document.getElementById("btn-debug-parent-routines-catalogue").onclick = puisFermerDebug(() => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); });
 document.getElementById("btn-debug-parent-appareil").onclick = puisFermerDebug(() => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); });
