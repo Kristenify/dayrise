@@ -285,7 +285,7 @@ function cleJour() {
 function etatParDefaut() {
   const routines = {};
   toutesLesRoutines().forEach(r => { routines[r.id] = { fait: [], valide: false }; });
-  return { jour: cleJour(), routines, etoiles: 0, journeeFaite: false, planning: planningParDefaut() };
+  return { jour: cleJour(), routines, etoiles: 0, journeeFaite: false, reveilFait: false, reveil: { bienDormi: null, humeur: null }, planning: planningParDefaut() };
 }
 // Répare un état du jour dont la forme est incomplète (ex. un champ
 // ajouté par une mise à jour de l'app depuis la dernière sauvegarde de
@@ -308,6 +308,8 @@ function etatRepare(etat) {
   if (!Array.isArray(etat.planning)) etat.planning = planningParDefaut();
   if (typeof etat.etoiles !== "number") etat.etoiles = 0;
   if (typeof etat.journeeFaite !== "boolean") etat.journeeFaite = false;
+  if (typeof etat.reveilFait !== "boolean") etat.reveilFait = false;
+  if (!etat.reveil || typeof etat.reveil !== "object") etat.reveil = { bienDormi: null, humeur: null };
   return etat;
 }
 
@@ -327,6 +329,7 @@ function archiverJournee(etat) {
       etoiles: etat.etoiles || 0,
       routinesValidees: toutesLesRoutines().filter(r => etat.routines[r.id] && etat.routines[r.id].valide).map(r => r.id),
       journeeFaite: !!etat.journeeFaite,
+      reveil: etat.reveil || { bienDormi: null, humeur: null },
     });
     while (historique.length > 90) historique.shift();
     localStorage.setItem("leon_historique", JSON.stringify(historique));
@@ -1580,9 +1583,28 @@ function construireHistorique() {
     const ligne = document.createElement("div");
     ligne.className = "ligne-journee";
     ligne.innerHTML =
-      `<span class="emoji-journee">📅</span><span class="texte-journee">${j.jour} — ${j.etoiles} ⭐ — ${resume}</span>`;
+      `<span class="emoji-journee">📅</span>` +
+      `<span class="texte-journee">` +
+        `<span>${j.jour} — ${j.etoiles} ⭐ — ${resume}</span>` +
+        texteReveilHistorique(j.reveil) +
+      `</span>`;
     conteneur.appendChild(ligne);
   });
+}
+
+// Ligne secondaire "réveil" (bien dormi / humeur, cf. finReveil) sous une
+// journée archivée. Chaîne vide (donc rien affiché) pour les journées
+// d'avant cette fonctionnalité (pas de `reveil` dans l'archive, cf.
+// archiverJournee) ou si le rituel n'a jamais été fait ce jour-là (les
+// deux réponses restent à `null`) — pas de placeholder "pas de données"
+// pour ne pas alourdir une liste qui peut compter jusqu'à 90 entrées.
+function texteReveilHistorique(reveil) {
+  if (!reveil || (reveil.bienDormi === null && !reveil.humeur)) return "";
+  const parts = [];
+  if (reveil.bienDormi !== null) parts.push(reveil.bienDormi ? "😊 A bien dormi" : "😞 N'a pas bien dormi");
+  const h = reveil.humeur && EMOJI_HUMEUR.find(e => e.id === reveil.humeur);
+  if (h) parts.push(h.emoji + " " + h.texte);
+  return parts.length ? `<span class="texte-journee-reveil">${parts.join(" · ")}</span>` : "";
 }
 
 // Deux saisies identiques de suite avant d'enregistrer (cf. `validerCode()`,
@@ -1840,6 +1862,9 @@ function creerNouvelleRoutine() {
 // et à l'oral (cf. `dire`).
 const TEXTE_FIN_JOURNEE = "Bravo pour toutes les routines que tu as faites aujourd'hui Léon. Bonne nuit et à demain.";
 const HEURE_REVEIL = 7;
+const TEXTE_REVEIL_BONJOUR = "Bonjour Léon";
+const TEXTE_REVEIL_DORMI = "As-tu bien dormi ?";
+const TEXTE_REVEIL_HUMEUR = "Comment te sens-tu ? Choisis bien ta réponse avec l'image qui te plaît le plus.";
 
 function afficherRecompenseFinDeJournee(etat) {
   document.getElementById("coffre-texte").textContent = TEXTE_FIN_JOURNEE;
@@ -1874,12 +1899,82 @@ function dortEncore() {
 // enfant depuis l'espace parent suffit à le lever pour la session en
 // cours (il retient au prochain rechargement si l'heure n'est pas
 // encore passée, cf. `demarrer`).
+//
+// Une fois l'heure passée, ce même écran devient tapable (cf. wiring de
+// `#screen-dodo` plus bas) : un tap de Léon lance le rituel du réveil
+// (`ouvrirReveil`) plutôt qu'un retour direct au menu. `reveilFait` (sur
+// `etat`, réparé comme `journeeFaite` dans `etatRepare`) retient que le
+// rituel a eu lieu pour ne pas le rejouer à chaque rechargement du reste
+// de la journée — cf. `demarrer` et `finReveil`.
 function endormir() {
   const etat = chargerEtat();
   etat.journeeFaite = true;
   sauverEtat(etat);
   try { localStorage.setItem("leon_reveil", prochainReveil(new Date()).toISOString()); } catch (e) {}
   afficherEcran("screen-dodo");
+}
+
+// Rituel du réveil (bonjour → as-tu bien dormi → comment te sens-tu),
+// avant d'arriver au menu du jour déjà connu de Léon. Les 3 écrans sont
+// volontairement sans bouton retour (comme screen-bravo-routine/
+// screen-coffre) : une fois lancé, on ne revient pas en arrière dans le
+// rituel, on avance jusqu'au menu.
+function ouvrirReveil() {
+  document.getElementById("reveil-bonjour-texte").textContent = TEXTE_REVEIL_BONJOUR;
+  afficherEcran("screen-reveil-bonjour");
+  dire(TEXTE_REVEIL_BONJOUR);
+}
+
+function etapeReveilDormi() {
+  document.getElementById("reveil-dormi-texte").textContent = TEXTE_REVEIL_DORMI;
+  afficherEcran("screen-reveil-dormi");
+  dire(TEXTE_REVEIL_DORMI);
+}
+
+const EMOJI_HUMEUR = [
+  { id: "malade", emoji: "🤒", texte: "Malade" },
+  { id: "fatigue", emoji: "😴", texte: "Fatigué" },
+  { id: "pleine-forme", emoji: "💪", texte: "En pleine forme" },
+  { id: "normal", emoji: "🙂", texte: "Normal" },
+  { id: "triste", emoji: "😢", texte: "Triste" },
+  { id: "content", emoji: "😄", texte: "Content" },
+];
+function construireGrilleHumeur() {
+  const conteneur = document.getElementById("reveil-humeur-grille");
+  conteneur.innerHTML = "";
+  EMOJI_HUMEUR.forEach(h => {
+    const b = document.createElement("button");
+    b.className = "btn-humeur";
+    b.innerHTML = `<span class="btn-humeur-emoji">${h.emoji}</span><span class="btn-humeur-texte">${h.texte}</span>`;
+    b.onclick = () => finReveil(h.id);
+    conteneur.appendChild(b);
+  });
+}
+// `bienDormi` vient du tap précédent (oui/non), pas encore enregistré à
+// ce stade (cf. wiring de btn-dormi-oui/non plus bas) — stocké ici plutôt
+// que dans une fonction dédiée, pour éviter un aller-retour localStorage
+// en plus par étape.
+function etapeReveilHumeur(bienDormi) {
+  const etat = chargerEtat();
+  etat.reveil.bienDormi = bienDormi;
+  sauverEtat(etat);
+  document.getElementById("reveil-humeur-texte").textContent = TEXTE_REVEIL_HUMEUR;
+  construireGrilleHumeur();
+  afficherEcran("screen-reveil-humeur");
+  dire(TEXTE_REVEIL_HUMEUR);
+}
+
+// `humeurId` : un des `id` de EMOJI_HUMEUR, choisi par le bouton tapé
+// dans `construireGrilleHumeur()`. Stocké dans `etat.reveil` (jour
+// courant) puis, au changement de jour, recopié dans `leon_historique`
+// par `archiverJournee()` — pas d'écran dédié pour le consulter encore,
+// juste le stockage (même approche que l'a été l'historique au départ).
+function finReveil(humeurId) {
+  const etat = chargerEtat();
+  etat.reveil.humeur = humeurId;
+  etat.reveilFait = true;
+  sauverEtat(etat);
+  construireMenu();
 }
 
 function allerFinDeJournee() {
@@ -2074,6 +2169,9 @@ document.getElementById("btn-fini-histoire").onclick = finHistoire;
 document.getElementById("btn-voix-coffre").onclick = () => dire(document.getElementById("coffre-texte").textContent);
 document.getElementById("btn-voix-trajet").onclick = () => dire(document.getElementById("trajet-texte").textContent);
 document.getElementById("btn-voix-arrivee").onclick = () => dire(document.getElementById("arrivee-texte").textContent);
+document.getElementById("btn-voix-reveil-bonjour").onclick = () => dire(document.getElementById("reveil-bonjour-texte").textContent);
+document.getElementById("btn-voix-reveil-dormi").onclick = () => dire(document.getElementById("reveil-dormi-texte").textContent);
+document.getElementById("btn-voix-reveil-humeur").onclick = () => dire(document.getElementById("reveil-humeur-texte").textContent);
 
 protegerParAppuiLong(document.getElementById("btn-reset-test"), reinitialiserTout);
 
@@ -2122,6 +2220,15 @@ document.getElementById("btn-continuer-coffre").onclick = () => { if (coffreReto
 document.getElementById("btn-arrive").onclick = allerValidationArrivee;
 document.getElementById("btn-cest-parti").onclick = partirEnActivite;
 
+// Tap sur l'écran dodo : n'agit que si l'heure est passée (cf.
+// `ouvrirReveil`/`demarrer`) — avant ça, `dortEncore()` garde l'écran
+// volontairement inerte, seul le bypass parental (⚙️, hors des .screen)
+// reste atteignable.
+document.getElementById("screen-dodo").onclick = () => { if (!dortEncore()) ouvrirReveil(); };
+document.getElementById("btn-reveil-bonjour").onclick = etapeReveilDormi;
+document.getElementById("btn-dormi-oui").onclick = () => etapeReveilHumeur(true);
+document.getElementById("btn-dormi-non").onclick = () => etapeReveilHumeur(false);
+
 // Service worker : rend l'app utilisable hors-ligne après un premier
 // chargement, indépendamment de la disponibilité d'un serveur particulier
 // ensuite (cf. sw.js). Échoue silencieusement sur http:// simple (une IP
@@ -2145,7 +2252,10 @@ if ("serviceWorker" in navigator) {
     // Encore en sommeil (tablette rouverte en pleine nuit) : reste sur
     // l'écran dodo, avant même de toucher à `leon_journee` — pas
     // d'interaction possible avant `dortEncore()` == false (cf. `endormir`).
-    if (dortEncore()) { afficherEcran("screen-dodo"); return; }
+    // Heure passée mais rituel du réveil pas encore fait aujourd'hui (ex.
+    // tablette éteinte puis rallumée après l'heure) : même écran dodo,
+    // mais tapable cette fois — cf. wiring de `#screen-dodo`.
+    if (dortEncore() || !chargerEtat().reveilFait) { afficherEcran("screen-dodo"); return; }
     construireMenu();
   } catch (e) {
     try { localStorage.removeItem("leon_journee"); } catch (e2) {}

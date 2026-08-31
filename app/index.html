@@ -481,6 +481,46 @@
     </div>
   </div>
 
+  <!-- ============ 4ter. Réveil (bonjour → as-tu bien dormi → humeur),
+       une fois l'heure passée et jusqu'au menu, cf. ouvrirReveil() ============ -->
+  <div id="screen-reveil-bonjour" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Bonjour !</div>
+      <button class="btn-voix" id="btn-voix-reveil-bonjour" aria-label="Réécouter">🔊</button>
+      <div></div>
+    </div>
+    <div class="scene-centree">
+      <div id="reveil-emoji">☀️</div>
+      <div id="reveil-bonjour-texte" class="texte-consigne"></div>
+      <button class="btn-continuer" id="btn-reveil-bonjour">Bonjour toi</button>
+    </div>
+  </div>
+
+  <div id="screen-reveil-dormi" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Le réveil</div>
+      <button class="btn-voix" id="btn-voix-reveil-dormi" aria-label="Réécouter">🔊</button>
+      <div></div>
+    </div>
+    <div class="scene-centree">
+      <div id="reveil-dormi-texte" class="texte-consigne"></div>
+      <div class="reveil-choix">
+        <button class="btn-continuer" id="btn-dormi-oui">🙂 Oui</button>
+        <button class="btn-continuer" id="btn-dormi-non">🙁 Non</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-reveil-humeur" class="screen">
+    <div class="barre-haut">
+      <div class="prenom-actif">Comment te sens-tu ?</div>
+      <button class="btn-voix" id="btn-voix-reveil-humeur" aria-label="Réécouter">🔊</button>
+      <div></div>
+    </div>
+    <div id="reveil-humeur-texte" class="texte-consigne"></div>
+    <div id="reveil-humeur-grille"></div>
+  </div>
+
   <!-- ============ 3. Le trajet ============ -->
   <div id="screen-trajet" class="screen">
     <div class="barre-haut">

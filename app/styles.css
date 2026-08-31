@@ -480,7 +480,8 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   font-size: 17px; font-weight: 600; color: var(--text-soft);
 }
 .emoji-journee { font-size: 22px; }
-.texte-journee { flex: 1; }
+.texte-journee { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.texte-journee-reveil { font-size: 14px; font-weight: 600; color: var(--text-faint); }
 
 /* Mode édition (protégé par le code parent, cf. app.js) : petits
    boutons de réordonnancement/suppression accolés à chaque ligne, et
@@ -597,6 +598,26 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
    une scène de sommeil ne doit pas stimuler. */
 #dodo-emoji { font-size: 120px; animation: respire 4s ease-in-out infinite; }
 @keyframes respire { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+
+/* ---------- Réveil (bonjour / as-tu bien dormi / humeur) ---------- */
+#reveil-emoji { font-size: 80px; }
+
+.reveil-choix { display: flex; gap: 16px; }
+.reveil-choix .btn-continuer { margin-top: 0; }
+
+#reveil-humeur-texte { margin: 4px 0 14px; }
+#reveil-humeur-grille {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  flex: 1; align-content: center;
+}
+.btn-humeur {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 16px 6px; background: var(--surface); border: 3px solid var(--surface-high);
+  box-shadow: var(--shadow-hard); color: var(--text-soft);
+}
+.btn-humeur:active { transform: translate(2px, 2px); box-shadow: none; }
+.btn-humeur-emoji { font-size: 46px; }
+.btn-humeur-texte { font-size: 14px; font-weight: 700; }
 
 @media (prefers-reduced-motion: reduce) {
   *, .pop { animation: none !important; }
