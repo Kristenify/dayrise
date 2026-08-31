@@ -1,20 +1,29 @@
 """
-PREVIEW seulement — pas branché à l'app.
+Générateur de l'avatar (paper-doll) — c'est CE script qui a produit les
+sprites réellement déployés dans app/assets/avatar/ (leon-*.png, copiés
+depuis sa sortie leon_calque_*.png ; malgré le nom du fichier, ce n'est
+plus "juste" une exploration de preview pour Léon). Colette a sa propre
+déclinaison de palette/contour ci-dessous (CHILDREN["colette"]) mais ses
+fichiers n'étaient pas encore copiés dans app/assets/avatar/ — cf.
+app/README.md pour l'état courant de qui est réellement branché.
 
-Explore un niveau de détail plus élevé pour les avatars, dans l'esprit du
-handoff `design_handoff_routines_pixel_app/README.md` :
+Dans l'esprit du handoff `docs/design-handoff/` :
   - grille de sprite alignée sur 32 px, personnage en pied
   - contour foncé réservé aux personnages (jamais sur le décor)
   - deux déclinaisons de contraste : Colette (doux) / Léon (élevé, contour
-    plus épais)
-  - even paper-doll : le corps de base + des calques de vêtements
-    superposables, comme dans le prototype existant, mais redessinés avec
-    plus de tons de shading, un contour, et des détails de visage.
+    plus épais) — cf. "réglages sensoriels propres à chaque enfant"
+  - paper-doll : le corps de base + des calques de vêtements superposables
+    (une image par calque, empilées par app.js selon la tâche faite).
+
+Colette a une robe (draw_robe) en plus du pantalon de Léon : une seule
+pièce évasée (trapèze), pas juste le pantalon recolorié — cf. ROUTINES
+côté profil Colette dans app/app.js, tâche "robe".
 
 Usage :
     /usr/local/bin/python3 scripts/generate_sprites_detailed_preview.py
 
-Sort dans ../sprites_preview/ (ne touche pas à ../sprites/).
+Sort dans ../assets/generated/sprites-preview/ (ne touche pas à
+../assets/generated/sprites/, sortie d'un autre script/style).
 """
 
 from PIL import Image, ImageDraw, ImageFilter, ImageChops
@@ -188,6 +197,28 @@ def draw_pull(pull, outline_color, thickness):
     return add_outline(img, outline_color, thickness)
 
 
+def draw_robe(robe, outline_color, thickness):
+    # Une seule pièce évasée (trapèze qui s'élargit vers l'ourlet), PAS deux
+    # jambes séparées comme draw_pants — sinon ça reste visuellement un
+    # pantalon recolorié. Manches courtes plus hautes que celles du haut
+    # porté dessous (draw_shirt) : un peu de "haut" dépasse à l'épaule,
+    # comme pull/shirt se distinguent déjà chez Léon (cf. draw_pull).
+    hi = lighten(robe, 0.25)
+    shadow = darken(robe, 0.75)
+    ourlet = darken(robe, 0.62)
+    img = new_canvas()
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([8, 24, 12, 29], radius=1, fill=robe)
+    d.rounded_rectangle([25, 24, 29, 29], radius=1, fill=robe)
+    d.rounded_rectangle([13, 23, 24, 33], radius=2, fill=robe)
+    d.rectangle([15, 23, 22, 25], fill=hi)
+    # jupe évasée : un seul polygone, plus large en bas qu'en haut
+    d.polygon([(13, 32), (24, 32), (29, 46), (8, 46)], fill=robe)
+    d.polygon([(9, 43), (28, 43), (29, 46), (8, 46)], fill=ourlet)
+    d.line([(18, 33), (18, 45)], fill=shadow, width=1)
+    return add_outline(img, outline_color, thickness)
+
+
 def draw_pants(pants, outline_color, thickness):
     pants_shadow = darken(pants, 0.68)
     img = new_canvas()
@@ -278,6 +309,7 @@ CHILDREN = {
         "shirt": (200, 138, 160, 255),
         "pull": (168, 100, 130, 255),
         "pants": (146, 168, 190, 255),
+        "robe": (214, 122, 148, 255),
         "sock": (250, 240, 240, 255),
         "sock_stripe": (200, 138, 160, 255),
         "shoe": (255, 255, 255, 255),
@@ -316,6 +348,7 @@ def main():
         shirt = draw_shirt(c["shirt"], c["outline"], c["thickness"])
         pull = draw_pull(c["pull"], c["outline"], c["thickness"])
         pants = draw_pants(c["pants"], c["outline"], c["thickness"])
+        robe = draw_robe(c["robe"], c["outline"], c["thickness"]) if "robe" in c else None
         socks = draw_socks(c["sock"], c["sock_stripe"], c["outline"], c["thickness"])
         shoes = draw_shoes(c["shoe"], c["sole"], c["outline"], c["thickness"])
         coat = draw_coat(c["coat"], c["coat_trim"], c["outline"], c["thickness"])
@@ -354,6 +387,9 @@ def main():
         save(shirt, f"{name}_calque_haut")
         save(pull, f"{name}_calque_pull")
         save(pants, f"{name}_calque_pantalon")
+        if robe is not None:
+            save(composite(naked, calecon, shirt, robe), f"{name}_habille_robe")
+            save(robe, f"{name}_calque_robe")
         save(socks, f"{name}_calque_chaussettes")
         save(shoes, f"{name}_calque_chaussures")
         save(coat, f"{name}_calque_manteau")

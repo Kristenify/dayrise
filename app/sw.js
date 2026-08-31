@@ -13,8 +13,14 @@
  * Incrémenter CACHE_NAME à chaque changement de cette liste (ou pour
  * forcer un rafraîchissement) : `activate` supprime les caches d'un nom
  * différent.
+ *
+ * Les deux jeux d'avatar (leon-*.png ET colette-*.png) sont mis en cache
+ * ici, même si un appareil donné n'affiche jamais qu'un seul profil (cf.
+ * PROFILS/profilActif() dans app.js) : ce fichier ne sait pas à l'avance
+ * quel enfant tel appareil affichera, et le coût (quelques petits PNG)
+ * est négligeable pour un usage à la maison.
  */
-const CACHE_NAME = "dayrise-v4";
+const CACHE_NAME = "dayrise-v7";
 const A_METTRE_EN_CACHE = [
   "./",
   "./index.html",
@@ -28,9 +34,18 @@ const A_METTRE_EN_CACHE = [
   "./assets/avatar/leon-chaussettes.png",
   "./assets/avatar/leon-chaussures.png",
   "./assets/avatar/leon-manteau.png",
+  "./assets/avatar/colette-base.png",
+  "./assets/avatar/colette-culotte.png",
+  "./assets/avatar/colette-haut.png",
+  "./assets/avatar/colette-robe.png",
+  "./assets/avatar/colette-chaussettes.png",
+  "./assets/avatar/colette-chaussures.png",
+  "./assets/avatar/colette-manteau.png",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/scenes/fenetre-voiture.jpg",
+  "./assets/scenes/chambre-leon.jpg",
+  "./assets/scenes/chambre-colette.jpg",
 ];
 
 self.addEventListener("install", (event) => {

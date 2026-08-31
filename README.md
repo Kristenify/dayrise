@@ -48,18 +48,22 @@ Deux chantiers séparés, volontairement non synchronisés pour l'instant :
 
 ### 1. Prototype fonctionnel (`app/`) — priorité actuelle
 
-Un parcours jouable pour **Léon uniquement** : menu de la journée listant
-des **routines** indépendantes ("S'habiller", "Se préparer à partir" —
-relation mère-fille Routine ↔ Tâches, cf. `docs/produit/`), chacune en
-glisser-déposer, suivie d'une validation parent (code + relecture/
-correction) qui accorde une étoile et remplit une jauge de journée.
-Récompense automatique une fois toutes les routines validées. L'avatar
-utilise déjà un vrai sprite (calques révélés progressivement, cohérents
-entre le menu et l'écran de routine) ; le reste du décor est encore en
-formes CSS + emoji. Trajet et arrivée chez l'orthophoniste sont codés
-mais volontairement débranchés du parcours pour cette phase (voir
-[`TODO.md`](TODO.md)). Voir [`app/README.md`](app/README.md) pour le
-détail de ce qui est couvert.
+Un parcours jouable pour **Léon et Colette**, chacun sur son propre
+appareil (pas un sélecteur de profil partagé) : menu de la journée
+listant des **routines** indépendantes ("S'habiller", "Se préparer à
+partir" — relation mère-fille Routine ↔ Tâches, cf. `docs/produit/`),
+chacune en glisser-déposer, suivie d'une validation parent (code +
+relecture/correction) qui accorde une étoile et remplit une jauge de
+journée. Récompense automatique une fois toutes les routines validées.
+L'avatar utilise déjà un vrai sprite (calques révélés progressivement,
+cohérents entre le menu et l'écran de routine, propre à chaque enfant —
+Colette a par exemple sa propre robe) ; le reste du décor est encore en
+formes CSS + emoji. Trajet et arrivée chez une praticienne (Pauline et
+Elsa pour Léon, Arianne pour Colette) sont codés et branchés au parcours,
+mais réutilisent encore l'écran générique de n'importe quelle sortie —
+un enchaînement propre à une visite chez une praticienne reste à
+concevoir (voir [`TODO.md`](TODO.md)). Voir [`app/README.md`](app/README.md)
+pour le détail de ce qui est couvert.
 
 ### 2. Exploration de direction artistique (`scripts/`, `assets/`)
 
@@ -89,7 +93,7 @@ routine-et-planning/
 │   └── assets/avatar/            sprites de l'avatar (alimentés par scripts/generate_*.py)
 ├── docs/
 │   ├── design-handoff/           référence de design "Dayrise" reçue (figée, à lire avant toute décision de flux/UI)
-│   ├── produit/                  décisions produit propres au projet, prises depuis (concept, parcours, modèle de données)
+│   ├── produit/                  décisions produit propres au projet, prises depuis (concept, parcours, modèle de données) + fonctionnalites.md (vue d'ensemble pour en parler, tenue à jour)
 │   └── legacy/                   tout premier prototype (Léo/Nina), conservé pour mémoire
 ├── scripts/                      génération procédurale + extraction de sprites (Python/Pillow)
 └── assets/

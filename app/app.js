@@ -1,5 +1,5 @@
 /*
- * Prototype de parcours — Léon : menu de la journée → routines
+ * Prototype de parcours — Léon ET Colette : menu de la journée → routines
  * indépendantes ("S'habiller", "Se préparer à partir") → félicitations →
  * validation parent (code + relecture/correction) → étoile + jauge de
  * journée → retour au menu → récompense de fin de journée une fois
@@ -10,29 +10,179 @@
  * est un tableau d'id de tâches (pas d'index numériques), pour rester
  * robuste au fait qu'il y ait plusieurs routines indépendantes.
  *
- * Aventures (AVENTURES) : sorties programmées, accessibles depuis la
- * porte "Partir à l'aventure". Même écrans que le trajet/arrivée chez
- * l'orthophoniste (désormais génériques, alimentés par l'aventure du
- * jour), mais certaines rapportent une récompense différente d'une
- * étoile de routine : une pièce (cf. `chargerPieces`/`ajouterPieces` et
+ * Aventures : sorties programmées, accessibles depuis la porte "Partir à
+ * l'aventure". Même écrans que le trajet/arrivée chez une praticienne
+ * (génériques, alimentés par l'aventure du jour), mais certaines
+ * rapportent une récompense différente d'une étoile de routine : une
+ * pièce (cf. `chargerPieces`/`ajouterPieces` et
  * docs/produit/modele-de-donnees.md).
  *
- * Un seul enfant, pas de sélecteur de profil. L'avatar est un vrai
- * sprite (assets/avatar/) ; le décor reste un dégradé CSS.
+ * Profils (PROFILS, plus bas) : CHAQUE ENFANT UTILISE SON PROPRE APPAREIL
+ * — ce n'est PAS un sélecteur dans une même app partagée (Colette aura sa
+ * tablette, distincte de celle de Léon). `profilActif()` détermine "quel
+ * enfant est CET appareil" une bonne fois pour toutes (query param
+ * `?enfant=`, retenu ensuite dans `localStorage` sur cet appareil, cf.
+ * `resoudreProfilActif()`) — pas un choix qui revient à chaque session.
+ * Toutes les clés `localStorage` propres à un enfant (journée, étoiles,
+ * pièces, historique, routines/aventures perso) sont préfixées par
+ * `profilActif().prefixe` (cf. `cle()`) ; celles de l'appareil/famille
+ * (code parent, mode debug) restent partagées, cf. `codeParentActuel()`/
+ * `modeDebugActif()`. Léon garde exactement ses clés `leon_...`
+ * d'aujourd'hui (zéro migration, zéro risque sur sa tablette réelle) ;
+ * Colette obtient les mêmes clés préfixées `colette_`. Voir
+ * `docs/produit/modele-de-donnees.md` pour le détail de ce qui est
+ * commun (REPAS, PLANNING_DEFAUT, moteur générique) vs propre à un enfant
+ * (ROUTINES, vêtements/avatar, aventures avec une praticienne précise).
  *
- * Code parent : 1234 (valeur figée pour ce prototype, à rendre
- * configurable plus tard — cf. docs/produit/concept.md).
+ * Code parent : partagé par appareil (pas par enfant — mêmes parents des
+ * deux côtés), 1234 par défaut tant qu'aucun n'a été enregistré.
  */
 
-// Code parent : persisté à part (`leon_code_parent`), modifiable depuis
+// ---------------------------------------------------------------------
+// Mode debug (tests) : toujours actif sur un serveur de dev local
+// (localhost/127.0.0.1, quel que soit le port — évite d'avoir à rouvrir
+// `?debug=1` à chaque fois que le port change d'une session de test à
+// l'autre) ; ailleurs (ex. une URL de prévisualisation non-localhost),
+// activable une fois via `?debug=1` dans l'URL, retenu ensuite sur CET
+// appareil/navigateur via `dayrise_debug` (localStorage) — partagé par
+// appareil, pas par enfant (un appareil de test reste en debug quel que
+// soit le profil affiché dessus, cf. `resoudreProfilActif()` plus bas).
+// N'affecte jamais les tablettes réelles de Léon/Colette : elles ne
+// chargent que l'URL GitHub Pages publiée, jamais un localhost (cf.
+// app/README.md). Ajoute un bouton 🧪 (cf. index.html, symétrique de
+// ⚙️/↺) qui ouvre un panneau listant tous les écrans, chacun atteint via
+// sa vraie fonction d'entrée plutôt qu'un simple `afficherEcran` — pour
+// ne jamais laisser un écran sans les données dont il dépend (routine en
+// cours, aventure en cours...), comme s'il avait été atteint normalement.
+(function initModeDebug() {
+  try {
+    const params = new URLSearchParams(location.search);
+    if (params.has("debug")) {
+      if (params.get("debug") === "0") localStorage.removeItem("dayrise_debug");
+      else localStorage.setItem("dayrise_debug", "1");
+    }
+  } catch (e) {}
+})();
+function modeDebugActif() {
+  if (location.hostname === "localhost" || location.hostname === "127.0.0.1") return true;
+  // `leon_debug` : ancienne clé (avant le support multi-profil), lue en
+  // secours pour ne pas redemander `?debug=1` sur un appareil qui l'avait
+  // déjà activé — jamais réécrite.
+  try { return localStorage.getItem("dayrise_debug") === "1" || localStorage.getItem("leon_debug") === "1"; } catch (e) { return false; }
+}
+
+// `dateDebugForcee` (Date, null = heure réelle) simule le moment présent
+// pour les deux seuls verrous qui en dépendent réellement (réveil, cf.
+// `dortEncore()`/`prochainReveil()` ; déblocage `disponibleApresHeure`,
+// cf. `construireMenu()`) sans avoir à attendre ni à changer l'heure de
+// l'appareil. Une vraie Date (pas juste une heure du jour) : `dortEncore()`
+// compare à un horodatage du LENDEMAIN une fois le coucher simulé (cf.
+// `endormir()`), donc avancer doit pouvoir passer minuit — se contenter de
+// changer l'heure du jour courant ne débloquerait jamais le réveil.
+// Volontairement en mémoire seulement (pas persisté) : un rechargement
+// repart de l'heure réelle plutôt que de risquer de fausser une session
+// ultérieure oubliée en mode debug.
+let dateDebugForcee = null;
+function dateActuelle() {
+  return dateDebugForcee || new Date();
+}
+
+// Code parent : persisté à part (`dayrise_code_parent`), modifiable depuis
 // l'espace parent (cf. demarrerChangementCode()) — "1234" tant qu'aucun
-// nouveau code n'a été enregistré.
+// nouveau code n'a été enregistré. Partagé par APPAREIL, pas par enfant
+// (cf. resoudreProfilActif() plus bas) : ce sont les mêmes parents des
+// deux côtés, pas une raison d'avoir deux codes à retenir.
 function codeParentActuel() {
-  try { return localStorage.getItem("leon_code_parent") || "1234"; } catch (e) { return "1234"; }
+  try {
+    // `leon_code_parent` : ancienne clé (avant le support multi-profil),
+    // lue en secours pour ne pas réinitialiser silencieusement le code
+    // qu'Alexandra a peut-être déjà changé sur la tablette de Léon —
+    // jamais réécrite (sauverCodeParent() n'écrit plus que la nouvelle clé).
+    return localStorage.getItem("dayrise_code_parent") || localStorage.getItem("leon_code_parent") || "1234";
+  } catch (e) { return "1234"; }
 }
 function sauverCodeParent(code) {
-  try { localStorage.setItem("leon_code_parent", code); } catch (e) {}
+  try { localStorage.setItem("dayrise_code_parent", code); } catch (e) {}
 }
+
+// ---------------------------------------------------------------------
+// Profils (Léon, Colette, ...) — CHAQUE ENFANT SUR SON PROPRE APPAREIL,
+// PAS un sélecteur dans une même app partagée. `resoudreProfilActif()`
+// détermine une bonne fois pour toutes "quel enfant est cet appareil" :
+// query param `?enfant=id` (une fois, comme `?debug=1`), retenu ensuite
+// dans `localStorage` SUR CET APPAREIL (`dayrise_enfant`). Par défaut
+// (aucun choix jamais fait) : "leon" — pour que la tablette de Léon,
+// déjà en usage réel, continue de fonctionner sans aucune configuration
+// après cette mise à jour. Un parent peut aussi changer le profil d'un
+// appareil depuis l'espace parent (cf. `construireParentAppareil()`) —
+// utile si un appareil est un jour réattribué, ou pour ajouter un 3ᵉ
+// enfant plus tard (il suffit d'une nouvelle entrée dans PROFILS).
+//
+// `prefixe` retrouve exactement les clés `localStorage` déjà utilisées
+// par le prototype Léon-seul (`leon_journee`, `leon_pieces`, ...) : zéro
+// migration, zéro risque de perte sur sa tablette réelle. Colette obtient
+// les mêmes clés préfixées `colette_`.
+const PROFILS = {
+  leon: {
+    id: "leon",
+    prefixe: "leon",
+    prenom: "Léon",
+    routines: () => ROUTINES_LEON,
+    aventuresPropres: () => AVENTURES_LEON,
+    chambre: "assets/scenes/chambre-leon.jpg",
+    sprites: {
+      base: "assets/avatar/leon-base.png",
+      calques: [
+        { calque: "calque-calecon",     fichier: "assets/avatar/leon-calecon.png" },
+        { calque: "calque-haut",        fichier: "assets/avatar/leon-haut.png" },
+        { calque: "calque-pantalon",    fichier: "assets/avatar/leon-pantalon.png" },
+        { calque: "calque-chaussettes", fichier: "assets/avatar/leon-chaussettes.png" },
+        { calque: "calque-chaussures",  fichier: "assets/avatar/leon-chaussures.png" },
+        { calque: "calque-manteau",     fichier: "assets/avatar/leon-manteau.png" },
+      ],
+    },
+  },
+  colette: {
+    id: "colette",
+    prefixe: "colette",
+    prenom: "Colette",
+    routines: () => ROUTINES_COLETTE,
+    aventuresPropres: () => AVENTURES_COLETTE,
+    chambre: "assets/scenes/chambre-colette.jpg",
+    sprites: {
+      base: "assets/avatar/colette-base.png",
+      calques: [
+        { calque: "calque-culotte",     fichier: "assets/avatar/colette-culotte.png" },
+        { calque: "calque-haut",        fichier: "assets/avatar/colette-haut.png" },
+        { calque: "calque-robe",        fichier: "assets/avatar/colette-robe.png" },
+        { calque: "calque-chaussettes", fichier: "assets/avatar/colette-chaussettes.png" },
+        { calque: "calque-chaussures",  fichier: "assets/avatar/colette-chaussures.png" },
+        { calque: "calque-manteau",     fichier: "assets/avatar/colette-manteau.png" },
+      ],
+    },
+  },
+};
+
+(function initProfilActif() {
+  try {
+    const params = new URLSearchParams(location.search);
+    if (params.has("enfant") && PROFILS[params.get("enfant")]) {
+      localStorage.setItem("dayrise_enfant", params.get("enfant"));
+    }
+  } catch (e) {}
+})();
+function profilActifId() {
+  try {
+    const stocke = localStorage.getItem("dayrise_enfant");
+    if (stocke && PROFILS[stocke]) return stocke;
+  } catch (e) {}
+  return "leon";
+}
+function profilActif() { return PROFILS[profilActifId()]; }
+// Préfixe une clé localStorage propre à l'enfant actif (journée, étoiles,
+// historique, code, routines/aventures perso...) — jamais pour une clé
+// partagée par appareil (code parent, debug), cf. plus haut.
+function cle(nomBase) { return profilActif().prefixe + "_" + nomBase; }
 
 // `calque` = data-calque (ou tableau de data-calque) à révéler sur le
 // sprite ; `retire: true` les CACHE au lieu de les révéler (routine du
@@ -45,7 +195,19 @@ function sauverCodeParent(code) {
 // miroir prévu plus tard (même TODO).
 // `emoji` (par routine) : utilisé par l'écran "Ma journée"
 // (`construireJournee()`) pour repérer chaque routine d'un coup d'œil.
-const ROUTINES = [
+//
+// Une routine par enfant (ROUTINES_LEON / ROUTINES_COLETTE) plutôt qu'un
+// seul catalogue partagé : même PRINCIPE (mêmes `id`/`nom`/nombre de
+// routines, dans le même ordre — "par défaut, elles doivent être
+// identiques") mais des TÂCHES propres à chaque enfant, notamment pour
+// les vêtements (Colette a une culotte/un haut/une robe, pas un
+// caleçon/pantalon) — cf. docs/produit/modele-de-donnees.md. Le moteur
+// (synchroniserRoutineEcran, marquerTache, rendreGlissable...) reste
+// entièrement générique et partagé : il ne lit jamais "shabiller" ou
+// "calecon" en dur, seulement la structure Routine/Tâche. Un parent peut
+// diverger encore plus au fil du temps (ex. ajouter/retirer une tâche
+// chez l'un sans toucher l'autre) sans rien casser côté moteur.
+const ROUTINES_LEON = [
   {
     id: "shabiller",
     nom: "S'habiller",
@@ -125,6 +287,55 @@ const ROUTINES = [
   },
 ];
 
+// Colette : mêmes `id`/`nom`/`emoji`/`lieu`, même nombre de routines, même
+// ordre — seules les tâches de "S'habiller" et le vocabulaire genré
+// changent (culotte/haut/robe au lieu de caleçon/t-shirt/pantalon ; les
+// calques associés pointent vers assets/avatar/colette-*.png via
+// PROFILS.colette.sprites, pas vers ceux de Léon). "Se préparer à partir"
+// est réellement identique (les chaussures ne dépendent pas du genre).
+const ROUTINES_COLETTE = [
+  {
+    id: "shabiller",
+    nom: "S'habiller",
+    emoji: "👕",
+    lieu: "chambre",
+    felicitation: "Bravo Colette, tu t'es habillée toute seule !",
+    taches: [
+      { id: "culotte",     texte: "Mets ta culotte.",      emoji: "🩲", zone: "zone-bassin", calque: "calque-culotte" },
+      { id: "haut",        texte: "Mets ton haut.",        emoji: "👚", zone: "zone-torse",  calque: "calque-haut" },
+      { id: "robe",        texte: "Mets ta robe.",         emoji: "👗", zone: "zone-jambes", calque: "calque-robe" },
+      { id: "chaussettes", texte: "Mets tes chaussettes.", emoji: "🧦", zone: "zone-pieds",  calque: "calque-chaussettes" },
+    ],
+  },
+  {
+    id: "partir",
+    nom: "Se préparer à partir",
+    emoji: "🚪",
+    lieu: "salon",
+    felicitation: "Bravo Colette, tu es prête à partir !",
+    taches: [
+      { id: "chaussures", texte: "Mets tes chaussures.", emoji: "👟", zone: "zone-pieds", calque: "calque-chaussures" },
+    ],
+  },
+  {
+    id: "soir",
+    nom: "Aller se coucher",
+    emoji: "🌙",
+    lieu: "chambre",
+    felicitation: "Bravo Colette, tu es prête à dormir !",
+    disponibleApresHeure: 18,
+    taches: [
+      { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👗",
+        calque: ["calque-haut", "calque-robe", "calque-chaussettes", "calque-chaussures", "calque-manteau"],
+        retire: true, avatarGlissable: true },
+      { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-panier", pileGlissable: true },
+      { id: "dents",    texte: "Brosse-toi les dents.",                   emoji: "🪥", miniJeu: "dents", badge: "visage", badgeFait: "✨" },
+      { id: "histoire", texte: "On lit l'histoire.",                      emoji: "📖", miniJeu: "histoire" },
+      { id: "coucher",  texte: "Je vais me coucher.",                     emoji: "😴", zone: "zone-pieds" },
+    ],
+  },
+];
+
 // Repas : purement informatifs pour l'écran "Ma journée"
 // (`construireJournee()`) — pas des routines (pas de tâches, pas
 // d'horaire pour l'instant). `id` sert de référence dans `PLANNING_DEFAUT`
@@ -145,7 +356,7 @@ const REPAS = [
 // explicitement le moment venu.
 // `personne` (emoji + nom) affiche un 2ᵉ sprite à l'arrivée quand
 // l'aventure se passe chez quelqu'un ; absent pour une sortie sans
-// praticien (magasin...).
+// praticien (magasin, école...).
 // `recompensePieces` : 0 = pas de récompense propre à cette aventure
 // (le cas de Pauline aujourd'hui). > 0 = une pièce sort du coffre à la
 // fin (monnaie distincte des étoiles de routine, cf. `ajouterPieces`).
@@ -157,7 +368,29 @@ const REPAS = [
 // jour (cf. `planningParDefaut()`) — référence `{ type, id }` vers un
 // autre item ("routine"/"repas"/"aventure"). Absent = ajoutée en fin de
 // journée.
-const AVENTURES = [
+//
+// Trois catalogues plutôt qu'un seul, pour maximiser ce qui est en commun
+// SANS forcer une praticienne partagée entre les deux enfants :
+// - AVENTURES_COMMUNES : identique pour tous les profils (l'école).
+// - AVENTURES_LEON / AVENTURES_COLETTE : propres à un enfant (chacun a sa
+//   psychomotricienne — Elsa pour Léon, Arianne pour Colette — même
+//   Pauline, l'orthophoniste, reste spécifique à Léon). Même structure de
+//   données que Pauline/le magasin de bricolage : rien de nouveau côté
+//   moteur, juste de nouvelles entrées, cf. `toutesLesAventures()`.
+const AVENTURES_COMMUNES = [
+  {
+    id: "ecole",
+    lieu: "L'école",
+    emoji: "🎒",
+    texteTrajet: "On roule vers l'école.",
+    texteArrivee: "On est arrivés à l'école.",
+    programme: ["1. On dit au revoir", "2. On passe une bonne journée", "3. Un parent vient nous chercher"],
+    recompensePieces: 0,
+    texteTrajetRetour: "L'école est finie, on rentre à la maison.",
+  },
+];
+
+const AVENTURES_LEON = [
   {
     id: "pauline",
     lieu: "Chez Pauline",
@@ -166,6 +399,17 @@ const AVENTURES = [
     personne: { emoji: "👩‍⚕️", nom: "Pauline" },
     texteArrivee: "Pauline est là. Orthophoniste, une demi-heure, comme la dernière fois.",
     programme: ["1. On entre et on s'assoit", "2. On travaille avec Pauline", "3. On repart"],
+    recompensePieces: 0,
+    texteTrajetRetour: "La séance est finie, on rentre à la maison.",
+  },
+  {
+    id: "elsa",
+    lieu: "Chez Elsa",
+    emoji: "🤸",
+    texteTrajet: "On roule vers chez Elsa. Tu n'as rien à faire, tu peux regarder dehors.",
+    personne: { emoji: "🧑‍⚕️", nom: "Elsa" },
+    texteArrivee: "Elsa est là. Psychomotricienne, comme la dernière fois.",
+    programme: ["1. On entre et on s'assoit", "2. On travaille avec Elsa", "3. On repart"],
     recompensePieces: 0,
     texteTrajetRetour: "La séance est finie, on rentre à la maison.",
   },
@@ -193,6 +437,20 @@ const AVENTURES = [
   },
 ];
 
+const AVENTURES_COLETTE = [
+  {
+    id: "arianne",
+    lieu: "Chez Arianne",
+    emoji: "🤸",
+    texteTrajet: "On roule vers chez Arianne. Tu n'as rien à faire, tu peux regarder dehors.",
+    personne: { emoji: "🧑‍⚕️", nom: "Arianne" },
+    texteArrivee: "Arianne est là. Psychomotricienne, comme la dernière fois.",
+    programme: ["1. On entre et on s'assoit", "2. On travaille avec Arianne", "3. On repart"],
+    recompensePieces: 0,
+    texteTrajetRetour: "La séance est finie, on rentre à la maison.",
+  },
+];
+
 let dragCtx = null;
 let routineActuelleId = null;
 let aventureActuelleId = null;
@@ -202,18 +460,21 @@ let aventureActuelleId = null;
 let sensTrajet = "aller";
 
 // Activités créées par un parent (cf. ouvrirNouvelleAventure()) —
-// persistées à part de AVENTURES (qui reste le catalogue en dur du
-// code), jamais remises à zéro. `toutesLesAventures()` est la vue
-// combinée à utiliser partout où on cherche/liste des aventures, pour
-// que le reste du code n'ait pas à savoir laquelle des deux sources une
-// aventure donnée vient.
+// persistées à part des catalogues en dur, jamais remises à zéro, sous
+// une clé propre à l'enfant actif (cf. `cle()`). `toutesLesAventures()`
+// est la vue combinée à utiliser partout où on cherche/liste des
+// aventures : communes + propres au profil actif + créées par un parent
+// pour ce profil — le reste du code n'a pas à savoir d'où une aventure
+// donnée vient.
 function chargerAventuresPerso() {
-  try { return JSON.parse(localStorage.getItem("leon_aventures_perso") || "[]"); } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(cle("aventures_perso")) || "[]"); } catch (e) { return []; }
 }
 function sauverAventuresPerso(liste) {
-  try { localStorage.setItem("leon_aventures_perso", JSON.stringify(liste)); } catch (e) {}
+  try { localStorage.setItem(cle("aventures_perso"), JSON.stringify(liste)); } catch (e) {}
 }
-function toutesLesAventures() { return AVENTURES.concat(chargerAventuresPerso()); }
+function toutesLesAventures() {
+  return AVENTURES_COMMUNES.concat(profilActif().aventuresPropres()).concat(chargerAventuresPerso());
+}
 
 function aventureParId(id) { return toutesLesAventures().find(a => a.id === id); }
 function aventuresDuJour() { return toutesLesAventures().filter(a => a.date === cleJour()); }
@@ -313,17 +574,18 @@ function etatRepare(etat) {
   return etat;
 }
 
-// Historique des journées passées (`leon_historique`) — jamais remis à
-// zéro, contrairement à `leon_journee`. Demandé explicitement une fois
-// l'usage réel commencé avec Léon : jusqu'ici, une journée terminée
-// était perdue dès que la suivante commençait. Archivée ici, juste
-// avant d'être écrasée par une nouvelle journée (cf. `chargerEtat()`) —
-// pas à chaque reset de test (`reinitialiserTout()`), qui ne représente
-// pas une vraie journée. Bornée à 90 entrées pour ne pas grossir sans fin.
+// Historique des journées passées (`cle("historique")`, ex. `leon_historique`
+// pour Léon) — jamais remis à zéro, contrairement à `cle("journee")`.
+// Demandé explicitement une fois l'usage réel commencé avec Léon :
+// jusqu'ici, une journée terminée était perdue dès que la suivante
+// commençait. Archivée ici, juste avant d'être écrasée par une nouvelle
+// journée (cf. `chargerEtat()`) — pas à chaque reset de test
+// (`reinitialiserTout()`), qui ne représente pas une vraie journée.
+// Bornée à 90 entrées pour ne pas grossir sans fin.
 function archiverJournee(etat) {
   if (!etat || !etat.routines) return; // rien d'exploitable à garder
   try {
-    const historique = JSON.parse(localStorage.getItem("leon_historique") || "[]");
+    const historique = JSON.parse(localStorage.getItem(cle("historique")) || "[]");
     historique.push({
       jour: etat.jour,
       etoiles: etat.etoiles || 0,
@@ -332,13 +594,13 @@ function archiverJournee(etat) {
       reveil: etat.reveil || { bienDormi: null, humeur: null },
     });
     while (historique.length > 90) historique.shift();
-    localStorage.setItem("leon_historique", JSON.stringify(historique));
+    localStorage.setItem(cle("historique"), JSON.stringify(historique));
   } catch (e) {}
 }
 
 function chargerEtat() {
   let etat = null;
-  try { const b = localStorage.getItem("leon_journee"); etat = b ? JSON.parse(b) : null; } catch (e) {}
+  try { const b = localStorage.getItem(cle("journee")); etat = b ? JSON.parse(b) : null; } catch (e) {}
 
   if (etat && etat.jour && etat.jour !== cleJour()) {
     archiverJournee(etat);
@@ -350,45 +612,46 @@ function chargerEtat() {
   return etat;
 }
 function sauverEtat(etat) {
-  try { localStorage.setItem("leon_journee", JSON.stringify(etat)); } catch (e) {}
+  try { localStorage.setItem(cle("journee"), JSON.stringify(etat)); } catch (e) {}
 }
 // Routines créées par un parent (cf. creerNouvelleRoutine()) — même
 // principe que chargerAventuresPerso()/toutesLesAventures() : persistées
-// à part de ROUTINES (catalogue en dur), jamais remises à zéro,
+// à part du catalogue en dur du profil actif, jamais remises à zéro,
 // fusionnées partout où le code cherche/liste des routines pour que le
 // reste ne distingue pas d'où une routine donnée vient.
 function chargerRoutinesPerso() {
-  try { return JSON.parse(localStorage.getItem("leon_routines_perso") || "[]"); } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(cle("routines_perso")) || "[]"); } catch (e) { return []; }
 }
 function sauverRoutinesPerso(liste) {
-  try { localStorage.setItem("leon_routines_perso", JSON.stringify(liste)); } catch (e) {}
+  try { localStorage.setItem(cle("routines_perso"), JSON.stringify(liste)); } catch (e) {}
 }
-function toutesLesRoutines() { return ROUTINES.concat(chargerRoutinesPerso()); }
+function toutesLesRoutines() { return profilActif().routines().concat(chargerRoutinesPerso()); }
 
 function routineParId(id) { return toutesLesRoutines().find(r => r.id === id); }
 
 // Pièces : monnaie gagnée en aventure, distincte des étoiles de routine.
-// Stockée à part de `leon_journee` et JAMAIS remise à zéro au changement
-// de jour (contrairement aux étoiles) : une pièce reste gagnée jusqu'à
-// être dépensée par Léon (activité de son choix) ou donnée à ses
-// parents dans la vraie vie — ce n'est pas une jauge quotidienne.
+// Stockée à part de `cle("journee")` et JAMAIS remise à zéro au
+// changement de jour (contrairement aux étoiles) : une pièce reste
+// gagnée jusqu'à être dépensée par l'enfant (activité de son choix) ou
+// donnée à ses parents dans la vraie vie — ce n'est pas une jauge
+// quotidienne.
 function chargerPieces() {
   try {
-    const n = JSON.parse(localStorage.getItem("leon_pieces"));
+    const n = JSON.parse(localStorage.getItem(cle("pieces")));
     return typeof n === "number" && n >= 0 ? n : 0;
   } catch (e) { return 0; }
 }
 function sauverPieces(n) {
-  try { localStorage.setItem("leon_pieces", JSON.stringify(n)); } catch (e) {}
+  try { localStorage.setItem(cle("pieces"), JSON.stringify(n)); } catch (e) {}
 }
-// Seul point d'entrée qui écrit `leon_pieces` (avec `sauverPieces`,
+// Seul point d'entrée qui écrit `cle("pieces")` (avec `sauverPieces`,
 // jamais appelée ailleurs) : le total ne peut donc **jamais diminuer**,
 // même si `n` était un jour négatif par erreur (`Math.max(0, n)`) — les
 // pièces ne se remettent pas à zéro comme les étoiles, et rien dans
 // l'app ne doit pouvoir les retirer du compte, cf. plus haut ("dépensée
-// ... dans la vraie vie", pas une transaction dans l'app). Si Colette a
-// un jour son propre profil, réutiliser cette même fonction (avec sa
-// propre clé) plutôt qu'une variante parallèle, pour garder la garantie.
+// ... dans la vraie vie", pas une transaction dans l'app). Fonctionne
+// déjà pour Colette (clé propre à son profil via `cle()`) sans variante
+// parallèle, pour garder la même garantie des deux côtés.
 function ajouterPieces(n) {
   const total = chargerPieces() + Math.max(0, n);
   sauverPieces(total);
@@ -438,6 +701,59 @@ function jouerSon() {
 function afficherEcran(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
+}
+
+// ---------------------------------------------------------------------
+// Avatar : construit les calques <img> depuis le profil actif, une seule
+// fois au démarrage (cf. appliquerProfilAuDom(), appelée depuis demarrer())
+// — seule leur VISIBILITÉ change ensuite à chaque rendu, cf.
+// synchroniserAvatar() juste après. index.html ne contient plus la liste
+// de calques en dur (spécifique à Léon) dans ses 3 emplacements
+// (#avatar-wrap-menu, #avatar-wrap, #avatar-wrap-arrivee) : un seul point
+// de vérité ici, alimenté par `profilActif().sprites`, plutôt que de
+// dupliquer 2x la même liste de balises `<img>` dans le HTML (Léon/
+// Colette) alors qu'un seul profil est actif par appareil (cf. PROFILS).
+// Insère toujours AVANT les `.badge-zone` (dos/visage), qui restent en
+// dur dans index.html et doivent rester par-dessus les vêtements.
+function construireCalquesAvatar(idConteneur) {
+  const conteneur = document.getElementById(idConteneur);
+  if (!conteneur) return;
+  conteneur.querySelectorAll(".avatar-calque").forEach(img => img.remove());
+  const profil = profilActif();
+  const base = document.createElement("img");
+  base.className = "avatar-calque";
+  base.src = profil.sprites.base;
+  base.alt = "";
+  conteneur.prepend(base);
+  const avantBadge = conteneur.querySelector(".badge-zone");
+  profil.sprites.calques.forEach(c => {
+    const img = document.createElement("img");
+    img.className = "avatar-calque";
+    img.dataset.calque = c.calque;
+    img.src = c.fichier;
+    img.alt = "";
+    conteneur.insertBefore(img, avantBadge);
+  });
+}
+
+// Applique le profil actif aux quelques endroits du DOM qui affichent son
+// prénom ou son avatar en dur dans index.html (le reste — routines,
+// textes parlés... — vient déjà des catalogues par profil, cf. PROFILS/
+// ROUTINES_LEON/ROUTINES_COLETTE plus haut). Appelé une seule fois au
+// démarrage (cf. demarrer()) : le profil actif ne change pas en cours de
+// session (cf. resoudreProfilActif()) — changer d'appareil, pas d'onglet.
+function appliquerProfilAuDom() {
+  const profil = profilActif();
+  document.title = "Dayrise — " + profil.prenom;
+  ["prenom-menu", "prenom-routine", "arrivee-prenom-enfant"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = profil.prenom;
+  });
+  ["avatar-wrap-menu", "avatar-wrap", "avatar-wrap-arrivee"].forEach(construireCalquesAvatar);
+  // Chambre du profil actif en fond de l'écran "en sommeil" — un futur
+  // profil sans fichier `chambre` livré dégrade sans erreur (simple
+  // `url()` manquante) : #screen-dodo reste juste sans image de fond.
+  document.getElementById("screen-dodo").style.backgroundImage = "url('" + profil.chambre + "')";
 }
 
 // ---------------------------------------------------------------------
@@ -515,15 +831,16 @@ function construireMenu() {
   // sort volontairement de ce chaînage : ni bloquée par les précédentes,
   // ni prise en compte pour bloquer une éventuelle suivante — débloquée
   // par l'heure plutôt que par les autres routines (cf. sa définition
-  // dans ROUTINES pour le pourquoi).
+  // dans ROUTINES_LEON/ROUTINES_COLETTE pour le pourquoi).
   //
-  // De même, seules les routines du catalogue par défaut (ROUTINES)
-  // s'enchaînent entre elles : une routine créée par un parent
-  // (chargerRoutinesPerso) est toujours disponible, ni bloquée par les
-  // précédentes ni prise en compte pour bloquer une suivante — sinon un
-  // petit-déjeuner ajouté par un parent se retrouverait verrouillé
-  // derrière "S'habiller"/"Se préparer à partir" du seul fait d'avoir été
-  // créé après elles, sans aucun rapport réel entre les deux.
+  // De même, seules les routines du catalogue par défaut du profil actif
+  // (`profilActif().routines()`) s'enchaînent entre elles : une routine
+  // créée par un parent (chargerRoutinesPerso) est toujours disponible,
+  // ni bloquée par les précédentes ni prise en compte pour bloquer une
+  // suivante — sinon un petit-déjeuner ajouté par un parent se
+  // retrouverait verrouillé derrière "S'habiller"/"Se préparer à partir"
+  // du seul fait d'avoir été créé après elles, sans aucun rapport réel
+  // entre les deux.
   const liste = document.getElementById("liste-routines");
   liste.innerHTML = "";
   let toutPrecedentValide = true;
@@ -533,7 +850,7 @@ function construireMenu() {
     carte.dataset.id = r.id;
 
     if (r.disponibleApresHeure !== undefined) {
-      const heureAtteinte = new Date().getHours() >= r.disponibleApresHeure;
+      const heureAtteinte = dateActuelle().getHours() >= r.disponibleApresHeure;
       const debloquee = heureAtteinte && !etatR.valide;
       carte.className = "carte-routine" + (etatR.valide ? " faite" : (!heureAtteinte ? " verrouillee" : ""));
       carte.innerHTML = `<div class="carte-routine-nom">${r.nom}</div><div class="carte-routine-etat">${etatR.valide ? "✓" : (heureAtteinte ? "" : "🕒")}</div>`;
@@ -543,7 +860,7 @@ function construireMenu() {
       return;
     }
 
-    const chainee = ROUTINES.some(rr => rr.id === r.id);
+    const chainee = profilActif().routines().some(rr => rr.id === r.id);
     const verrouillee = chainee && !toutPrecedentValide;
     const debloquee = !verrouillee && !etatR.valide;
     // "verrouillee" ne s'applique qu'à une routine PAS ENCORE validée —
@@ -588,7 +905,7 @@ const ROUTINES_REQUISES_DEPART = ["shabiller", "partir"];
 // l'attention dessus sans forcer le geste.
 function allerVersDepart() {
   const etat = chargerEtat();
-  const manquantes = ROUTINES.filter(r => ROUTINES_REQUISES_DEPART.includes(r.id) && !etat.routines[r.id].valide);
+  const manquantes = profilActif().routines().filter(r => ROUTINES_REQUISES_DEPART.includes(r.id) && !etat.routines[r.id].valide);
   if (manquantes.length === 0) {
     dire("On part à l'aventure !");
     construireMissions();
@@ -814,7 +1131,10 @@ function construireRecompenses() {
   ajouterGroupe(
     "MES PIÈCES — AU TOTAL",
     chargerPieces(),
-    '<div class="piece-visage"><img src="assets/avatar/leon-base.png" alt=""></div>',
+    // Même recadrage CSS (.piece-visage) pour les deux enfants : les deux
+    // sprites de base viennent du même générateur, tête au même endroit
+    // sur la même grille (cf. scripts/generate_sprites_detailed_preview.py).
+    '<div class="piece-visage"><img src="' + profilActif().sprites.base + '" alt=""></div>',
     "Pas encore de pièce !"
   );
 }
@@ -1461,7 +1781,7 @@ function construireEspaceParent() {
   const options = [
     {
       emoji: "🔁", titre: "Relancer une routine",
-      soustitre: "Si l'état de Léon a changé (ex. il s'est redéshabillé)",
+      soustitre: "Si l'état de " + profilActif().prenom + " a changé (ex. il/elle s'est redéshabillé·e)",
       action: () => { construireParentRoutines(); afficherEcran("screen-parent-routines"); },
     },
     {
@@ -1489,6 +1809,11 @@ function construireEspaceParent() {
       soustitre: "Voir toutes les routines, ou en créer une nouvelle",
       action: () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); },
     },
+    {
+      emoji: "📱", titre: "Cet appareil",
+      soustitre: "Affiche " + profilActif().prenom + " — changer l'enfant de cet appareil",
+      action: () => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); },
+    },
   ];
   options.forEach(o => {
     const carte = document.createElement("div");
@@ -1500,11 +1825,44 @@ function construireEspaceParent() {
   });
 }
 
+// "Cet appareil" : quel profil (PROFILS) cet appareil affiche — PAS un
+// sélecteur destiné à l'enfant (cf. resoudreProfilActif()/PROFILS plus
+// haut, et le TODO "gestion des profils" qui a motivé cet écran) :
+// Colette a sa propre tablette, distincte de celle de Léon. Sert à
+// configurer un appareil une bonne fois pour toutes (au lieu de
+// mémoriser la syntaxe `?enfant=...` dans l'URL), ou à en réattribuer un
+// (remplacement, ajout d'un 3ᵉ enfant plus tard — il suffira d'une
+// nouvelle entrée dans PROFILS pour qu'elle apparaisse ici automatiquement).
+function construireParentAppareil() {
+  const actif = profilActifId();
+  const liste = document.getElementById("parent-appareil-liste");
+  liste.innerHTML = "";
+  Object.values(PROFILS).forEach(p => {
+    const carte = document.createElement("div");
+    carte.className = "carte-routine" + (p.id === actif ? " faite" : "");
+    carte.innerHTML = `<div class="carte-routine-nom">${p.prenom}</div><div class="carte-routine-etat">${p.id === actif ? "✓ actif" : ""}</div>`;
+    if (p.id !== actif) carte.onclick = () => changerProfilAppareil(p.id);
+    liste.appendChild(carte);
+  });
+}
+
+// Change le profil de CET appareil (pas juste la session en cours) puis
+// recharge : à peu près tout l'état affiché (routines, avatar, étoiles,
+// jauge...) est déterminé au chargement via `profilActif()`, un
+// rechargement est donc plus sûr qu'essayer de tout re-synchroniser à la
+// main depuis ce seul écran.
+function changerProfilAppareil(id) {
+  try { localStorage.setItem("dayrise_enfant", id); } catch (e) {}
+  location.reload();
+}
+
 // Liste des routines avec leur état, pour choisir laquelle relancer.
 // Toutes affichées (pas seulement les validées) : un parent peut aussi
 // vouloir corriger une routine en cours sans attendre la fin.
 function construireParentRoutines() {
   const etat = chargerEtat();
+  document.getElementById("parent-routines-intro").textContent =
+    "Si l'état de " + profilActif().prenom + " a changé (ex. il/elle s'est redéshabillé·e), choisis la routine à relancer.";
   const liste = document.getElementById("parent-routines-liste");
   liste.innerHTML = "";
   toutesLesRoutines().forEach(r => {
@@ -1540,7 +1898,7 @@ function relancerRoutine(id) {
 // Si la routine était validée, on retire l'étoile qu'elle avait
 // rapportée : elle sera regagnée quand l'enfant la revalidera pour de
 // bon, sinon le compteur d'étoiles serait gonflé. `journeeFaite` et le
-// verrou de sommeil (`leon_reveil`, cf. `endormir`) ne repassent à faux
+// verrou de sommeil (`cle("reveil")`, cf. `endormir`) ne repassent à faux
 // que si c'est "Aller se coucher" qu'on relance — cf. construireMenu() :
 // c'est la seule routine qui conditionne la journée "finie", relancer
 // une autre routine (ex. correction sur "S'habiller" après coup) n'a pas
@@ -1554,7 +1912,7 @@ function confirmerRelanceRoutine() {
   }
   if (routineActuelleId === "soir") {
     etat.journeeFaite = false;
-    try { localStorage.removeItem("leon_reveil"); } catch (e) {}
+    try { localStorage.removeItem(cle("reveil")); } catch (e) {}
   }
   sauverEtat(etat);
   synchroniserAvatar(etat);
@@ -1569,7 +1927,7 @@ function construireHistorique() {
   const conteneur = document.getElementById("parent-historique-liste");
   conteneur.innerHTML = "";
   let historique = [];
-  try { historique = JSON.parse(localStorage.getItem("leon_historique") || "[]"); } catch (e) {}
+  try { historique = JSON.parse(localStorage.getItem(cle("historique")) || "[]"); } catch (e) {}
   if (historique.length === 0) {
     const vide = document.createElement("div");
     vide.className = "recompenses-vide";
@@ -1829,7 +2187,7 @@ function creerNouvelleRoutine() {
     nom,
     emoji: emojiChoisiRoutine,
     lieu: lieuChoisiRoutine,
-    felicitation: "Bravo Léon, tu as fini : " + nom + " !",
+    felicitation: "Bravo " + profilActif().prenom + ", tu as fini : " + nom + " !",
     taches,
   };
 
@@ -1858,24 +2216,27 @@ function creerNouvelleRoutine() {
 // ---------------------------------------------------------------------
 // Message de clôture de la journée, pas un récapitulatif des routines
 // faites (cf. les appelants : déclenché par "Aller se coucher" seule,
-// même si Léon n'a rien fait d'autre de la journée). Identique à l'écrit
-// et à l'oral (cf. `dire`).
-const TEXTE_FIN_JOURNEE = "Bravo pour toutes les routines que tu as faites aujourd'hui Léon. Bonne nuit et à demain.";
+// même si l'enfant n'a rien fait d'autre de la journée). Identique à
+// l'écrit et à l'oral (cf. `dire`). Fonction (pas une constante) : dépend
+// du prénom du profil actif.
+function texteFinJournee(profil) {
+  return "Bravo pour toutes les routines que tu as faites aujourd'hui " + profil.prenom + ". Bonne nuit et à demain.";
+}
 const HEURE_REVEIL = 7;
-const TEXTE_REVEIL_BONJOUR = "Bonjour Léon";
+function texteReveilBonjour(profil) { return "Bonjour " + profil.prenom; }
 const TEXTE_REVEIL_DORMI = "As-tu bien dormi ?";
 const TEXTE_REVEIL_HUMEUR = "Comment te sens-tu ? Choisis bien ta réponse avec l'image qui te plaît le plus.";
 
 function afficherRecompenseFinDeJournee(etat) {
-  document.getElementById("coffre-texte").textContent = TEXTE_FIN_JOURNEE;
+  document.getElementById("coffre-texte").textContent = texteFinJournee(profilActif());
   document.getElementById("coffre-recompense-texte").textContent = "+ " + (etat.etoiles || 0) + " ⭐ aujourd'hui";
 }
 
-// `leon_reveil` (horodatage ISO, prochain HEURE_REVEIL) est volontairement
-// une clé à part de `leon_journee` : cette dernière repart de zéro dès que
-// la date change (cf. `chargerEtat`), ce qui arrive à minuit — bien avant
-// l'heure de réveil. Le verrou doit survivre à ce passage de minuit pour
-// tenir jusqu'au matin.
+// `cle("reveil")` (horodatage ISO, prochain HEURE_REVEIL) est
+// volontairement une clé à part de `cle("journee")` : cette dernière
+// repart de zéro dès que la date change (cf. `chargerEtat`), ce qui
+// arrive à minuit — bien avant l'heure de réveil. Le verrou doit
+// survivre à ce passage de minuit pour tenir jusqu'au matin.
 function prochainReveil(depuis) {
   const reveil = new Date(depuis);
   reveil.setHours(HEURE_REVEIL, 0, 0, 0);
@@ -1884,9 +2245,9 @@ function prochainReveil(depuis) {
 }
 
 function dortEncore() {
-  const reveil = localStorage.getItem("leon_reveil");
-  if (reveil && new Date() < new Date(reveil)) return true;
-  try { localStorage.removeItem("leon_reveil"); } catch (e) {}
+  const reveil = localStorage.getItem(cle("reveil"));
+  if (reveil && dateActuelle() < new Date(reveil)) return true;
+  try { localStorage.removeItem(cle("reveil")); } catch (e) {}
   return false;
 }
 
@@ -1910,19 +2271,20 @@ function endormir() {
   const etat = chargerEtat();
   etat.journeeFaite = true;
   sauverEtat(etat);
-  try { localStorage.setItem("leon_reveil", prochainReveil(new Date()).toISOString()); } catch (e) {}
+  try { localStorage.setItem(cle("reveil"), prochainReveil(dateActuelle()).toISOString()); } catch (e) {}
   afficherEcran("screen-dodo");
 }
 
 // Rituel du réveil (bonjour → as-tu bien dormi → comment te sens-tu),
-// avant d'arriver au menu du jour déjà connu de Léon. Les 3 écrans sont
-// volontairement sans bouton retour (comme screen-bravo-routine/
+// avant d'arriver au menu du jour déjà connu de l'enfant. Les 3 écrans
+// sont volontairement sans bouton retour (comme screen-bravo-routine/
 // screen-coffre) : une fois lancé, on ne revient pas en arrière dans le
 // rituel, on avance jusqu'au menu.
 function ouvrirReveil() {
-  document.getElementById("reveil-bonjour-texte").textContent = TEXTE_REVEIL_BONJOUR;
+  const texte = texteReveilBonjour(profilActif());
+  document.getElementById("reveil-bonjour-texte").textContent = texte;
   afficherEcran("screen-reveil-bonjour");
-  dire(TEXTE_REVEIL_BONJOUR);
+  dire(texte);
 }
 
 function etapeReveilDormi() {
@@ -1980,7 +2342,7 @@ function finReveil(humeurId) {
 function allerFinDeJournee() {
   const etat = chargerEtat();
   afficherRecompenseFinDeJournee(etat);
-  ouvrirCoffre(TEXTE_FIN_JOURNEE, ["⭐", "✨", "🎉", "⭐", "✨"], endormir);
+  ouvrirCoffre(texteFinJournee(profilActif()), ["⭐", "✨", "🎉", "⭐", "✨"], endormir);
 }
 
 // Écran coffre : partagé entre la récompense de fin de journée (étoiles)
@@ -1991,6 +2353,7 @@ function allerFinDeJournee() {
 let coffreRetour = null;
 function ouvrirCoffre(texteVoix, symbolesConfettis, retour) {
   coffreRetour = retour;
+  document.getElementById("coffre-titre").textContent = "Bravo " + profilActif().prenom + " !";
   afficherEcran("screen-coffre");
   dire(texteVoix);
   jouerSon();
@@ -2104,17 +2467,18 @@ function terminerAventure(a) {
   aventureActuelleId = null;
   if (a.recompensePieces > 0) {
     const total = ajouterPieces(a.recompensePieces);
-    document.getElementById("coffre-texte").textContent = "Bravo Léon, tu as fait : " + a.lieu + " !";
+    const prenom = profilActif().prenom;
+    document.getElementById("coffre-texte").textContent = "Bravo " + prenom + ", tu as fait : " + a.lieu + " !";
     document.getElementById("coffre-recompense-texte").textContent =
       "+ " + a.recompensePieces + " 🪙 (" + total + " au total)";
-    ouvrirCoffre("Bravo Léon, tu as gagné une pièce !", ["🪙", "✨", "🎉", "🪙", "✨"], () => construireMenu());
+    ouvrirCoffre("Bravo " + prenom + ", tu as gagné une pièce !", ["🪙", "✨", "🎉", "🪙", "✨"], () => construireMenu());
     return;
   }
   construireMenu();
 }
 
 function reinitialiserTout() {
-  try { localStorage.removeItem("leon_journee"); } catch (e) {}
+  try { localStorage.removeItem(cle("journee")); } catch (e) {}
   derniereEtapeAnnoncee = null;
   routineActuelleId = null;
   construireMenu();
@@ -2140,6 +2504,88 @@ function protegerParAppuiLong(bouton, action, duree = 900) {
 }
 
 // ---------------------------------------------------------------------
+// Panneau debug (cf. modeDebugActif() en tête de fichier). Les listes de
+// routines/aventures sont reconstruites à chaque ouverture (pas une
+// seule fois au chargement) pour refléter une activité/routine créée
+// entre-temps par un parent (cf. toutesLesRoutines()/toutesLesAventures()).
+// ---------------------------------------------------------------------
+
+// Enveloppe une action de navigation du panneau : l'exécute puis referme
+// le panneau, pour que l'écran visé (dessous, plein écran lui aussi)
+// redevienne visible immédiatement — sinon le panneau resterait au-dessus.
+// Pas utilisé pour les actions qui restent DANS le panneau (horloge de
+// test, fermeture).
+function puisFermerDebug(action) {
+  return () => { action(); document.getElementById("debug-panel").classList.add("hidden"); };
+}
+
+function boutonDebug(texte, action) {
+  const b = document.createElement("button");
+  b.className = "btn-debug-item";
+  b.textContent = texte;
+  b.onclick = action;
+  return b;
+}
+
+function construireDebug() {
+  document.getElementById("debug-code-parent").textContent = codeParentActuel();
+  document.getElementById("debug-profil-valeur").textContent = profilActif().prenom;
+  const boutonsProfil = document.getElementById("debug-profils");
+  boutonsProfil.innerHTML = "";
+  Object.values(PROFILS).forEach(p => {
+    if (p.id === profilActifId()) return; // déjà actif, rien à proposer
+    boutonsProfil.appendChild(boutonDebug("👤 Passer à " + p.prenom, () => changerProfilAppareil(p.id)));
+  });
+  majAffichageHeureDebug();
+
+  const routines = document.getElementById("debug-routines");
+  routines.innerHTML = "";
+  toutesLesRoutines().forEach(r => {
+    routines.appendChild(boutonDebug("▶️ " + r.nom, puisFermerDebug(() => demarrerRoutine(r.id))));
+    routines.appendChild(boutonDebug("🎉 Fin — " + r.nom, puisFermerDebug(() => { routineActuelleId = r.id; finDeRoutine(); })));
+    routines.appendChild(boutonDebug("🔑 Valider — " + r.nom, puisFermerDebug(() => { routineActuelleId = r.id; allerValidation(); })));
+  });
+
+  const aventures = document.getElementById("debug-aventures");
+  aventures.innerHTML = "";
+  toutesLesAventures().forEach(a => {
+    aventures.appendChild(boutonDebug("🚗 Trajet — " + a.lieu, puisFermerDebug(() => { aventureActuelleId = a.id; sensTrajet = "aller"; allerAuTrajet(); })));
+    aventures.appendChild(boutonDebug("📍 Arrivée — " + a.lieu, puisFermerDebug(() => { aventureActuelleId = a.id; allerAArrivee(); })));
+  });
+}
+
+// Affiche juste l'heure ("18h05") si la date simulée reste le jour réel
+// en cours, ou date + heure ("1 sept. 07h00") une fois minuit passé —
+// sinon un saut de jour (ex. après avoir simulé le coucher, cf.
+// `endormir()`) resterait invisible dans le panneau.
+function majAffichageHeureDebug() {
+  const el = document.getElementById("debug-heure-valeur");
+  if (dateDebugForcee === null) { el.textContent = "réelle"; return; }
+  const heure = dateDebugForcee.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const memeJour = dateDebugForcee.toDateString() === new Date().toDateString();
+  el.textContent = memeJour ? heure : dateDebugForcee.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) + " " + heure;
+}
+
+function ajusterHeureDebug(delta) {
+  dateDebugForcee = new Date(dateActuelle().getTime() + delta * 3600000);
+  majAffichageHeureDebug();
+  majHorloge();
+}
+
+function reinitialiserHeureDebug() {
+  dateDebugForcee = null;
+  majAffichageHeureDebug();
+  majHorloge();
+}
+
+function toggleDebug() {
+  const panneau = document.getElementById("debug-panel");
+  const ouverture = panneau.classList.contains("hidden");
+  if (ouverture) construireDebug();
+  panneau.classList.toggle("hidden", !ouverture);
+}
+
+// ---------------------------------------------------------------------
 // Horloge du menu — jour + heure, purement informatif (repère pour
 // l'enfant/le parent, ne pilote aucune logique). Mise à jour même quand
 // le menu n'est pas l'écran actif : coût négligeable, évite d'avoir à
@@ -2148,10 +2594,12 @@ function protegerParAppuiLong(bouton, action, duree = 900) {
 function majHorloge() {
   const el = document.getElementById("horloge");
   if (!el) return;
-  const maintenant = new Date();
+  const maintenant = dateActuelle();
   const jour = maintenant.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
   const heure = maintenant.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  el.textContent = jour.charAt(0).toUpperCase() + jour.slice(1) + " — " + heure;
+  // 🧪 en préfixe quand l'heure est simulée (cf. dateDebugForcee) — pour
+  // ne jamais laisser croire, y compris à qui teste, que c'est l'heure réelle.
+  el.textContent = (dateDebugForcee !== null ? "🧪 " : "") + jour.charAt(0).toUpperCase() + jour.slice(1) + " — " + heure;
 }
 majHorloge();
 setInterval(majHorloge, 15000);
@@ -2213,6 +2661,8 @@ document.getElementById("nr-lieu-salon").onclick = () => choisirLieuRoutine("sal
 document.getElementById("btn-creer-routine").onclick = creerNouvelleRoutine;
 document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); };
 
+document.getElementById("btn-retour-parent-appareil").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+
 // Le bouton "Terminé !" du coffre ne va pas toujours au même endroit
 // (fin de journée vs retour d'aventure) : `coffreRetour` est fixé par
 // `ouvrirCoffre()` juste avant l'ouverture de l'écran.
@@ -2228,6 +2678,40 @@ document.getElementById("screen-dodo").onclick = () => { if (!dortEncore()) ouvr
 document.getElementById("btn-reveil-bonjour").onclick = etapeReveilDormi;
 document.getElementById("btn-dormi-oui").onclick = () => etapeReveilHumeur(true);
 document.getElementById("btn-dormi-non").onclick = () => etapeReveilHumeur(false);
+
+// Panneau debug (cf. modeDebugActif() en tête de fichier) : masqué par
+// défaut (classe .hidden posée dans index.html), révélé ici seulement si
+// activé sur CET appareil/navigateur.
+document.getElementById("btn-debug").onclick = toggleDebug;
+document.getElementById("btn-debug-fermer").onclick = toggleDebug;
+document.getElementById("btn-debug-heure-moins").onclick = () => ajusterHeureDebug(-1);
+document.getElementById("btn-debug-heure-plus").onclick = () => ajusterHeureDebug(1);
+document.getElementById("btn-debug-heure-reelle").onclick = reinitialiserHeureDebug;
+
+document.getElementById("btn-debug-dodo").onclick = puisFermerDebug(() => afficherEcran("screen-dodo"));
+document.getElementById("btn-debug-bonjour").onclick = puisFermerDebug(ouvrirReveil);
+document.getElementById("btn-debug-dormi").onclick = puisFermerDebug(etapeReveilDormi);
+document.getElementById("btn-debug-humeur").onclick = puisFermerDebug(() => etapeReveilHumeur(true));
+
+document.getElementById("btn-debug-menu").onclick = puisFermerDebug(construireMenu);
+document.getElementById("btn-debug-missions").onclick = puisFermerDebug(() => { construireMissions(); afficherEcran("screen-missions"); });
+document.getElementById("btn-debug-journee").onclick = puisFermerDebug(() => { construireJournee(); afficherEcran("screen-journee"); });
+document.getElementById("btn-debug-recompenses").onclick = puisFermerDebug(() => { construireRecompenses(); afficherEcran("screen-recompenses"); });
+document.getElementById("btn-debug-coffre").onclick = puisFermerDebug(allerFinDeJournee);
+
+document.getElementById("btn-debug-parent").onclick = puisFermerDebug(() => { construireEspaceParent(); afficherEcran("screen-parent"); });
+document.getElementById("btn-debug-parent-routines").onclick = puisFermerDebug(() => { construireParentRoutines(); afficherEcran("screen-parent-routines"); });
+document.getElementById("btn-debug-parent-historique").onclick = puisFermerDebug(() => { construireHistorique(); afficherEcran("screen-parent-historique"); });
+document.getElementById("btn-debug-parent-activites").onclick = puisFermerDebug(() => { construireParentActivites(); afficherEcran("screen-parent-activites"); });
+document.getElementById("btn-debug-parent-routines-catalogue").onclick = puisFermerDebug(() => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); });
+document.getElementById("btn-debug-parent-appareil").onclick = puisFermerDebug(() => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); });
+document.getElementById("btn-debug-nouvelle-activite").onclick = puisFermerDebug(ouvrirNouvelleAventure);
+document.getElementById("btn-debug-nouvelle-routine").onclick = puisFermerDebug(ouvrirNouvelleRoutine);
+document.getElementById("btn-debug-code-reel").onclick = puisFermerDebug(ouvrirEspaceParent);
+
+document.getElementById("btn-debug-reset").onclick = puisFermerDebug(reinitialiserTout);
+
+document.getElementById("btn-debug").classList.toggle("hidden", !modeDebugActif());
 
 // Service worker : rend l'app utilisable hors-ligne après un premier
 // chargement, indépendamment de la disponibilité d'un serveur particulier
@@ -2249,8 +2733,13 @@ if ("serviceWorker" in navigator) {
 // `chargerEtat()` répare déjà les cas courants sans perdre la journée.
 (function demarrer() {
   try {
+    // Avant toute chose : calques d'avatar + prénom du profil actif dans
+    // le DOM (cf. appliquerProfilAuDom()) — les écrans qui suivent
+    // (dodo ou menu) en dépendent déjà (synchroniserAvatar() ne fait que
+    // basculer la visibilité de calques qui doivent déjà exister).
+    appliquerProfilAuDom();
     // Encore en sommeil (tablette rouverte en pleine nuit) : reste sur
-    // l'écran dodo, avant même de toucher à `leon_journee` — pas
+    // l'écran dodo, avant même de toucher à l'état du jour — pas
     // d'interaction possible avant `dortEncore()` == false (cf. `endormir`).
     // Heure passée mais rituel du réveil pas encore fait aujourd'hui (ex.
     // tablette éteinte puis rallumée après l'heure) : même écran dodo,
@@ -2258,7 +2747,7 @@ if ("serviceWorker" in navigator) {
     if (dortEncore() || !chargerEtat().reveilFait) { afficherEcran("screen-dodo"); return; }
     construireMenu();
   } catch (e) {
-    try { localStorage.removeItem("leon_journee"); } catch (e2) {}
+    try { localStorage.removeItem(cle("journee")); } catch (e2) {}
     construireMenu();
   }
 })();

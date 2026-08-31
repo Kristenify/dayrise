@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Dayrise — prototype de parcours (Léon)</title>
+<title>Dayrise</title>
 <link rel="stylesheet" href="styles.css">
 <!-- Installable en icône d'écran d'accueil ("Ajouter à l'écran d'accueil")
      plutôt qu'un onglet/favori de navigateur classique — un lancement
@@ -29,10 +29,88 @@
        code, cf. ouvrirEspaceParent() dans app.js), symétrique du reset. -->
   <button id="btn-espace-parent" aria-label="Espace parent" title="Espace parent">⚙️</button>
 
+  <!-- Mode debug (tests, jamais vu par Léon) : masqué par défaut, révélé
+       par `modeDebugActif()` dans app.js (activé une fois via ?debug=1
+       dans l'URL, retenu ensuite sur ce navigateur). Voir app/README.md. -->
+  <button id="btn-debug" class="hidden" aria-label="Mode debug" title="Mode debug">🧪</button>
+
+  <div id="debug-panel" class="hidden">
+    <div id="debug-entete">
+      <strong>🧪 Mode debug</strong>
+      <button id="btn-debug-fermer" aria-label="Fermer">✕</button>
+    </div>
+
+    <div class="debug-bloc">
+      <div class="debug-bloc-titre">Horloge de test</div>
+      <div class="debug-ligne">
+        <button class="btn-debug-item btn-debug-inline" id="btn-debug-heure-moins">− 1h</button>
+        <span id="debug-heure-valeur">réelle</span>
+        <button class="btn-debug-item btn-debug-inline" id="btn-debug-heure-plus">+ 1h</button>
+        <button class="btn-debug-item btn-debug-inline" id="btn-debug-heure-reelle">temps réel</button>
+      </div>
+      <div class="debug-note">Pilote le réveil (7h) et le déblocage de « Aller se coucher » (18h).</div>
+    </div>
+
+    <div class="debug-bloc">
+      <div class="debug-bloc-titre">Code parent actuel</div>
+      <code id="debug-code-parent">1234</code>
+    </div>
+
+    <div class="debug-bloc">
+      <div class="debug-bloc-titre">Profil de cet appareil : <span id="debug-profil-valeur">Léon</span></div>
+      <div id="debug-profils"></div>
+      <div class="debug-note">Chaque enfant a son propre appareil en usage réel (cf. "Cet appareil" dans l'espace parent) — ceci ne sert qu'à tester les deux profils sur un même appareil de dev.</div>
+    </div>
+
+    <div class="debug-bloc">
+      <div class="debug-bloc-titre">Réveil</div>
+      <button class="btn-debug-item" id="btn-debug-dodo">😴 Écran endormi</button>
+      <button class="btn-debug-item" id="btn-debug-bonjour">☀️ Bonjour</button>
+      <button class="btn-debug-item" id="btn-debug-dormi">🌙 As-tu bien dormi ?</button>
+      <button class="btn-debug-item" id="btn-debug-humeur">🙂 Comment te sens-tu ?</button>
+    </div>
+
+    <div class="debug-bloc">
+      <div class="debug-bloc-titre">Routines</div>
+      <div id="debug-routines"></div>
+    </div>
+
+    <div class="debug-bloc">
+      <div class="debug-bloc-titre">Navigation</div>
+      <button class="btn-debug-item" id="btn-debug-menu">🏠 Menu du jour</button>
+      <button class="btn-debug-item" id="btn-debug-missions">🚗 Sorties (missions)</button>
+      <button class="btn-debug-item" id="btn-debug-journee">🗓️ Ma journée</button>
+      <button class="btn-debug-item" id="btn-debug-recompenses">🏆 Mes récompenses</button>
+      <button class="btn-debug-item" id="btn-debug-coffre">🎁 Récompense fin de journée</button>
+    </div>
+
+    <div class="debug-bloc">
+      <div class="debug-bloc-titre">Aventures</div>
+      <div id="debug-aventures"></div>
+    </div>
+
+    <div class="debug-bloc">
+      <div class="debug-bloc-titre">Espace parent (direct, sans code)</div>
+      <button class="btn-debug-item" id="btn-debug-parent">⚙️ Espace parent</button>
+      <button class="btn-debug-item" id="btn-debug-parent-routines">🔁 Relancer une routine</button>
+      <button class="btn-debug-item" id="btn-debug-parent-historique">📅 Historique</button>
+      <button class="btn-debug-item" id="btn-debug-parent-activites">🗺️ Activités</button>
+      <button class="btn-debug-item" id="btn-debug-parent-routines-catalogue">🧩 Routines</button>
+      <button class="btn-debug-item" id="btn-debug-parent-appareil">📱 Cet appareil</button>
+      <button class="btn-debug-item" id="btn-debug-nouvelle-activite">➕ Nouvelle activité</button>
+      <button class="btn-debug-item" id="btn-debug-nouvelle-routine">➕ Nouvelle routine</button>
+      <button class="btn-debug-item" id="btn-debug-code-reel">🔑 Écran code (flow réel)</button>
+    </div>
+
+    <div class="debug-bloc">
+      <button class="btn-debug-item" id="btn-debug-reset">↺ Réinitialiser la journée</button>
+    </div>
+  </div>
+
   <!-- ============ 0. Menu de la journée ============ -->
   <div id="screen-menu" class="screen active">
     <div class="barre-haut">
-      <div class="prenom-actif">Léon</div>
+      <div class="prenom-actif" id="prenom-menu">Léon</div>
       <button id="btn-mes-recompenses" class="bloc-monnaies" aria-label="Voir mes récompenses">
         <div id="jauge-jour"></div>
         <div id="pieces-total"></div>
@@ -42,14 +120,9 @@
     <div id="horloge"></div>
 
     <div id="scene-menu">
+      <!-- Calques <img> injectés par construireCalquesAvatar() (app.js)
+           selon le profil actif (Léon ou Colette) — cf. PROFILS. -->
       <div id="avatar-wrap-menu" class="avatar-wrap">
-        <img class="avatar-calque" src="assets/avatar/leon-base.png" alt="">
-        <img class="avatar-calque" data-calque="calque-calecon" src="assets/avatar/leon-calecon.png" alt="">
-        <img class="avatar-calque" data-calque="calque-haut" src="assets/avatar/leon-haut.png" alt="">
-        <img class="avatar-calque" data-calque="calque-pantalon" src="assets/avatar/leon-pantalon.png" alt="">
-        <img class="avatar-calque" data-calque="calque-chaussettes" src="assets/avatar/leon-chaussettes.png" alt="">
-        <img class="avatar-calque" data-calque="calque-chaussures" src="assets/avatar/leon-chaussures.png" alt="">
-        <img class="avatar-calque" data-calque="calque-manteau" src="assets/avatar/leon-manteau.png" alt="">
         <div class="badge-zone badge-dos" data-badge="dos"></div>
         <div class="badge-zone badge-visage" data-badge="visage"></div>
       </div>
@@ -116,7 +189,7 @@
            cf. app.js). -->
       <button class="btn-retour-ecran" id="btn-retour-routine" aria-label="Retour au menu">←</button>
       <div class="bloc-nom">
-        <div class="prenom-actif">Léon</div>
+        <div class="prenom-actif" id="prenom-routine">Léon</div>
         <div id="nom-routine"></div>
       </div>
       <button class="btn-voix" id="btn-voix-routine" aria-label="Réécouter">🔊</button>
@@ -124,14 +197,9 @@
     </div>
 
     <div id="scene">
+      <!-- Calques <img> injectés par construireCalquesAvatar() (app.js)
+           selon le profil actif (Léon ou Colette) — cf. PROFILS. -->
       <div id="avatar-wrap" class="avatar-wrap">
-        <img class="avatar-calque" src="assets/avatar/leon-base.png" alt="">
-        <img class="avatar-calque" data-calque="calque-calecon" src="assets/avatar/leon-calecon.png" alt="">
-        <img class="avatar-calque" data-calque="calque-haut" src="assets/avatar/leon-haut.png" alt="">
-        <img class="avatar-calque" data-calque="calque-pantalon" src="assets/avatar/leon-pantalon.png" alt="">
-        <img class="avatar-calque" data-calque="calque-chaussettes" src="assets/avatar/leon-chaussettes.png" alt="">
-        <img class="avatar-calque" data-calque="calque-chaussures" src="assets/avatar/leon-chaussures.png" alt="">
-        <img class="avatar-calque" data-calque="calque-manteau" src="assets/avatar/leon-manteau.png" alt="">
         <div class="badge-zone badge-dos" data-badge="dos"></div>
         <div class="badge-zone badge-visage" data-badge="visage"></div>
       </div>
@@ -275,7 +343,7 @@
       <div class="prenom-actif">Relancer une routine</div>
       <div></div>
     </div>
-    <div class="texte-consigne">Si l'état de Léon a changé (ex. il s'est redéshabillé), choisis la routine à relancer.</div>
+    <div class="texte-consigne" id="parent-routines-intro">Si l'état de Léon a changé (ex. il s'est redéshabillé), choisis la routine à relancer.</div>
     <div id="parent-routines-liste"></div>
   </div>
 
@@ -312,6 +380,17 @@
     <button class="btn-continuer" id="btn-nouvelle-routine">➕ Nouvelle routine</button>
   </div>
 
+  <!-- ============ Espace parent : cet appareil (quel profil) ============ -->
+  <div id="screen-parent-appareil" class="screen">
+    <div class="barre-haut">
+      <button class="btn-retour-ecran" id="btn-retour-parent-appareil" aria-label="Retour à l'espace parent">←</button>
+      <div class="prenom-actif">Cet appareil</div>
+      <div></div>
+    </div>
+    <div class="texte-consigne">Choisis l'enfant que cet appareil affiche. Colette a son propre appareil, distinct de celui de Léon — ce choix n'est pas destiné à être changé tous les jours.</div>
+    <div id="parent-appareil-liste"></div>
+  </div>
+
   <!-- ============ Espace parent : nouvelle routine ============ -->
   <div id="screen-parent-nouvelle-routine" class="screen">
     <div class="barre-haut">
@@ -335,7 +414,7 @@
           <button type="button" class="nr-lieu-btn" id="nr-lieu-salon">Salon</button>
         </div>
       </div>
-      <div class="texte-consigne" style="margin: 8px 0 0;">Remplis au moins une tâche (dans l'ordre). « Zone » = où glisser l'icône sur Léon.</div>
+      <div class="texte-consigne" style="margin: 8px 0 0;">Remplis au moins une tâche (dans l'ordre). « Zone » = où glisser l'icône sur l'avatar.</div>
 
       <div class="tache-parent">
         <span class="tache-parent-num">1</span>
@@ -455,7 +534,7 @@
   <!-- ============ 4. Récompense de fin de journée ============ -->
   <div id="screen-coffre" class="screen">
     <div class="barre-haut">
-      <div class="prenom-actif">Bravo Léon !</div>
+      <div class="prenom-actif" id="coffre-titre">Bravo Léon !</div>
       <button class="btn-voix" id="btn-voix-coffre" aria-label="Réécouter">🔊</button>
       <div></div>
     </div>
@@ -530,7 +609,7 @@
     </div>
     <div id="scene-trajet">
       <div id="fenetre-voiture"></div>
-      <svg id="silhouette-leon" viewBox="0 0 120 160" aria-hidden="true">
+      <svg id="silhouette-enfant" viewBox="0 0 120 160" aria-hidden="true">
         <path d="
           M15,160 L15,105
           Q15,90 32,85 L32,55
@@ -556,19 +635,14 @@
       <div></div>
     </div>
     <div id="scene-arrivee">
-      <div class="sprite-simple" id="sprite-leon">
+      <div class="sprite-simple" id="sprite-enfant">
+        <!-- Calques <img> injectés par construireCalquesAvatar() (app.js)
+             selon le profil actif (Léon ou Colette) — cf. PROFILS. -->
         <div id="avatar-wrap-arrivee" class="avatar-wrap">
-          <img class="avatar-calque" src="assets/avatar/leon-base.png" alt="">
-          <img class="avatar-calque" data-calque="calque-calecon" src="assets/avatar/leon-calecon.png" alt="">
-          <img class="avatar-calque" data-calque="calque-haut" src="assets/avatar/leon-haut.png" alt="">
-          <img class="avatar-calque" data-calque="calque-pantalon" src="assets/avatar/leon-pantalon.png" alt="">
-          <img class="avatar-calque" data-calque="calque-chaussettes" src="assets/avatar/leon-chaussettes.png" alt="">
-          <img class="avatar-calque" data-calque="calque-chaussures" src="assets/avatar/leon-chaussures.png" alt="">
-          <img class="avatar-calque" data-calque="calque-manteau" src="assets/avatar/leon-manteau.png" alt="">
           <div class="badge-zone badge-dos" data-badge="dos"></div>
           <div class="badge-zone badge-visage" data-badge="visage"></div>
         </div>
-        <span>Léon</span>
+        <span id="arrivee-prenom-enfant">Léon</span>
       </div>
       <div class="sprite-simple hidden" id="sprite-personne"></div>
     </div>
