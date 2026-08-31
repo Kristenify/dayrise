@@ -1183,7 +1183,13 @@ function synchroniserRoutineEcran() {
 
   synchroniserAvatar(etat);
   document.getElementById("nom-routine").textContent = routine.nom;
-  document.getElementById("scene").classList.toggle("scene-salon", routine.lieu === "salon");
+  const scene = document.getElementById("scene");
+  scene.classList.toggle("scene-salon", routine.lieu === "salon");
+  // Chambre du profil actif en fond quand la routine s'y déroule
+  // (habillage, coucher) — même image que PROFILS.*.chambre. Pas de
+  // décor pour "salon" : on efface l'image pour retrouver le dégradé
+  // placeholder de #scene.scene-salon.
+  scene.style.backgroundImage = routine.lieu === "chambre" ? "url('" + profilActif().chambre + "')" : "";
   // Panier de linge : présent en permanence pendant "Aller se coucher",
   // pas seulement pendant la tâche "ranger" — sert de repère fixe avant
   // même que les vêtements ne tombent (cf. #panier-linge, index.html).
