@@ -82,6 +82,7 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 #scene {
   position: relative; height: 260px; flex-shrink: 0; margin-bottom: 12px;
   background: linear-gradient(180deg, var(--bg-alt) 0%, var(--bg-alt) 62%, var(--deep) 62%, var(--deep) 100%);
+  background-position: center; background-size: cover;
   border: 3px solid var(--surface-high);
   transition: background .4s ease;
 }
