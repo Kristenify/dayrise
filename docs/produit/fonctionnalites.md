@@ -66,8 +66,10 @@ une icône vers l'enfant — jamais plusieurs choses à la fois. Léon et
 Colette ont les mêmes routines, dans le même ordre — mais pas
 forcément les mêmes tâches à l'intérieur : Colette met une culotte, un
 haut et une robe là où Léon met un caleçon, un t-shirt et un pantalon,
-chacun avec l'avatar qui lui ressemble. Deux tâches ont un traitement
-particulier :
+chacun avec l'avatar qui lui ressemble. « S'habiller » et « Aller se
+coucher » se jouent devant la chambre de l'enfant, un décor illustré ;
+« Se préparer à partir » n'a pas encore le sien. Deux tâches ont un
+traitement particulier :
 
 - **Le brossage des dents** est un mini-jeu avec un minuteur qui
   avance tout seul, sans rien à taper pendant le geste — les mains
