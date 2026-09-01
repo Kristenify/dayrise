@@ -545,8 +545,8 @@ function planningParDefaut() {
 // l'item lui-même, pour rester à jour si la routine/aventure change.
 // Renvoie `null` pour une référence orpheline (id qui n'existe plus).
 function libelleItemPlanning(item) {
-  if (item.type === "routine") { const r = routineParId(item.id); return r ? { emoji: r.emoji, nom: r.nom } : null; }
-  if (item.type === "aventure") { const a = aventureParId(item.id); return a ? { emoji: a.emoji, nom: a.lieu } : null; }
+  if (item.type === "routine") { const r = routineParId(item.id); return r ? { emoji: r.emoji, nom: r.nom, entourage: entourageDe(r) } : null; }
+  if (item.type === "aventure") { const a = aventureParId(item.id); return a ? { emoji: a.emoji, nom: a.lieu, entourage: entourageDe(a) } : null; }
   if (item.type === "repas") { const r = REPAS.find(x => x.id === item.id); return r ? { emoji: r.emoji, nom: r.nom } : null; }
   return null;
 }
@@ -650,6 +650,62 @@ function sauverRoutinesPerso(liste) {
 function toutesLesRoutines() { return profilActif().routines().concat(chargerRoutinesPerso()); }
 
 function routineParId(id) { return toutesLesRoutines().find(r => r.id === id); }
+
+// Entourage ("qui est là ?") : catalogue léger — nom, emoji, rôle en
+// texte libre. `ENTOURAGE_COMMUNES` (demandé explicitement, famille
+// proche + les praticiennes déjà connues + les enfants eux-mêmes pour
+// les tagger comme fratrie) est identique sur les deux appareils, sur le
+// même principe que `AVENTURES_COMMUNES` ; un parent peut en ajouter
+// d'autres, persistées à part (`chargerEntouragePerso`/
+// `sauverEntouragePerso`, même principe que les catalogues perso
+// Activités/Routines) et propres à CET appareil, jamais remises à zéro.
+// Emoji de Pauline/Elsa/Arianne alignés sur leur `personne` déjà utilisée
+// dans les aventures praticienne (mêmes emoji, cf. AVENTURES_LEON/
+// AVENTURES_COLETTE plus haut) — pour rester la même personne reconnue
+// d'un écran à l'autre.
+//
+// ⚠️ Volontairement DISTINCT du champ `personne` déjà présent sur les
+// aventures chez une praticienne (Pauline/Elsa/Arianne) : `personne` n'est
+// pas qu'un affichage, sa seule présence bascule "C'est parti" vers tout
+// le flux "séance praticienne" (cf. `terminerVisite()`). Une activité/
+// routine taguée avec une personne de CE catalogue (`entourageIds`, cf.
+// `entourageDe()` plus bas) ne doit donc jamais se voir attribuer de
+// `personne` — les deux notions ne se fusionnent pas, même si elles se
+// ressemblent en surface (Pauline/Elsa/Arianne existent dans LES DEUX
+// catalogues, avec des rôles différents et non substituables).
+const ENTOURAGE_COMMUNES = [
+  { id: "papa", nom: "Papa", emoji: "👨", role: "" },
+  { id: "mama", nom: "Mama", emoji: "👩", role: "" },
+  { id: "papi", nom: "Papi", emoji: "👴", role: "" },
+  { id: "grandpa", nom: "GrandPa", emoji: "👴", role: "" },
+  { id: "mai", nom: "Maï", emoji: "👵", role: "" },
+  { id: "elsa", nom: "Elsa", emoji: "🧑‍⚕️", role: "Psychomotricienne" },
+  { id: "pauline", nom: "Pauline", emoji: "👩‍⚕️", role: "Orthophoniste" },
+  { id: "leon", nom: "Léon", emoji: "👦", role: "" },
+  { id: "colette", nom: "Colette", emoji: "👧", role: "" },
+  { id: "arianne", nom: "Arianne", emoji: "🧑‍⚕️", role: "Psychomotricienne" },
+  { id: "anaig", nom: "Anaïg", emoji: "👩", role: "" },
+  { id: "helene", nom: "Hélène", emoji: "👩", role: "" },
+];
+function chargerEntouragePerso() {
+  try { return JSON.parse(localStorage.getItem(cle("entourage_perso")) || "[]"); } catch (e) { return []; }
+}
+function sauverEntouragePerso(liste) {
+  try { localStorage.setItem(cle("entourage_perso"), JSON.stringify(liste)); } catch (e) {}
+}
+function toutesLesPersonnes() { return ENTOURAGE_COMMUNES.concat(chargerEntouragePerso()); }
+function personneParId(id) { return toutesLesPersonnes().find(p => p.id === id); }
+
+// Résout `entourageIds` (routine/aventure) en personnes complètes, dans
+// le même esprit que le reste de `libelleItemPlanning()` : toujours
+// dérivé du catalogue à l'affichage, jamais dupliqué dans l'item. `null`
+// si absent/vide ou si toutes les personnes référencées ont été
+// supprimées depuis (ids orphelins silencieusement ignorés).
+function entourageDe(obj) {
+  if (!obj.entourageIds || obj.entourageIds.length === 0) return null;
+  const personnes = obj.entourageIds.map(personneParId).filter(Boolean);
+  return personnes.length ? personnes : null;
+}
 
 // Pièces : monnaie gagnée en aventure, distincte des étoiles de routine.
 // Stockée à part de `cle("journee")` et JAMAIS remise à zéro au
@@ -1037,9 +1093,11 @@ function construireJournee() {
       + (i === courantIdx ? " journee-maintenant" : "")
       + (i === suivantIdx ? " journee-suivant" : "");
     const sousLigneHeure = item.heure ? `<span class="texte-journee-reveil">🕒 ${item.heure}</span>` : "";
+    const sousLigneEntourage = lib.entourage
+      ? `<span class="texte-journee-reveil">👪 ${lib.entourage.map(p => p.emoji + " " + p.nom).join(", ")}</span>` : "";
     const badge = i === courantIdx ? `<span class="badge-maintenant">MAINTENANT</span>` : "";
     ligne.innerHTML = `<span class="emoji-journee">${lib.emoji}</span>`
-      + `<span class="texte-journee"><span>${lib.nom}</span>${sousLigneHeure}</span>${badge}`;
+      + `<span class="texte-journee"><span>${lib.nom}</span>${sousLigneHeure}${sousLigneEntourage}</span>${badge}`;
     if (journeeEnEdition) {
       const controles = document.createElement("div");
       controles.className = "controles-edition-journee";
@@ -1067,7 +1125,11 @@ function construireJournee() {
   });
   conteneur.appendChild(liste);
 
-  if (journeeEnEdition) conteneur.appendChild(construireAjoutPlanning(etat));
+  if (journeeEnEdition) {
+    conteneur.appendChild(construireAjoutPlanning(etat));
+    conteneur.appendChild(construireAjoutTexteLibre());
+    construireResultatsAjoutTexte();
+  }
 
   const btnModifier = document.getElementById("btn-modifier-journee");
   btnModifier.textContent = journeeEnEdition ? "✅" : "✏️";
@@ -1174,6 +1236,207 @@ function construireAjoutPlanning(etat) {
     grille.appendChild(b);
   });
   bloc.appendChild(grille);
+  return bloc;
+}
+
+// ---------------------------------------------------------------------
+// Ajout au planning par texte libre + dictée (mode édition de "Ma
+// journée") — reconnaissance LOCALE par mots-clés, PAS d'IA : extrait une
+// heure si présente puis rapproche le reste du texte des catalogues
+// existants (routines/aventures/repas) par comparaison normalisée sur le
+// nom et `motsCles` (cf. creerNouvelleAventure/creerNouvelleRoutine).
+// Chaque fragment reconnu est PROPOSÉ, jamais ajouté automatiquement (cf.
+// confirmerAjoutTexte) — même principe que "le parent valide toujours au
+// final" déjà appliqué ailleurs (correction avant validation d'une
+// routine, code pour confirmer une arrivée...).
+// ---------------------------------------------------------------------
+
+// Minuscule + accents retirés — rapprochement texte robuste sans
+// dépendance externe (ex. "Vélo" et "vélo 15h" doivent se reconnaître).
+// Décompose (NFD, "é" → "e" + accent séparé) puis ne garde que les points
+// de code HORS de la plage des marques diacritiques combinantes
+// (U+0300–U+036F) — évite d'écrire cette plage en toutes lettres dans
+// une regex, invisible et fragile à l'édition.
+function normaliser(texte) {
+  return Array.from(texte.toLowerCase().normalize("NFD"))
+    .filter(c => c.codePointAt(0) < 0x0300 || c.codePointAt(0) > 0x036f)
+    .join("")
+    .trim();
+}
+
+// Motif "15h", "17h30", "9h05" → "HH:MM", ou `null` si absent. Seulement
+// la PREMIÈRE occurrence : un fragment ne représente qu'un seul item.
+function extraireHeure(fragment) {
+  const m = fragment.match(/(\d{1,2})\s*h\s*(\d{2})?/i);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const min = m[2] ? parseInt(m[2], 10) : 0;
+  if (h > 23 || min > 59) return null;
+  return String(h).padStart(2, "0") + ":" + String(min).padStart(2, "0");
+}
+
+// Première correspondance dont le nom — ou un des `motsCles` — apparaît
+// dans le texte du fragment. Pas de score de pertinence : un catalogue
+// personnel et court rend une simple présence suffisamment fiable pour
+// cette 1ʳᵉ version. `null` si rien ne correspond.
+function trouverCorrespondance(texte) {
+  const t = normaliser(texte);
+  if (!t) return null;
+  const candidats = [
+    ...toutesLesRoutines().map(r => ({ type: "routine", id: r.id, emoji: r.emoji, nom: r.nom, motsCles: r.motsCles })),
+    ...toutesLesAventures().map(a => ({ type: "aventure", id: a.id, emoji: a.emoji, nom: a.lieu, motsCles: a.motsCles })),
+    ...REPAS.map(r => ({ type: "repas", id: r.id, emoji: r.emoji, nom: r.nom })),
+  ];
+  return candidats.find(c => [c.nom, ...(c.motsCles || [])].some(cle => cle && t.includes(normaliser(cle)))) || null;
+}
+
+// Découpe le texte (virgules/retours à la ligne = un fragment par item),
+// extrait heure + correspondance pour chacun. Fonction PURE : n'écrit
+// rien dans `etat.planning` (cf. confirmerAjoutTexte, appelée séparément
+// par le parent, ligne par ligne, une fois les résultats affichés).
+function analyserTexteLibre(texte) {
+  return texte.split(/[,\n]/).map(f => f.trim()).filter(Boolean).map(fragment => {
+    const heure = extraireHeure(fragment);
+    const texteSansHeure = heure ? fragment.replace(/(\d{1,2})\s*h\s*(\d{2})?/i, "") : fragment;
+    return { texteOriginal: fragment, heure, correspondance: trouverCorrespondance(texteSansHeure) };
+  });
+}
+
+let texteAjoutBrut = "";
+let resultatsAjoutTexte = [];
+
+function analyserEtAfficherTexteLibre() {
+  const champ = document.getElementById("ajout-texte-libre");
+  texteAjoutBrut = champ.value;
+  resultatsAjoutTexte = analyserTexteLibre(texteAjoutBrut);
+  construireResultatsAjoutTexte();
+}
+
+function construireResultatsAjoutTexte() {
+  const conteneur = document.getElementById("resultats-ajout-texte");
+  if (!conteneur) return;
+  conteneur.innerHTML = "";
+  resultatsAjoutTexte.forEach((r, i) => {
+    const ligne = document.createElement("div");
+    ligne.className = "ligne-journee";
+    if (!r.correspondance) {
+      ligne.innerHTML = `<span class="emoji-journee">❔</span>`
+        + `<span class="texte-journee"><span>« ${r.texteOriginal} »</span><span class="texte-journee-reveil">Aucune correspondance trouvée</span></span>`;
+      conteneur.appendChild(ligne);
+      return;
+    }
+    const c = r.correspondance;
+    ligne.innerHTML = `<span class="emoji-journee">${c.emoji}</span>`
+      + `<span class="texte-journee"><span>${c.nom}</span>${r.heure ? `<span class="texte-journee-reveil">🕒 ${r.heure}</span>` : ""}</span>`;
+    const btn = document.createElement("button");
+    btn.className = "btn-mini-edition";
+    btn.textContent = "✓";
+    btn.setAttribute("aria-label", "Ajouter « " + c.nom + " » à la journée");
+    btn.onclick = () => confirmerAjoutTexte(i);
+    ligne.appendChild(btn);
+    conteneur.appendChild(ligne);
+  });
+}
+
+// Ajoute réellement l'item confirmé au planning — réutilise
+// ajouterItemPlanning()/definirHeureItemPlanning() déjà existants, sans
+// nouvelle logique d'écriture. Si la correspondance est déjà dans le
+// planning du jour (ex. "Petit-déjeuner", présent par défaut), ne
+// l'ajoute pas une 2ᵉ fois : lui donne juste l'heure extraite, sur
+// l'entrée existante.
+function confirmerAjoutTexte(i) {
+  const r = resultatsAjoutTexte[i];
+  if (!r || !r.correspondance) return;
+  const etat = chargerEtat();
+  const dejaPresent = etat.planning.some(it => it.type === r.correspondance.type && it.id === r.correspondance.id);
+  if (!dejaPresent) ajouterItemPlanning(r.correspondance.type, r.correspondance.id);
+  if (r.heure) {
+    const etatMaj = chargerEtat();
+    const pos = etatMaj.planning.findIndex(it => it.type === r.correspondance.type && it.id === r.correspondance.id);
+    if (pos !== -1) definirHeureItemPlanning(pos, r.heure);
+  }
+  resultatsAjoutTexte.splice(i, 1);
+  // `ajouterItemPlanning()`/`definirHeureItemPlanning()` ci-dessus
+  // reconstruisent tout `#journee-contenu` (donc aussi ce champ texte,
+  // ré-affiché à partir de `texteAjoutBrut`, cf. construireAjoutTexteLibre())
+  // — on retire ce fragment-là de `texteAjoutBrut` pour ne pas forcer à
+  // tout retaper/re-analyser à chaque ligne confirmée, seulement ce qui
+  // reste vraiment à traiter.
+  texteAjoutBrut = resultatsAjoutTexte.map(x => x.texteOriginal).join("\n");
+  const champ = document.getElementById("ajout-texte-libre");
+  if (champ) champ.value = texteAjoutBrut;
+  construireResultatsAjoutTexte();
+}
+
+function reconnaissanceVocaleDisponible() {
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+// Dictée (côté PARENT uniquement, jamais dans le parcours de l'enfant) :
+// ajoute au texte déjà tapé plutôt que de l'écraser. ⚠️ Contrairement à
+// la voix de l'app qui LIT les étapes (Web Speech API en sortie,
+// entièrement hors-ligne, cf. dire()), la reconnaissance vocale envoie
+// l'audio aux serveurs du navigateur (Google sur Chrome) pour être
+// transcrite — pas hors-ligne, décision assumée avec la famille (cf.
+// docs/produit/concept.md). Bouton absent si l'API n'existe pas (cf.
+// reconnaissanceVocaleDisponible(), construireAjoutTexteLibre()) — pas
+// de message d'erreur, juste rien à cet endroit.
+function demarrerDicteeAjout() {
+  const Reconnaissance = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Reconnaissance) return;
+  const reconnaissance = new Reconnaissance();
+  reconnaissance.lang = "fr-FR";
+  const btn = document.getElementById("btn-dictee-ajout");
+  if (btn) btn.classList.add("ecoute");
+  reconnaissance.onresult = (e) => {
+    const texte = e.results[0][0].transcript;
+    texteAjoutBrut = texteAjoutBrut.trim() ? texteAjoutBrut.trim() + ", " + texte : texte;
+    const champ = document.getElementById("ajout-texte-libre");
+    if (champ) champ.value = texteAjoutBrut;
+  };
+  reconnaissance.onend = () => { if (btn) btn.classList.remove("ecoute"); };
+  reconnaissance.onerror = () => { if (btn) btn.classList.remove("ecoute"); };
+  reconnaissance.start();
+}
+
+function construireAjoutTexteLibre() {
+  const bloc = document.createElement("div");
+  const label = document.createElement("div");
+  label.className = "groupe-journee-titre";
+  label.textContent = "AJOUTER PAR TEXTE";
+  bloc.appendChild(label);
+
+  const champ = document.createElement("textarea");
+  champ.id = "ajout-texte-libre";
+  champ.placeholder = "Ex : vélo 15h, goûter chez mamie 17h";
+  champ.value = texteAjoutBrut;
+  champ.oninput = (e) => { texteAjoutBrut = e.target.value; };
+  bloc.appendChild(champ);
+
+  const ligneBoutons = document.createElement("div");
+  ligneBoutons.className = "ligne-boutons-ajout-texte";
+  if (reconnaissanceVocaleDisponible()) {
+    const btnMicro = document.createElement("button");
+    btnMicro.type = "button";
+    btnMicro.id = "btn-dictee-ajout";
+    btnMicro.className = "btn-dictee";
+    btnMicro.textContent = "🎤";
+    btnMicro.setAttribute("aria-label", "Dicter le texte à ajouter");
+    btnMicro.onclick = demarrerDicteeAjout;
+    ligneBoutons.appendChild(btnMicro);
+  }
+  const btnAnalyser = document.createElement("button");
+  btnAnalyser.type = "button";
+  btnAnalyser.className = "btn-continuer";
+  btnAnalyser.textContent = "Analyser";
+  btnAnalyser.onclick = analyserEtAfficherTexteLibre;
+  ligneBoutons.appendChild(btnAnalyser);
+  bloc.appendChild(ligneBoutons);
+
+  const resultats = document.createElement("div");
+  resultats.id = "resultats-ajout-texte";
+  bloc.appendChild(resultats);
+
   return bloc;
 }
 
@@ -1918,6 +2181,11 @@ function construireEspaceParent() {
       action: () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); },
     },
     {
+      emoji: "👪", titre: "Mon entourage",
+      soustitre: "Voir qui entoure " + profilActif().prenom + ", ou ajouter une nouvelle personne",
+      action: () => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); },
+    },
+    {
       emoji: "📱", titre: "Cet appareil",
       soustitre: "Affiche " + profilActif().prenom + " — changer l'enfant de cet appareil",
       action: () => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); },
@@ -2180,35 +2448,57 @@ function basculerActivitePlanning(id) {
 // du jour à la création (voir `creerNouvelleAventure()`), c'est ça qui
 // la rend accessible dans "Partir à l'aventure" plutôt qu'un champ date
 // à remplir.
+// EMOJI_ACTIVITE/ROUTINE/PERSONNE (plus bas) restent les "favoris"
+// montrés par défaut, sans recherche, à l'ouverture du sélecteur partagé
+// (cf. ouvrirSelecteurEmoji plus bas, EMOJI_CATALOGUE pour la recherche
+// complète) — inchangés, juste plus le seul choix possible (demandé
+// explicitement : "la liste existante ne permet pas de tout traiter").
 const EMOJI_ACTIVITE = ["🏊","🚲","🎨","🎪","🍕","🌳","⚽","🎬","🏥","🛒","🎵","🧩","🎡","🐶","🎳","🍦"];
 let emojiChoisiActivite = EMOJI_ACTIVITE[0];
 
-// Grille de choix d'emoji, générique (réutilisée par les formulaires
-// activité ET routine) : `conteneur` reçoit les boutons, `actuel` marque
-// celui sélectionné, `onChoix(e)` est rappelé au clic — à l'appelant de
-// mettre à jour sa variable et de reconstruire la grille.
-function construireGrilleEmoji(conteneur, liste, actuel, onChoix) {
+// Bouton "icône actuelle", commun aux 3 formulaires (activité/routine/
+// personne) — remplace l'ancienne grille fixe affichée en permanence :
+// un tap ouvre le sélecteur partagé recherchable (cf.
+// ouvrirSelecteurEmoji plus bas).
+function construireDeclencheurEmoji(idBouton, emoji) {
+  document.getElementById(idBouton).textContent = emoji;
+}
+
+// Choix de l'entourage ("qui est là ?"), partagé par les formulaires
+// nouvelle activité ET nouvelle routine — l'appelant possède le tableau
+// `choisis` et reconstruit après chaque clic (même principe que le
+// sélecteur d'emoji, cf. ouvrirSelecteurEmoji), mais à choix multiple
+// (chips togglables, jamais fermé) plutôt qu'un choix unique qui ferme
+// l'écran. N'affiche rien si le catalogue est vide plutôt qu'une grille
+// vide déroutante — c'est au parent de créer d'abord une personne dans
+// "Mon entourage" s'il veut s'en servir ici.
+function construireChoixEntourage(conteneur, choisis) {
   conteneur.innerHTML = "";
-  liste.forEach(e => {
+  toutesLesPersonnes().forEach(p => {
     const b = document.createElement("button");
-    b.className = "emoji-choix-btn" + (e === actuel ? " choisi" : "");
-    b.textContent = e;
-    b.onclick = () => onChoix(e);
+    b.type = "button";
+    b.className = "chip-entourage" + (choisis.includes(p.id) ? " choisi" : "");
+    b.textContent = p.emoji + " " + p.nom;
+    b.onclick = () => {
+      const pos = choisis.indexOf(p.id);
+      if (pos === -1) choisis.push(p.id); else choisis.splice(pos, 1);
+      construireChoixEntourage(conteneur, choisis);
+    };
     conteneur.appendChild(b);
   });
 }
-function construireGrilleEmojiActivite() {
-  construireGrilleEmoji(document.getElementById("na-emoji-grille"), EMOJI_ACTIVITE, emojiChoisiActivite,
-    (e) => { emojiChoisiActivite = e; construireGrilleEmojiActivite(); });
-}
+
+let entourageChoisiActivite = [];
 
 function ouvrirNouvelleAventure() {
-  ["na-nom", "na-trajet", "na-arrivee", "na-etape1", "na-etape2", "na-etape3"]
+  ["na-nom", "na-trajet", "na-arrivee", "na-etape1", "na-etape2", "na-etape3", "na-mots-cles"]
     .forEach(id => { document.getElementById(id).value = ""; });
   document.getElementById("na-piece").checked = false;
   document.getElementById("na-erreur").textContent = "";
   emojiChoisiActivite = EMOJI_ACTIVITE[0];
-  construireGrilleEmojiActivite();
+  construireDeclencheurEmoji("na-emoji-trigger", emojiChoisiActivite);
+  entourageChoisiActivite = [];
+  construireChoixEntourage(document.getElementById("na-entourage-grille"), entourageChoisiActivite);
   afficherEcran("screen-parent-nouvelle-aventure");
 }
 
@@ -2238,6 +2528,8 @@ function creerNouvelleAventure() {
     return;
   }
 
+  const motsCles = document.getElementById("na-mots-cles").value.trim();
+
   const nouvelle = {
     id: "perso-" + Date.now(),
     lieu: nom,
@@ -2252,6 +2544,13 @@ function creerNouvelleAventure() {
     // partir en aventure avant d'être habillé/prêt.
     apres: { type: "routine", id: "partir" },
   };
+  // Champs optionnels omis (plutôt que mis à `[]`/`""`) si vides : garde
+  // une activité sans entourage/mots-clés indistinguable d'une activité
+  // créée avant l'existence de ces champs. Jamais de champ `personne`
+  // ici (cf. avertissement sur chargerEntouragePerso()) — seules les 3
+  // aventures praticienne codées en dur en ont un.
+  if (entourageChoisiActivite.length) nouvelle.entourageIds = [...entourageChoisiActivite];
+  if (motsCles) nouvelle.motsCles = motsCles.split(",").map(m => m.trim()).filter(Boolean);
 
   const perso = chargerAventuresPerso();
   perso.push(nouvelle);
@@ -2305,16 +2604,13 @@ const ZONE_PAR_DEFAUT_ROUTINE = "zone-torse";
 let emojiChoisiRoutine = EMOJI_ROUTINE[0];
 let lieuChoisiRoutine = "chambre";
 
-function construireGrilleEmojiRoutine() {
-  construireGrilleEmoji(document.getElementById("nr-emoji-grille"), EMOJI_ROUTINE, emojiChoisiRoutine,
-    (e) => { emojiChoisiRoutine = e; construireGrilleEmojiRoutine(); });
-}
-
 function choisirLieuRoutine(lieu) {
   lieuChoisiRoutine = lieu;
   document.getElementById("nr-lieu-chambre").classList.toggle("choisi", lieu === "chambre");
   document.getElementById("nr-lieu-salon").classList.toggle("choisi", lieu === "salon");
 }
+
+let entourageChoisiRoutine = [];
 
 function ouvrirNouvelleRoutine() {
   document.getElementById("nr-nom").value = "";
@@ -2323,10 +2619,13 @@ function ouvrirNouvelleRoutine() {
     document.getElementById("nr-t" + i + "-emoji").value = "";
     document.getElementById("nr-t" + i + "-zone").value = ZONE_PAR_DEFAUT_ROUTINE;
   }
+  document.getElementById("nr-mots-cles").value = "";
   document.getElementById("nr-erreur").textContent = "";
   emojiChoisiRoutine = EMOJI_ROUTINE[0];
-  construireGrilleEmojiRoutine();
+  construireDeclencheurEmoji("nr-emoji-trigger", emojiChoisiRoutine);
   choisirLieuRoutine("chambre");
+  entourageChoisiRoutine = [];
+  construireChoixEntourage(document.getElementById("nr-entourage-grille"), entourageChoisiRoutine);
   afficherEcran("screen-parent-nouvelle-routine");
 }
 
@@ -2346,6 +2645,8 @@ function creerNouvelleRoutine() {
     return;
   }
 
+  const motsCles = document.getElementById("nr-mots-cles").value.trim();
+
   const nouvelle = {
     id: "routine-perso-" + Date.now(),
     nom,
@@ -2354,6 +2655,8 @@ function creerNouvelleRoutine() {
     felicitation: "Bravo " + profilActif().prenom + ", tu as fini : " + nom + " !",
     taches,
   };
+  if (entourageChoisiRoutine.length) nouvelle.entourageIds = [...entourageChoisiRoutine];
+  if (motsCles) nouvelle.motsCles = motsCles.split(",").map(m => m.trim()).filter(Boolean);
 
   const perso = chargerRoutinesPerso();
   perso.push(nouvelle);
@@ -2372,6 +2675,321 @@ function creerNouvelleRoutine() {
   dire("Nouvelle routine créée : " + nom + ".");
   construireRoutinesCatalogue();
   afficherEcran("screen-parent-routines-catalogue");
+}
+
+// Catalogue "Mon entourage" (accès + création, carte du hub parent) —
+// même lecture seule que le catalogue Routines (pas d'interrupteur jour
+// par jour à proposer ici non plus, cf. commentaire de
+// construireRoutinesCatalogue()) plutôt que les cartes tapables des
+// Activités.
+function construireParentEntourage() {
+  const liste = document.getElementById("parent-entourage-liste");
+  liste.innerHTML = "";
+  const personnes = toutesLesPersonnes();
+  if (personnes.length === 0) {
+    const vide = document.createElement("div");
+    vide.className = "recompenses-vide";
+    vide.textContent = "Personne dans l'entourage pour l'instant.";
+    liste.appendChild(vide);
+    return;
+  }
+  personnes.forEach(p => {
+    const ligne = document.createElement("div");
+    ligne.className = "ligne-journee";
+    ligne.innerHTML = `<span class="emoji-journee">${p.emoji}</span>`
+      + `<span class="texte-journee"><span>${p.nom}</span>${p.role ? `<span class="texte-journee-reveil">${p.role}</span>` : ""}</span>`;
+    liste.appendChild(ligne);
+  });
+}
+
+const EMOJI_PERSONNE = ["👩","🧑","👨","👵","👴","🧑‍⚕️","👩‍⚕️","🧑‍🏫","👧","👦","🦸","🐶"];
+let emojiChoisiPersonne = EMOJI_PERSONNE[0];
+
+function ouvrirNouvellePersonne() {
+  document.getElementById("np-nom").value = "";
+  document.getElementById("np-role").value = "";
+  document.getElementById("np-erreur").textContent = "";
+  emojiChoisiPersonne = EMOJI_PERSONNE[0];
+  construireDeclencheurEmoji("np-emoji-trigger", emojiChoisiPersonne);
+  afficherEcran("screen-parent-nouvelle-personne");
+}
+
+// ---------------------------------------------------------------------
+// Sélecteur d'emoji recherchable façon Slack (demandé explicitement :
+// "la liste existante ne permet pas de tout traiter") — un seul écran
+// partagé par les 3 boutons "icône actuelle" (activité/routine/
+// personne, cf. construireDeclencheurEmoji plus haut) plutôt qu'un
+// widget par formulaire. Sans recherche : la liste "favoris" du
+// formulaire d'où on l'a ouvert (EMOJI_ACTIVITE/ROUTINE/PERSONNE,
+// inchangées). Avec recherche : filtre EMOJI_CATALOGUE (large, mots-clés
+// français) via normaliser() — même fonction déjà utilisée par l'ajout
+// au planning par texte libre, pour rester cohérent (accents/casse
+// ignorés partout pareil). Recherche 100% locale, aucune dépendance
+// externe — cohérent avec le reste de l'app hors-ligne.
+const EMOJI_CATALOGUE = [
+  // Sports et activités
+  { e: "🏊", mots: ["natation", "piscine", "nager"] },
+  { e: "🚲", mots: ["velo", "bicyclette"] },
+  { e: "🎨", mots: ["dessin", "peinture", "art"] },
+  { e: "🎪", mots: ["cirque", "fete foraine"] },
+  { e: "⚽", mots: ["foot", "football", "ballon"] },
+  { e: "🏀", mots: ["basket", "basketball"] },
+  { e: "🏈", mots: ["football americain"] },
+  { e: "⚾", mots: ["baseball"] },
+  { e: "🎾", mots: ["tennis"] },
+  { e: "🏐", mots: ["volley", "volleyball"] },
+  { e: "🏓", mots: ["ping-pong", "tennis de table"] },
+  { e: "🏸", mots: ["badminton"] },
+  { e: "🥊", mots: ["boxe"] },
+  { e: "🥋", mots: ["judo", "karate", "arts martiaux"] },
+  { e: "⛸️", mots: ["patinage", "patin a glace"] },
+  { e: "🎿", mots: ["ski"] },
+  { e: "🏂", mots: ["snowboard", "surf des neiges"] },
+  { e: "🤸", mots: ["gymnastique", "culbute", "roulade"] },
+  { e: "🧘", mots: ["yoga", "meditation", "relaxation"] },
+  { e: "🎣", mots: ["peche"] },
+  { e: "🏹", mots: ["tir a l'arc", "archerie"] },
+  { e: "🚣", mots: ["aviron", "canoe", "kayak"] },
+  { e: "🏄", mots: ["surf"] },
+  { e: "🚴", mots: ["cyclisme", "faire du velo"] },
+  { e: "🧗", mots: ["escalade", "grimper"] },
+  { e: "🎯", mots: ["flechettes", "cible", "precision"] },
+  { e: "🎮", mots: ["jeu video", "console", "manette"] },
+  { e: "🎲", mots: ["des", "jeu de societe"] },
+  { e: "🧩", mots: ["puzzle", "casse-tete"] },
+  { e: "🎭", mots: ["theatre", "spectacle"] },
+  { e: "🎤", mots: ["chant", "karaoke", "micro", "chanter"] },
+  { e: "🎸", mots: ["guitare"] },
+  { e: "🥁", mots: ["batterie", "tambour"] },
+  { e: "🎹", mots: ["piano"] },
+  { e: "🎻", mots: ["violon"] },
+  { e: "🎬", mots: ["cinema", "film"] },
+  { e: "🎳", mots: ["bowling"] },
+  { e: "🏆", mots: ["trophee", "victoire", "gagne"] },
+  { e: "🥇", mots: ["medaille", "or", "premiere place"] },
+  { e: "🛹", mots: ["skateboard", "planche a roulettes"] },
+  { e: "🛼", mots: ["roller", "patins a roulettes"] },
+  { e: "🪁", mots: ["cerf-volant"] },
+  { e: "🤾", mots: ["handball"] },
+  { e: "🚵", mots: ["vtt", "velo tout terrain"] },
+  { e: "🏇", mots: ["equitation", "cheval", "poney"] },
+  { e: "🤺", mots: ["escrime"] },
+  { e: "🏋️", mots: ["musculation", "halteres", "sport"] },
+  { e: "🤹", mots: ["jonglage"] },
+  { e: "🎱", mots: ["billard"] },
+  // Nourriture et repas
+  { e: "🍕", mots: ["pizza"] },
+  { e: "🍦", mots: ["glace"] },
+  { e: "🍪", mots: ["biscuit", "cookie", "gateau sec"] },
+  { e: "🍰", mots: ["gateau", "part de gateau"] },
+  { e: "🎂", mots: ["gateau anniversaire", "anniversaire"] },
+  { e: "🍫", mots: ["chocolat"] },
+  { e: "🍿", mots: ["popcorn"] },
+  { e: "🍭", mots: ["sucette", "bonbon"] },
+  { e: "🍬", mots: ["bonbon"] },
+  { e: "🥐", mots: ["croissant", "viennoiserie"] },
+  { e: "🍞", mots: ["pain"] },
+  { e: "🥖", mots: ["baguette"] },
+  { e: "🍳", mots: ["oeuf", "oeuf au plat"] },
+  { e: "🥞", mots: ["crepe", "pancake"] },
+  { e: "🧇", mots: ["gaufre"] },
+  { e: "🍔", mots: ["hamburger", "burger"] },
+  { e: "🌭", mots: ["hot-dog"] },
+  { e: "🥪", mots: ["sandwich"] },
+  { e: "🌮", mots: ["taco"] },
+  { e: "🌯", mots: ["burrito"] },
+  { e: "🥗", mots: ["salade"] },
+  { e: "🍝", mots: ["pates", "spaghetti"] },
+  { e: "🍜", mots: ["nouilles", "soupe"] },
+  { e: "🍣", mots: ["sushi"] },
+  { e: "🍱", mots: ["bento", "plateau repas"] },
+  { e: "🍎", mots: ["pomme"] },
+  { e: "🍌", mots: ["banane"] },
+  { e: "🍇", mots: ["raisin"] },
+  { e: "🍓", mots: ["fraise"] },
+  { e: "🍉", mots: ["pasteque"] },
+  { e: "🍒", mots: ["cerise"] },
+  { e: "🍑", mots: ["peche"] },
+  { e: "🥕", mots: ["carotte"] },
+  { e: "🥦", mots: ["brocoli"] },
+  { e: "🍅", mots: ["tomate"] },
+  { e: "🥛", mots: ["lait"] },
+  { e: "🧃", mots: ["jus"] },
+  { e: "🍽️", mots: ["repas", "assiette", "manger"] },
+  { e: "🧁", mots: ["cupcake", "petit gateau"] },
+  // Animaux
+  { e: "🐶", mots: ["chien"] },
+  { e: "🐱", mots: ["chat"] },
+  { e: "🐰", mots: ["lapin"] },
+  { e: "🐻", mots: ["ours"] },
+  { e: "🐼", mots: ["panda"] },
+  { e: "🦁", mots: ["lion"] },
+  { e: "🐯", mots: ["tigre"] },
+  { e: "🐸", mots: ["grenouille"] },
+  { e: "🐵", mots: ["singe"] },
+  { e: "🐷", mots: ["cochon"] },
+  { e: "🐮", mots: ["vache"] },
+  { e: "🐴", mots: ["cheval"] },
+  { e: "🐔", mots: ["poule", "poulet"] },
+  { e: "🐧", mots: ["pingouin", "manchot"] },
+  { e: "🦋", mots: ["papillon"] },
+  { e: "🐝", mots: ["abeille"] },
+  { e: "🐢", mots: ["tortue"] },
+  { e: "🦕", mots: ["dinosaure"] },
+  { e: "🦖", mots: ["dinosaure", "t-rex"] },
+  { e: "🐠", mots: ["poisson"] },
+  { e: "🐬", mots: ["dauphin"] },
+  { e: "🐳", mots: ["baleine"] },
+  { e: "🦄", mots: ["licorne"] },
+  { e: "🐦", mots: ["oiseau"] },
+  { e: "🐹", mots: ["hamster"] },
+  { e: "🐭", mots: ["souris"] },
+  { e: "🦉", mots: ["hibou", "chouette"] },
+  { e: "🐍", mots: ["serpent"] },
+  { e: "🦒", mots: ["girafe"] },
+  { e: "🐘", mots: ["elephant"] },
+  // Lieux et transports
+  { e: "🏥", mots: ["hopital", "medecin"] },
+  { e: "🏫", mots: ["ecole"] },
+  { e: "🏠", mots: ["maison"] },
+  { e: "🏖️", mots: ["plage"] },
+  { e: "🏕️", mots: ["camping", "tente"] },
+  { e: "🏰", mots: ["chateau"] },
+  { e: "🎡", mots: ["grande roue", "fete foraine"] },
+  { e: "🎢", mots: ["montagnes russes", "fete foraine"] },
+  { e: "🚗", mots: ["voiture"] },
+  { e: "🚌", mots: ["bus"] },
+  { e: "✈️", mots: ["avion"] },
+  { e: "⛴️", mots: ["bateau", "ferry"] },
+  { e: "🚀", mots: ["fusee", "espace"] },
+  { e: "🚂", mots: ["train"] },
+  { e: "🛒", mots: ["courses", "magasin", "supermarche"] },
+  { e: "🌳", mots: ["arbre", "parc", "nature"] },
+  { e: "🏙️", mots: ["ville"] },
+  { e: "🛍️", mots: ["shopping", "achats"] },
+  { e: "🚕", mots: ["taxi"] },
+  { e: "🚁", mots: ["helicoptere"] },
+  { e: "⛺", mots: ["tente", "camping"] },
+  { e: "🗺️", mots: ["carte", "voyage"] },
+  { e: "🧳", mots: ["valise", "voyage"] },
+  // Objets, école, hygiène
+  { e: "🧸", mots: ["nounours", "peluche", "doudou"] },
+  { e: "🎁", mots: ["cadeau"] },
+  { e: "🎈", mots: ["ballon", "fete"] },
+  { e: "🎀", mots: ["ruban", "noeud"] },
+  { e: "📚", mots: ["livre", "lecture"] },
+  { e: "✏️", mots: ["crayon", "dessiner", "ecrire"] },
+  { e: "🖍️", mots: ["crayon de couleur", "feutre"] },
+  { e: "🎒", mots: ["sac a dos", "cartable"] },
+  { e: "🔬", mots: ["microscope", "science"] },
+  { e: "🔭", mots: ["telescope"] },
+  { e: "📱", mots: ["telephone", "tablette"] },
+  { e: "🧴", mots: ["flacon", "creme", "savon"] },
+  { e: "🧼", mots: ["savon"] },
+  { e: "🪥", mots: ["brosse a dents", "dents"] },
+  { e: "🛁", mots: ["bain", "baignoire"] },
+  { e: "🚿", mots: ["douche"] },
+  { e: "🧹", mots: ["balai", "ranger"] },
+  { e: "👕", mots: ["vetement", "t-shirt", "habiller"] },
+  { e: "🧦", mots: ["chaussettes"] },
+  { e: "👟", mots: ["chaussures", "baskets"] },
+  { e: "🎓", mots: ["diplome", "ecole"] },
+  { e: "⏰", mots: ["reveil", "horloge", "heure"] },
+  // Météo et nature
+  { e: "☀️", mots: ["soleil"] },
+  { e: "🌙", mots: ["lune", "nuit"] },
+  { e: "⭐", mots: ["etoile"] },
+  { e: "🌈", mots: ["arc-en-ciel"] },
+  { e: "☁️", mots: ["nuage"] },
+  { e: "🌧️", mots: ["pluie"] },
+  { e: "❄️", mots: ["neige"] },
+  { e: "🌸", mots: ["fleur"] },
+  { e: "🌻", mots: ["tournesol", "fleur"] },
+  { e: "🍁", mots: ["automne", "feuille"] },
+  { e: "🌊", mots: ["vague", "mer"] },
+  { e: "🔥", mots: ["feu"] },
+  // Émotions et divers
+  { e: "❤️", mots: ["coeur", "amour"] },
+  { e: "✨", mots: ["etincelle", "magie", "brille"] },
+  { e: "🎉", mots: ["fete", "confettis", "celebration"] },
+  { e: "🎊", mots: ["fete", "confettis"] },
+  { e: "😊", mots: ["sourire", "content"] },
+  { e: "😄", mots: ["content", "rire", "heureux"] },
+  { e: "🙂", mots: ["normal", "calme"] },
+  { e: "😢", mots: ["triste"] },
+  { e: "🤒", mots: ["malade"] },
+  { e: "😴", mots: ["fatigue", "dormir", "sommeil"] },
+  { e: "💪", mots: ["fort", "en forme", "muscle"] },
+  { e: "🎵", mots: ["musique", "note"] },
+  { e: "🔔", mots: ["cloche", "sonnerie"] },
+];
+
+let emojiPickerFavoris = [];
+let emojiPickerOnChoix = null;
+
+function ouvrirSelecteurEmoji(favoris, actuel, onChoix) {
+  emojiPickerFavoris = favoris;
+  emojiPickerOnChoix = onChoix;
+  document.getElementById("emoji-picker-recherche").value = "";
+  construireGrilleSelecteurEmoji("");
+  document.getElementById("emoji-picker").classList.remove("hidden");
+  document.getElementById("emoji-picker-recherche").focus();
+}
+
+function fermerSelecteurEmoji() {
+  document.getElementById("emoji-picker").classList.add("hidden");
+  emojiPickerOnChoix = null;
+}
+
+function choisirEmojiPicker(e) {
+  if (emojiPickerOnChoix) emojiPickerOnChoix(e);
+  fermerSelecteurEmoji();
+}
+
+// Sans recherche : favoris du formulaire d'origine (ordre conservé,
+// utile — les tout premiers restent les plus rapides d'accès). Avec
+// recherche : parcourt EMOJI_CATALOGUE, comparaison normalisée
+// (accents/casse ignorés, cf. normaliser()) sur chaque mot-clé — pas de
+// score de pertinence, un simple "contient" suffit pour un catalogue de
+// cette taille (même principe que trouverCorrespondance() pour l'ajout
+// par texte libre).
+function construireGrilleSelecteurEmoji(recherche) {
+  const grille = document.getElementById("emoji-picker-grille");
+  grille.innerHTML = "";
+  const t = normaliser(recherche);
+  const liste = t
+    ? EMOJI_CATALOGUE.filter(x => x.mots.some(m => normaliser(m).includes(t))).map(x => x.e)
+    : emojiPickerFavoris;
+  if (liste.length === 0) {
+    const vide = document.createElement("div");
+    vide.className = "recompenses-vide";
+    vide.textContent = "Aucun emoji trouvé.";
+    grille.appendChild(vide);
+    return;
+  }
+  liste.forEach(e => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "emoji-choix-btn";
+    b.textContent = e;
+    b.onclick = () => choisirEmojiPicker(e);
+    grille.appendChild(b);
+  });
+}
+
+function creerNouvellePersonne() {
+  const nom = document.getElementById("np-nom").value.trim();
+  if (!nom) {
+    document.getElementById("np-erreur").textContent = "Donne un nom avant de créer.";
+    return;
+  }
+  const nouvelle = { id: "personne-" + Date.now(), nom, emoji: emojiChoisiPersonne, role: document.getElementById("np-role").value.trim() };
+  const perso = chargerEntouragePerso();
+  perso.push(nouvelle);
+  sauverEntouragePerso(perso);
+  dire("Nouvelle personne ajoutée : " + nom + ".");
+  construireParentEntourage();
+  afficherEcran("screen-parent-entourage");
 }
 
 // ---------------------------------------------------------------------
@@ -3001,6 +3619,8 @@ document.getElementById("btn-retour-parent-historique").onclick = () => { constr
 document.getElementById("btn-retour-parent-seances").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 
 document.getElementById("na-nom").addEventListener("blur", suggererTextesActivite);
+document.getElementById("na-emoji-trigger").onclick = () =>
+  ouvrirSelecteurEmoji(EMOJI_ACTIVITE, emojiChoisiActivite, (e) => { emojiChoisiActivite = e; construireDeclencheurEmoji("na-emoji-trigger", e); });
 document.getElementById("btn-creer-aventure").onclick = creerNouvelleAventure;
 document.getElementById("btn-retour-parent-nouvelle-aventure").onclick = () => { construireParentActivites(); afficherEcran("screen-parent-activites"); };
 
@@ -3009,10 +3629,26 @@ document.getElementById("btn-retour-parent-activites").onclick = () => { constru
 
 document.getElementById("btn-nouvelle-routine").onclick = ouvrirNouvelleRoutine;
 document.getElementById("btn-retour-parent-routines-catalogue").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("nr-emoji-trigger").onclick = () =>
+  ouvrirSelecteurEmoji(EMOJI_ROUTINE, emojiChoisiRoutine, (e) => { emojiChoisiRoutine = e; construireDeclencheurEmoji("nr-emoji-trigger", e); });
 document.getElementById("nr-lieu-chambre").onclick = () => choisirLieuRoutine("chambre");
 document.getElementById("nr-lieu-salon").onclick = () => choisirLieuRoutine("salon");
 document.getElementById("btn-creer-routine").onclick = creerNouvelleRoutine;
 document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); };
+
+document.getElementById("btn-nouvelle-personne").onclick = ouvrirNouvellePersonne;
+document.getElementById("btn-retour-parent-entourage").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("np-emoji-trigger").onclick = () =>
+  ouvrirSelecteurEmoji(EMOJI_PERSONNE, emojiChoisiPersonne, (e) => { emojiChoisiPersonne = e; construireDeclencheurEmoji("np-emoji-trigger", e); });
+document.getElementById("btn-creer-personne").onclick = creerNouvellePersonne;
+document.getElementById("btn-retour-parent-nouvelle-personne").onclick = () => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); };
+
+// Sélecteur d'emoji partagé (cf. ouvrirSelecteurEmoji) : recherche live à
+// chaque frappe, fermeture par le ✕ sans rien choisir (emojiPickerOnChoix
+// remis à null, cf. fermerSelecteurEmoji) — l'icône du formulaire reste
+// celle d'avant l'ouverture.
+document.getElementById("emoji-picker-recherche").addEventListener("input", (e) => construireGrilleSelecteurEmoji(e.target.value));
+document.getElementById("btn-emoji-picker-fermer").onclick = fermerSelecteurEmoji;
 
 document.getElementById("btn-retour-parent-appareil").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 
@@ -3061,9 +3697,11 @@ document.getElementById("btn-debug-parent-historique").onclick = puisFermerDebug
 document.getElementById("btn-debug-parent-seances").onclick = puisFermerDebug(() => { construireParentSeances(); afficherEcran("screen-parent-seances"); });
 document.getElementById("btn-debug-parent-activites").onclick = puisFermerDebug(() => { construireParentActivites(); afficherEcran("screen-parent-activites"); });
 document.getElementById("btn-debug-parent-routines-catalogue").onclick = puisFermerDebug(() => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); });
+document.getElementById("btn-debug-parent-entourage").onclick = puisFermerDebug(() => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); });
 document.getElementById("btn-debug-parent-appareil").onclick = puisFermerDebug(() => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); });
 document.getElementById("btn-debug-nouvelle-activite").onclick = puisFermerDebug(ouvrirNouvelleAventure);
 document.getElementById("btn-debug-nouvelle-routine").onclick = puisFermerDebug(ouvrirNouvelleRoutine);
+document.getElementById("btn-debug-nouvelle-personne").onclick = puisFermerDebug(ouvrirNouvellePersonne);
 document.getElementById("btn-debug-code-reel").onclick = puisFermerDebug(ouvrirEspaceParent);
 
 document.getElementById("btn-debug-reset").onclick = puisFermerDebug(reinitialiserTout);

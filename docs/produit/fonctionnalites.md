@@ -128,7 +128,16 @@ lieu.
 
 Un planning affiche, dans l'ordre chronologique, les routines, sorties
 et repas du jour — modifiable par un parent (réorganiser, ajouter,
-retirer).
+retirer), avec une couleur propre à chaque nature d'activité pour s'y
+repérer d'un coup d'œil. Un parent peut y régler une heure pour un ou
+plusieurs moments de la journée : un repère « maintenant » se déplace
+alors tout seul au fil de l'horloge, pour voir en un instant où on en est
+— sans jamais changer ce qui est réellement débloqué pour l'enfant, qui
+continue de dépendre uniquement des routines terminées. Pour ajouter
+plusieurs éléments d'un coup, un parent peut aussi taper (ou dicter, au
+micro) une phrase comme « vélo 15h, goûter chez mamie 17h » : l'app
+reconnaît les heures et propose les activités correspondantes, à
+confirmer une par une.
 
 ## L'espace parent
 
@@ -148,6 +157,10 @@ synchroniser séparément) :
 - **Modifier le planning du jour.**
 - **Créer des activités et des routines sur mesure**, sans toucher au
   code.
+- **Mon entourage** — un petit carnet des personnes autour de l'enfant
+  (famille, aidants...), pour les associer en option à une activité ou
+  une routine sur mesure et voir « avec qui » directement sur « Ma
+  journée ».
 - **Cet appareil** — indique quel enfant cet appareil affiche (Léon ou
   Colette), pour configurer un appareil une bonne fois pour toutes.
 
