@@ -60,6 +60,35 @@ date, comme "chez Pauline", n'apparaît jamais toute seule, cf. TODO.md).
 - Pas encore de mécanique de dépense modélisée (boutique, choix
   d'activité) — juste le total qui s'accumule pour l'instant.
 
+## Planning (aspect données) — items de "Ma journée"
+
+Un item de `etat.planning` référence une routine, une aventure ou un
+repas (`{ type, id }`) — jamais les données elles-mêmes, toujours résolu
+depuis le catalogue correspondant à l'affichage (cf. `concept.md`,
+principe déjà appliqué à l'aventure/la pièce). Un champ optionnel `heure`
+("HH:MM") peut s'y ajouter : purement un repère d'affichage pour le
+regroupement "maintenant/ensuite", jamais lu par la logique de déblocage
+des routines — deux mécanismes volontairement séparés (cf. `concept.md`).
+
+## Entourage / Personne (aspect données)
+
+`{ id, nom, emoji, role }` — `role` en texte libre (ex. "Grand-mère"), pas
+une liste fermée de catégories. Persisté à part, propre à chaque appareil
+comme les catalogues Routines/Activités perso.
+
+Rattachable en option à une Routine ou une Aventure créée par un parent
+via `entourageIds` (tableau d'ids) — **jamais** via le champ `personne`
+déjà utilisé par les 3 aventures praticienne codées en dur (Pauline, Elsa,
+Arianne) : ce champ-là n'est pas qu'un affichage, sa présence bascule tout
+le déroulé de "Partir à l'aventure" vers l'écran séance (code praticienne,
+note obligatoire). Les deux champs cohabitent sans jamais se substituer
+l'un à l'autre.
+
+Consommateur futur envisagé : l'écran dédié à la tâche "histoire" du soir
+(cf. `TODO.md`, section "Pas encore designé") — "qui lit l'histoire, papa
+ou maman ?" pourrait piocher dans ce même catalogue plutôt que d'inventer
+son propre choix binaire.
+
 ## Ce qui reste à préciser (suite des explications à venir)
 
 - Comment une journée assemble plusieurs routines/missions (ordre,

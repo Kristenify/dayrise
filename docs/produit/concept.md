@@ -71,8 +71,32 @@ aventure est une **pièce**.
 Écran séparé du parcours actif (menu → routines → aventures) : un simple
 **aperçu de la journée**, dans l'**ordre chronologique** — routines,
 mission(s) du jour, repas mélangés dans une seule liste plutôt que
-groupés par nature. Pas d'horaire (pas encore de notion de "à quelle
-heure"), juste un ordre relatif.
+groupés par nature.
+
+Chaque item peut recevoir une **heure facultative** (réglée par un parent
+en mode édition) : purement un repère visuel, jamais lu par la logique de
+déblocage des routines (`disponibleApresHeure`, menu du jour) — les deux
+restent deux mécanismes séparés, la leçon retenue du bug "Aller se
+coucher" (cf. plus haut, "Ordre et blocage"). L'ordre du planning reste la
+seule source de vérité ; l'heure n'est qu'une annotation dessus, jamais un
+tri. Quand au moins un item a une heure, un repère **"maintenant"**
+(dérivé de l'horloge déjà affichée au menu) met en avant l'item en cours
+et, s'il y en a un, le suivant — pour qu'un enfant ou un parent voie d'un
+coup d'œil où on en est dans la journée, pas seulement ce qui reste à
+faire. Un item sans heure n'est simplement pas concerné : une journée qui
+n'utilise aucune heure s'affiche exactement comme avant. Un **code
+couleur** (routine/repas/sortie) complète ce coup d'œil.
+
+On peut aussi ajouter des items d'un coup à partir d'un texte libre tapé
+ou dicté (ex. "vélo 15h, goûter chez mamie 17h") : l'app reconnaît une
+heure et rapproche le reste du texte des routines/aventures/repas déjà
+connus (par leur nom ou des mots-clés), puis **propose** chaque
+correspondance trouvée — jamais d'ajout automatique, un parent confirme
+ligne par ligne, même principe que "le parent valide toujours au final"
+plus bas. Ce n'est pas de l'IA : une reconnaissance locale par mots-clés,
+qui ne comprend que ce qui existe déjà dans les catalogues — délibéré,
+pour ne dépendre d'aucun serveur (cf. "En bref, côté technique" dans
+`fonctionnalites.md`).
 
 Premier pas concret vers le principe déjà posé plus haut ("Ordre et
 blocage, paramétrables par les parents") : un **mode édition protégé par
@@ -92,6 +116,22 @@ une activité l'ajoute immédiatement au planning (donc à "Partir à
 l'aventure") ; la retirer du planning la retire aussi des sorties
 possibles. Les deux écrans (aperçu du jour, sorties jouables) sont deux
 vues du même état, pas deux systèmes à synchroniser à la main.
+
+## Entourage : qui est là
+
+Un petit catalogue, géré depuis l'espace parent ("Mon entourage"), pour
+nommer les personnes qui gravitent autour de l'enfant (famille, aidants...)
+et les rattacher à une activité ou une routine créée par un parent — pour
+que "Ma journée" puisse répondre, en un coup d'œil, pas seulement "quoi"
+mais aussi "avec qui". Rien d'obligatoire : une entrée sans personne
+rattachée s'affiche exactement comme avant.
+
+**Distinct des praticiennes** (Pauline, Elsa, Arianne) déjà présentes dans
+les aventures codées en dur : celles-ci déclenchent un vrai déroulé à part
+(la praticienne prend l'appareil, code de fin de séance, note obligatoire
+— cf. plus bas, "Les sorties"). L'entourage de cette section n'a aucun
+effet sur le déroulé : c'est une simple étiquette visuelle. Les deux
+notions se ressemblent en surface mais ne doivent jamais se confondre.
 
 ## Espace parent : lié à l'espace enfant, pas un outil séparé
 
