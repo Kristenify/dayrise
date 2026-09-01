@@ -109,6 +109,12 @@ petite scène) puis l'arrivée, avant de rentrer à la maison — chaque
 une monnaie à part des étoiles, qui ne repart jamais à zéro d'un jour
 sur l'autre.
 
+Quand deux sorties se suivent directement dans le planning du jour
+(ex. Pauline puis Elsa, sans repas ni routine entre les deux), le
+trajet qui suit la première ne raconte pas un retour à la maison qui
+n'a pas lieu : il annonce directement la sortie suivante (« On roule
+vers chez Elsa »).
+
 Certaines sorties sont propres à un enfant — Léon voit Elsa
 (psychomotricienne) et Pauline (orthophoniste), Colette voit Arianne
 (psychomotricienne) — d'autres sont communes aux deux, comme l'école.
@@ -155,11 +161,17 @@ synchroniser séparément) :
   jour par jour dans l'historique.
 - **Changer le code parent.**
 - **Modifier le planning du jour.**
-- **Créer des activités et des routines sur mesure**, sans toucher au
-  code.
-- **Mon entourage** — un petit carnet des personnes autour de l'enfant
-  (famille, aidants...), pour les associer en option à une activité ou
-  une routine sur mesure et voir « avec qui » directement sur « Ma
+- **Créer et modifier des activités et des routines sur mesure**, sans
+  toucher au code — y compris celles déjà prévues dans l'application
+  (Pauline, Elsa, S'habiller...), pas seulement celles créées par un
+  parent. L'icône se choisit dans un large choix d'emoji qu'on retrouve
+  en tapant un mot (« vélo », « chat », « pizza »...), plutôt que dans
+  une petite liste figée.
+- **Mon entourage** — un petit carnet des personnes autour de l'enfant,
+  déjà pré-rempli avec la famille proche et les praticiennes connues
+  (Papa, Mama, les grands-parents, Elsa, Pauline, Arianne...), complété
+  au besoin. Sert à associer en option des personnes à une activité ou
+  une routine sur mesure et à voir « avec qui » directement sur « Ma
   journée ».
 - **Cet appareil** — indique quel enfant cet appareil affiche (Léon ou
   Colette), pour configurer un appareil une bonne fois pour toutes.
