@@ -110,6 +110,19 @@
     </div>
   </div>
 
+  <!-- ============ Sélecteur d'emoji (partagé activité/routine/personne) ============
+       Recherchable façon Slack (cf. ouvrirSelecteurEmoji() dans app.js) —
+       un seul écran pour les 3 formulaires plutôt qu'une grille fixe
+       répétée trois fois ; ouvert par-dessus l'écran en cours, jamais une
+       navigation .screen à part. -->
+  <div id="emoji-picker" class="hidden">
+    <div id="emoji-picker-entete">
+      <input type="text" id="emoji-picker-recherche" placeholder="Rechercher (ex : vélo, chat, pizza…)" maxlength="30">
+      <button id="btn-emoji-picker-fermer" aria-label="Fermer">✕</button>
+    </div>
+    <div id="emoji-picker-grille"></div>
+  </div>
+
   <!-- ============ 0. Menu de la journée ============ -->
   <div id="screen-menu" class="screen active">
     <div class="barre-haut">
@@ -429,7 +442,7 @@
       </label>
       <div class="champ-parent">
         <span>Icône</span>
-        <div id="nr-emoji-grille"></div>
+        <button type="button" class="emoji-trigger" id="nr-emoji-trigger" aria-label="Changer l'icône"></button>
       </div>
       <div class="champ-parent">
         <span>Lieu (teinte du décor)</span>
@@ -532,7 +545,7 @@
       </label>
       <div class="champ-parent">
         <span>Icône</span>
-        <div id="na-emoji-grille"></div>
+        <button type="button" class="emoji-trigger" id="na-emoji-trigger" aria-label="Changer l'icône"></button>
       </div>
       <label class="champ-parent">
         <span>Texte pendant le trajet</span>
@@ -585,7 +598,7 @@
       </label>
       <div class="champ-parent">
         <span>Icône</span>
-        <div id="np-emoji-grille"></div>
+        <button type="button" class="emoji-trigger" id="np-emoji-trigger" aria-label="Changer l'icône"></button>
       </div>
       <label class="champ-parent">
         <span>Rôle (facultatif)</span>

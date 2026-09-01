@@ -651,13 +651,18 @@ function toutesLesRoutines() { return profilActif().routines().concat(chargerRou
 
 function routineParId(id) { return toutesLesRoutines().find(r => r.id === id); }
 
-// Entourage ("qui est là ?") : catalogue léger créé par un parent — nom,
-// emoji, rôle en texte libre — sur le même principe que
-// chargerAventuresPerso()/chargerRoutinesPerso() (persisté à part, jamais
-// remis à zéro, propre à CET appareil comme le reste des catalogues
-// perso). Pas de catalogue en dur : contrairement aux routines/aventures,
-// il n'y a personne à préremplir par défaut ("Papa"/"Maman" ne sont pas
-// supposés) — un parent en crée s'il le souhaite.
+// Entourage ("qui est là ?") : catalogue léger — nom, emoji, rôle en
+// texte libre. `ENTOURAGE_COMMUNES` (demandé explicitement, famille
+// proche + les praticiennes déjà connues + les enfants eux-mêmes pour
+// les tagger comme fratrie) est identique sur les deux appareils, sur le
+// même principe que `AVENTURES_COMMUNES` ; un parent peut en ajouter
+// d'autres, persistées à part (`chargerEntouragePerso`/
+// `sauverEntouragePerso`, même principe que les catalogues perso
+// Activités/Routines) et propres à CET appareil, jamais remises à zéro.
+// Emoji de Pauline/Elsa/Arianne alignés sur leur `personne` déjà utilisée
+// dans les aventures praticienne (mêmes emoji, cf. AVENTURES_LEON/
+// AVENTURES_COLETTE plus haut) — pour rester la même personne reconnue
+// d'un écran à l'autre.
 //
 // ⚠️ Volontairement DISTINCT du champ `personne` déjà présent sur les
 // aventures chez une praticienne (Pauline/Elsa/Arianne) : `personne` n'est
@@ -666,14 +671,29 @@ function routineParId(id) { return toutesLesRoutines().find(r => r.id === id); }
 // routine taguée avec une personne de CE catalogue (`entourageIds`, cf.
 // `entourageDe()` plus bas) ne doit donc jamais se voir attribuer de
 // `personne` — les deux notions ne se fusionnent pas, même si elles se
-// ressemblent en surface.
+// ressemblent en surface (Pauline/Elsa/Arianne existent dans LES DEUX
+// catalogues, avec des rôles différents et non substituables).
+const ENTOURAGE_COMMUNES = [
+  { id: "papa", nom: "Papa", emoji: "👨", role: "" },
+  { id: "mama", nom: "Mama", emoji: "👩", role: "" },
+  { id: "papi", nom: "Papi", emoji: "👴", role: "" },
+  { id: "grandpa", nom: "GrandPa", emoji: "👴", role: "" },
+  { id: "mai", nom: "Maï", emoji: "👵", role: "" },
+  { id: "elsa", nom: "Elsa", emoji: "🧑‍⚕️", role: "Psychomotricienne" },
+  { id: "pauline", nom: "Pauline", emoji: "👩‍⚕️", role: "Orthophoniste" },
+  { id: "leon", nom: "Léon", emoji: "👦", role: "" },
+  { id: "colette", nom: "Colette", emoji: "👧", role: "" },
+  { id: "arianne", nom: "Arianne", emoji: "🧑‍⚕️", role: "Psychomotricienne" },
+  { id: "anaig", nom: "Anaïg", emoji: "👩", role: "" },
+  { id: "helene", nom: "Hélène", emoji: "👩", role: "" },
+];
 function chargerEntouragePerso() {
   try { return JSON.parse(localStorage.getItem(cle("entourage_perso")) || "[]"); } catch (e) { return []; }
 }
 function sauverEntouragePerso(liste) {
   try { localStorage.setItem(cle("entourage_perso"), JSON.stringify(liste)); } catch (e) {}
 }
-function toutesLesPersonnes() { return chargerEntouragePerso(); }
+function toutesLesPersonnes() { return ENTOURAGE_COMMUNES.concat(chargerEntouragePerso()); }
 function personneParId(id) { return toutesLesPersonnes().find(p => p.id === id); }
 
 // Résout `entourageIds` (routine/aventure) en personnes complètes, dans
@@ -2428,36 +2448,30 @@ function basculerActivitePlanning(id) {
 // du jour à la création (voir `creerNouvelleAventure()`), c'est ça qui
 // la rend accessible dans "Partir à l'aventure" plutôt qu'un champ date
 // à remplir.
+// EMOJI_ACTIVITE/ROUTINE/PERSONNE (plus bas) restent les "favoris"
+// montrés par défaut, sans recherche, à l'ouverture du sélecteur partagé
+// (cf. ouvrirSelecteurEmoji plus bas, EMOJI_CATALOGUE pour la recherche
+// complète) — inchangés, juste plus le seul choix possible (demandé
+// explicitement : "la liste existante ne permet pas de tout traiter").
 const EMOJI_ACTIVITE = ["🏊","🚲","🎨","🎪","🍕","🌳","⚽","🎬","🏥","🛒","🎵","🧩","🎡","🐶","🎳","🍦"];
 let emojiChoisiActivite = EMOJI_ACTIVITE[0];
 
-// Grille de choix d'emoji, générique (réutilisée par les formulaires
-// activité ET routine) : `conteneur` reçoit les boutons, `actuel` marque
-// celui sélectionné, `onChoix(e)` est rappelé au clic — à l'appelant de
-// mettre à jour sa variable et de reconstruire la grille.
-function construireGrilleEmoji(conteneur, liste, actuel, onChoix) {
-  conteneur.innerHTML = "";
-  liste.forEach(e => {
-    const b = document.createElement("button");
-    b.className = "emoji-choix-btn" + (e === actuel ? " choisi" : "");
-    b.textContent = e;
-    b.onclick = () => onChoix(e);
-    conteneur.appendChild(b);
-  });
-}
-function construireGrilleEmojiActivite() {
-  construireGrilleEmoji(document.getElementById("na-emoji-grille"), EMOJI_ACTIVITE, emojiChoisiActivite,
-    (e) => { emojiChoisiActivite = e; construireGrilleEmojiActivite(); });
+// Bouton "icône actuelle", commun aux 3 formulaires (activité/routine/
+// personne) — remplace l'ancienne grille fixe affichée en permanence :
+// un tap ouvre le sélecteur partagé recherchable (cf.
+// ouvrirSelecteurEmoji plus bas).
+function construireDeclencheurEmoji(idBouton, emoji) {
+  document.getElementById(idBouton).textContent = emoji;
 }
 
 // Choix de l'entourage ("qui est là ?"), partagé par les formulaires
-// nouvelle activité ET nouvelle routine — même esprit que
-// construireGrilleEmoji() (l'appelant possède le tableau `choisis` et
-// reconstruit après chaque clic), mais à choix multiple (chips
-// togglables) plutôt qu'un seul choix exclusif. N'affiche rien si le
-// catalogue est vide plutôt qu'une grille vide déroutante — c'est au
-// parent de créer d'abord une personne dans "Mon entourage" s'il veut
-// s'en servir ici.
+// nouvelle activité ET nouvelle routine — l'appelant possède le tableau
+// `choisis` et reconstruit après chaque clic (même principe que le
+// sélecteur d'emoji, cf. ouvrirSelecteurEmoji), mais à choix multiple
+// (chips togglables, jamais fermé) plutôt qu'un choix unique qui ferme
+// l'écran. N'affiche rien si le catalogue est vide plutôt qu'une grille
+// vide déroutante — c'est au parent de créer d'abord une personne dans
+// "Mon entourage" s'il veut s'en servir ici.
 function construireChoixEntourage(conteneur, choisis) {
   conteneur.innerHTML = "";
   toutesLesPersonnes().forEach(p => {
@@ -2482,7 +2496,7 @@ function ouvrirNouvelleAventure() {
   document.getElementById("na-piece").checked = false;
   document.getElementById("na-erreur").textContent = "";
   emojiChoisiActivite = EMOJI_ACTIVITE[0];
-  construireGrilleEmojiActivite();
+  construireDeclencheurEmoji("na-emoji-trigger", emojiChoisiActivite);
   entourageChoisiActivite = [];
   construireChoixEntourage(document.getElementById("na-entourage-grille"), entourageChoisiActivite);
   afficherEcran("screen-parent-nouvelle-aventure");
@@ -2590,11 +2604,6 @@ const ZONE_PAR_DEFAUT_ROUTINE = "zone-torse";
 let emojiChoisiRoutine = EMOJI_ROUTINE[0];
 let lieuChoisiRoutine = "chambre";
 
-function construireGrilleEmojiRoutine() {
-  construireGrilleEmoji(document.getElementById("nr-emoji-grille"), EMOJI_ROUTINE, emojiChoisiRoutine,
-    (e) => { emojiChoisiRoutine = e; construireGrilleEmojiRoutine(); });
-}
-
 function choisirLieuRoutine(lieu) {
   lieuChoisiRoutine = lieu;
   document.getElementById("nr-lieu-chambre").classList.toggle("choisi", lieu === "chambre");
@@ -2613,7 +2622,7 @@ function ouvrirNouvelleRoutine() {
   document.getElementById("nr-mots-cles").value = "";
   document.getElementById("nr-erreur").textContent = "";
   emojiChoisiRoutine = EMOJI_ROUTINE[0];
-  construireGrilleEmojiRoutine();
+  construireDeclencheurEmoji("nr-emoji-trigger", emojiChoisiRoutine);
   choisirLieuRoutine("chambre");
   entourageChoisiRoutine = [];
   construireChoixEntourage(document.getElementById("nr-entourage-grille"), entourageChoisiRoutine);
@@ -2696,18 +2705,276 @@ function construireParentEntourage() {
 const EMOJI_PERSONNE = ["👩","🧑","👨","👵","👴","🧑‍⚕️","👩‍⚕️","🧑‍🏫","👧","👦","🦸","🐶"];
 let emojiChoisiPersonne = EMOJI_PERSONNE[0];
 
-function construireGrilleEmojiPersonne() {
-  construireGrilleEmoji(document.getElementById("np-emoji-grille"), EMOJI_PERSONNE, emojiChoisiPersonne,
-    (e) => { emojiChoisiPersonne = e; construireGrilleEmojiPersonne(); });
-}
-
 function ouvrirNouvellePersonne() {
   document.getElementById("np-nom").value = "";
   document.getElementById("np-role").value = "";
   document.getElementById("np-erreur").textContent = "";
   emojiChoisiPersonne = EMOJI_PERSONNE[0];
-  construireGrilleEmojiPersonne();
+  construireDeclencheurEmoji("np-emoji-trigger", emojiChoisiPersonne);
   afficherEcran("screen-parent-nouvelle-personne");
+}
+
+// ---------------------------------------------------------------------
+// Sélecteur d'emoji recherchable façon Slack (demandé explicitement :
+// "la liste existante ne permet pas de tout traiter") — un seul écran
+// partagé par les 3 boutons "icône actuelle" (activité/routine/
+// personne, cf. construireDeclencheurEmoji plus haut) plutôt qu'un
+// widget par formulaire. Sans recherche : la liste "favoris" du
+// formulaire d'où on l'a ouvert (EMOJI_ACTIVITE/ROUTINE/PERSONNE,
+// inchangées). Avec recherche : filtre EMOJI_CATALOGUE (large, mots-clés
+// français) via normaliser() — même fonction déjà utilisée par l'ajout
+// au planning par texte libre, pour rester cohérent (accents/casse
+// ignorés partout pareil). Recherche 100% locale, aucune dépendance
+// externe — cohérent avec le reste de l'app hors-ligne.
+const EMOJI_CATALOGUE = [
+  // Sports et activités
+  { e: "🏊", mots: ["natation", "piscine", "nager"] },
+  { e: "🚲", mots: ["velo", "bicyclette"] },
+  { e: "🎨", mots: ["dessin", "peinture", "art"] },
+  { e: "🎪", mots: ["cirque", "fete foraine"] },
+  { e: "⚽", mots: ["foot", "football", "ballon"] },
+  { e: "🏀", mots: ["basket", "basketball"] },
+  { e: "🏈", mots: ["football americain"] },
+  { e: "⚾", mots: ["baseball"] },
+  { e: "🎾", mots: ["tennis"] },
+  { e: "🏐", mots: ["volley", "volleyball"] },
+  { e: "🏓", mots: ["ping-pong", "tennis de table"] },
+  { e: "🏸", mots: ["badminton"] },
+  { e: "🥊", mots: ["boxe"] },
+  { e: "🥋", mots: ["judo", "karate", "arts martiaux"] },
+  { e: "⛸️", mots: ["patinage", "patin a glace"] },
+  { e: "🎿", mots: ["ski"] },
+  { e: "🏂", mots: ["snowboard", "surf des neiges"] },
+  { e: "🤸", mots: ["gymnastique", "culbute", "roulade"] },
+  { e: "🧘", mots: ["yoga", "meditation", "relaxation"] },
+  { e: "🎣", mots: ["peche"] },
+  { e: "🏹", mots: ["tir a l'arc", "archerie"] },
+  { e: "🚣", mots: ["aviron", "canoe", "kayak"] },
+  { e: "🏄", mots: ["surf"] },
+  { e: "🚴", mots: ["cyclisme", "faire du velo"] },
+  { e: "🧗", mots: ["escalade", "grimper"] },
+  { e: "🎯", mots: ["flechettes", "cible", "precision"] },
+  { e: "🎮", mots: ["jeu video", "console", "manette"] },
+  { e: "🎲", mots: ["des", "jeu de societe"] },
+  { e: "🧩", mots: ["puzzle", "casse-tete"] },
+  { e: "🎭", mots: ["theatre", "spectacle"] },
+  { e: "🎤", mots: ["chant", "karaoke", "micro", "chanter"] },
+  { e: "🎸", mots: ["guitare"] },
+  { e: "🥁", mots: ["batterie", "tambour"] },
+  { e: "🎹", mots: ["piano"] },
+  { e: "🎻", mots: ["violon"] },
+  { e: "🎬", mots: ["cinema", "film"] },
+  { e: "🎳", mots: ["bowling"] },
+  { e: "🏆", mots: ["trophee", "victoire", "gagne"] },
+  { e: "🥇", mots: ["medaille", "or", "premiere place"] },
+  { e: "🛹", mots: ["skateboard", "planche a roulettes"] },
+  { e: "🛼", mots: ["roller", "patins a roulettes"] },
+  { e: "🪁", mots: ["cerf-volant"] },
+  { e: "🤾", mots: ["handball"] },
+  { e: "🚵", mots: ["vtt", "velo tout terrain"] },
+  { e: "🏇", mots: ["equitation", "cheval", "poney"] },
+  { e: "🤺", mots: ["escrime"] },
+  { e: "🏋️", mots: ["musculation", "halteres", "sport"] },
+  { e: "🤹", mots: ["jonglage"] },
+  { e: "🎱", mots: ["billard"] },
+  // Nourriture et repas
+  { e: "🍕", mots: ["pizza"] },
+  { e: "🍦", mots: ["glace"] },
+  { e: "🍪", mots: ["biscuit", "cookie", "gateau sec"] },
+  { e: "🍰", mots: ["gateau", "part de gateau"] },
+  { e: "🎂", mots: ["gateau anniversaire", "anniversaire"] },
+  { e: "🍫", mots: ["chocolat"] },
+  { e: "🍿", mots: ["popcorn"] },
+  { e: "🍭", mots: ["sucette", "bonbon"] },
+  { e: "🍬", mots: ["bonbon"] },
+  { e: "🥐", mots: ["croissant", "viennoiserie"] },
+  { e: "🍞", mots: ["pain"] },
+  { e: "🥖", mots: ["baguette"] },
+  { e: "🍳", mots: ["oeuf", "oeuf au plat"] },
+  { e: "🥞", mots: ["crepe", "pancake"] },
+  { e: "🧇", mots: ["gaufre"] },
+  { e: "🍔", mots: ["hamburger", "burger"] },
+  { e: "🌭", mots: ["hot-dog"] },
+  { e: "🥪", mots: ["sandwich"] },
+  { e: "🌮", mots: ["taco"] },
+  { e: "🌯", mots: ["burrito"] },
+  { e: "🥗", mots: ["salade"] },
+  { e: "🍝", mots: ["pates", "spaghetti"] },
+  { e: "🍜", mots: ["nouilles", "soupe"] },
+  { e: "🍣", mots: ["sushi"] },
+  { e: "🍱", mots: ["bento", "plateau repas"] },
+  { e: "🍎", mots: ["pomme"] },
+  { e: "🍌", mots: ["banane"] },
+  { e: "🍇", mots: ["raisin"] },
+  { e: "🍓", mots: ["fraise"] },
+  { e: "🍉", mots: ["pasteque"] },
+  { e: "🍒", mots: ["cerise"] },
+  { e: "🍑", mots: ["peche"] },
+  { e: "🥕", mots: ["carotte"] },
+  { e: "🥦", mots: ["brocoli"] },
+  { e: "🍅", mots: ["tomate"] },
+  { e: "🥛", mots: ["lait"] },
+  { e: "🧃", mots: ["jus"] },
+  { e: "🍽️", mots: ["repas", "assiette", "manger"] },
+  { e: "🧁", mots: ["cupcake", "petit gateau"] },
+  // Animaux
+  { e: "🐶", mots: ["chien"] },
+  { e: "🐱", mots: ["chat"] },
+  { e: "🐰", mots: ["lapin"] },
+  { e: "🐻", mots: ["ours"] },
+  { e: "🐼", mots: ["panda"] },
+  { e: "🦁", mots: ["lion"] },
+  { e: "🐯", mots: ["tigre"] },
+  { e: "🐸", mots: ["grenouille"] },
+  { e: "🐵", mots: ["singe"] },
+  { e: "🐷", mots: ["cochon"] },
+  { e: "🐮", mots: ["vache"] },
+  { e: "🐴", mots: ["cheval"] },
+  { e: "🐔", mots: ["poule", "poulet"] },
+  { e: "🐧", mots: ["pingouin", "manchot"] },
+  { e: "🦋", mots: ["papillon"] },
+  { e: "🐝", mots: ["abeille"] },
+  { e: "🐢", mots: ["tortue"] },
+  { e: "🦕", mots: ["dinosaure"] },
+  { e: "🦖", mots: ["dinosaure", "t-rex"] },
+  { e: "🐠", mots: ["poisson"] },
+  { e: "🐬", mots: ["dauphin"] },
+  { e: "🐳", mots: ["baleine"] },
+  { e: "🦄", mots: ["licorne"] },
+  { e: "🐦", mots: ["oiseau"] },
+  { e: "🐹", mots: ["hamster"] },
+  { e: "🐭", mots: ["souris"] },
+  { e: "🦉", mots: ["hibou", "chouette"] },
+  { e: "🐍", mots: ["serpent"] },
+  { e: "🦒", mots: ["girafe"] },
+  { e: "🐘", mots: ["elephant"] },
+  // Lieux et transports
+  { e: "🏥", mots: ["hopital", "medecin"] },
+  { e: "🏫", mots: ["ecole"] },
+  { e: "🏠", mots: ["maison"] },
+  { e: "🏖️", mots: ["plage"] },
+  { e: "🏕️", mots: ["camping", "tente"] },
+  { e: "🏰", mots: ["chateau"] },
+  { e: "🎡", mots: ["grande roue", "fete foraine"] },
+  { e: "🎢", mots: ["montagnes russes", "fete foraine"] },
+  { e: "🚗", mots: ["voiture"] },
+  { e: "🚌", mots: ["bus"] },
+  { e: "✈️", mots: ["avion"] },
+  { e: "⛴️", mots: ["bateau", "ferry"] },
+  { e: "🚀", mots: ["fusee", "espace"] },
+  { e: "🚂", mots: ["train"] },
+  { e: "🛒", mots: ["courses", "magasin", "supermarche"] },
+  { e: "🌳", mots: ["arbre", "parc", "nature"] },
+  { e: "🏙️", mots: ["ville"] },
+  { e: "🛍️", mots: ["shopping", "achats"] },
+  { e: "🚕", mots: ["taxi"] },
+  { e: "🚁", mots: ["helicoptere"] },
+  { e: "⛺", mots: ["tente", "camping"] },
+  { e: "🗺️", mots: ["carte", "voyage"] },
+  { e: "🧳", mots: ["valise", "voyage"] },
+  // Objets, école, hygiène
+  { e: "🧸", mots: ["nounours", "peluche", "doudou"] },
+  { e: "🎁", mots: ["cadeau"] },
+  { e: "🎈", mots: ["ballon", "fete"] },
+  { e: "🎀", mots: ["ruban", "noeud"] },
+  { e: "📚", mots: ["livre", "lecture"] },
+  { e: "✏️", mots: ["crayon", "dessiner", "ecrire"] },
+  { e: "🖍️", mots: ["crayon de couleur", "feutre"] },
+  { e: "🎒", mots: ["sac a dos", "cartable"] },
+  { e: "🔬", mots: ["microscope", "science"] },
+  { e: "🔭", mots: ["telescope"] },
+  { e: "📱", mots: ["telephone", "tablette"] },
+  { e: "🧴", mots: ["flacon", "creme", "savon"] },
+  { e: "🧼", mots: ["savon"] },
+  { e: "🪥", mots: ["brosse a dents", "dents"] },
+  { e: "🛁", mots: ["bain", "baignoire"] },
+  { e: "🚿", mots: ["douche"] },
+  { e: "🧹", mots: ["balai", "ranger"] },
+  { e: "👕", mots: ["vetement", "t-shirt", "habiller"] },
+  { e: "🧦", mots: ["chaussettes"] },
+  { e: "👟", mots: ["chaussures", "baskets"] },
+  { e: "🎓", mots: ["diplome", "ecole"] },
+  { e: "⏰", mots: ["reveil", "horloge", "heure"] },
+  // Météo et nature
+  { e: "☀️", mots: ["soleil"] },
+  { e: "🌙", mots: ["lune", "nuit"] },
+  { e: "⭐", mots: ["etoile"] },
+  { e: "🌈", mots: ["arc-en-ciel"] },
+  { e: "☁️", mots: ["nuage"] },
+  { e: "🌧️", mots: ["pluie"] },
+  { e: "❄️", mots: ["neige"] },
+  { e: "🌸", mots: ["fleur"] },
+  { e: "🌻", mots: ["tournesol", "fleur"] },
+  { e: "🍁", mots: ["automne", "feuille"] },
+  { e: "🌊", mots: ["vague", "mer"] },
+  { e: "🔥", mots: ["feu"] },
+  // Émotions et divers
+  { e: "❤️", mots: ["coeur", "amour"] },
+  { e: "✨", mots: ["etincelle", "magie", "brille"] },
+  { e: "🎉", mots: ["fete", "confettis", "celebration"] },
+  { e: "🎊", mots: ["fete", "confettis"] },
+  { e: "😊", mots: ["sourire", "content"] },
+  { e: "😄", mots: ["content", "rire", "heureux"] },
+  { e: "🙂", mots: ["normal", "calme"] },
+  { e: "😢", mots: ["triste"] },
+  { e: "🤒", mots: ["malade"] },
+  { e: "😴", mots: ["fatigue", "dormir", "sommeil"] },
+  { e: "💪", mots: ["fort", "en forme", "muscle"] },
+  { e: "🎵", mots: ["musique", "note"] },
+  { e: "🔔", mots: ["cloche", "sonnerie"] },
+];
+
+let emojiPickerFavoris = [];
+let emojiPickerOnChoix = null;
+
+function ouvrirSelecteurEmoji(favoris, actuel, onChoix) {
+  emojiPickerFavoris = favoris;
+  emojiPickerOnChoix = onChoix;
+  document.getElementById("emoji-picker-recherche").value = "";
+  construireGrilleSelecteurEmoji("");
+  document.getElementById("emoji-picker").classList.remove("hidden");
+  document.getElementById("emoji-picker-recherche").focus();
+}
+
+function fermerSelecteurEmoji() {
+  document.getElementById("emoji-picker").classList.add("hidden");
+  emojiPickerOnChoix = null;
+}
+
+function choisirEmojiPicker(e) {
+  if (emojiPickerOnChoix) emojiPickerOnChoix(e);
+  fermerSelecteurEmoji();
+}
+
+// Sans recherche : favoris du formulaire d'origine (ordre conservé,
+// utile — les tout premiers restent les plus rapides d'accès). Avec
+// recherche : parcourt EMOJI_CATALOGUE, comparaison normalisée
+// (accents/casse ignorés, cf. normaliser()) sur chaque mot-clé — pas de
+// score de pertinence, un simple "contient" suffit pour un catalogue de
+// cette taille (même principe que trouverCorrespondance() pour l'ajout
+// par texte libre).
+function construireGrilleSelecteurEmoji(recherche) {
+  const grille = document.getElementById("emoji-picker-grille");
+  grille.innerHTML = "";
+  const t = normaliser(recherche);
+  const liste = t
+    ? EMOJI_CATALOGUE.filter(x => x.mots.some(m => normaliser(m).includes(t))).map(x => x.e)
+    : emojiPickerFavoris;
+  if (liste.length === 0) {
+    const vide = document.createElement("div");
+    vide.className = "recompenses-vide";
+    vide.textContent = "Aucun emoji trouvé.";
+    grille.appendChild(vide);
+    return;
+  }
+  liste.forEach(e => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "emoji-choix-btn";
+    b.textContent = e;
+    b.onclick = () => choisirEmojiPicker(e);
+    grille.appendChild(b);
+  });
 }
 
 function creerNouvellePersonne() {
@@ -3352,6 +3619,8 @@ document.getElementById("btn-retour-parent-historique").onclick = () => { constr
 document.getElementById("btn-retour-parent-seances").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 
 document.getElementById("na-nom").addEventListener("blur", suggererTextesActivite);
+document.getElementById("na-emoji-trigger").onclick = () =>
+  ouvrirSelecteurEmoji(EMOJI_ACTIVITE, emojiChoisiActivite, (e) => { emojiChoisiActivite = e; construireDeclencheurEmoji("na-emoji-trigger", e); });
 document.getElementById("btn-creer-aventure").onclick = creerNouvelleAventure;
 document.getElementById("btn-retour-parent-nouvelle-aventure").onclick = () => { construireParentActivites(); afficherEcran("screen-parent-activites"); };
 
@@ -3360,6 +3629,8 @@ document.getElementById("btn-retour-parent-activites").onclick = () => { constru
 
 document.getElementById("btn-nouvelle-routine").onclick = ouvrirNouvelleRoutine;
 document.getElementById("btn-retour-parent-routines-catalogue").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("nr-emoji-trigger").onclick = () =>
+  ouvrirSelecteurEmoji(EMOJI_ROUTINE, emojiChoisiRoutine, (e) => { emojiChoisiRoutine = e; construireDeclencheurEmoji("nr-emoji-trigger", e); });
 document.getElementById("nr-lieu-chambre").onclick = () => choisirLieuRoutine("chambre");
 document.getElementById("nr-lieu-salon").onclick = () => choisirLieuRoutine("salon");
 document.getElementById("btn-creer-routine").onclick = creerNouvelleRoutine;
@@ -3367,8 +3638,17 @@ document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { 
 
 document.getElementById("btn-nouvelle-personne").onclick = ouvrirNouvellePersonne;
 document.getElementById("btn-retour-parent-entourage").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("np-emoji-trigger").onclick = () =>
+  ouvrirSelecteurEmoji(EMOJI_PERSONNE, emojiChoisiPersonne, (e) => { emojiChoisiPersonne = e; construireDeclencheurEmoji("np-emoji-trigger", e); });
 document.getElementById("btn-creer-personne").onclick = creerNouvellePersonne;
 document.getElementById("btn-retour-parent-nouvelle-personne").onclick = () => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); };
+
+// Sélecteur d'emoji partagé (cf. ouvrirSelecteurEmoji) : recherche live à
+// chaque frappe, fermeture par le ✕ sans rien choisir (emojiPickerOnChoix
+// remis à null, cf. fermerSelecteurEmoji) — l'icône du formulaire reste
+// celle d'avant l'ouverture.
+document.getElementById("emoji-picker-recherche").addEventListener("input", (e) => construireGrilleSelecteurEmoji(e.target.value));
+document.getElementById("btn-emoji-picker-fermer").onclick = fermerSelecteurEmoji;
 
 document.getElementById("btn-retour-parent-appareil").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 

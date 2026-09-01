@@ -310,6 +310,32 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   width: 30px; height: 30px; background: var(--surface-high); color: var(--text-soft);
   border: 2px solid var(--outline); font-family: monospace;
 }
+/* Sélecteur d'emoji recherchable (cf. app.js, ouvrirSelecteurEmoji) —
+   même pattern d'overlay plein écran que #debug-panel ci-dessus, mais
+   habillage "dans l'app" (mêmes tokens que le reste), pas l'allure
+   "outil" du panneau debug : c'est un écran destiné aux parents en usage
+   normal, pas un outil de test. */
+#emoji-picker {
+  position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column;
+  background: var(--bg); padding: 18px; box-sizing: border-box;
+}
+#emoji-picker-entete { display: flex; gap: 10px; margin-bottom: 14px; flex-shrink: 0; }
+#emoji-picker-recherche {
+  flex: 1; font: inherit; font-size: 17px; font-weight: 600; color: var(--text);
+  background: var(--surface); border: 2px solid var(--surface-high); padding: 10px 12px;
+}
+#emoji-picker-recherche::placeholder { color: var(--text-faint); font-weight: 500; }
+#emoji-picker-recherche:focus { outline: none; border-color: var(--accent); }
+#emoji-picker-grille {
+  display: flex; flex-wrap: wrap; align-content: flex-start; gap: 10px;
+  overflow-y: auto; flex: 1;
+}
+#btn-emoji-picker-fermer {
+  width: 48px; height: 48px; font-size: 20px; font-weight: 800; flex-shrink: 0;
+  background: var(--rouge); border: 3px solid var(--rouge-edge); box-shadow: var(--shadow-hard); color: var(--deep);
+}
+#btn-emoji-picker-fermer:active { transform: translate(2px, 2px); box-shadow: none; }
+
 .debug-bloc { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--surface-high); }
 .debug-bloc-titre { font-weight: 700; color: var(--accent); margin-bottom: 6px; }
 .debug-ligne { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -677,12 +703,21 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 .etoile-note-btn.choisie { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); }
 .champ-parent-case { flex-direction: row; align-items: center; gap: 10px; }
 .champ-parent-case input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--accent); }
-#na-emoji-grille, #nr-emoji-grille, #np-emoji-grille { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Bouton "icône actuelle" des 3 formulaires (activité/routine/personne) —
+   ouvre le sélecteur partagé au tap (cf. #emoji-picker plus bas). Plus
+   grand qu'un simple .emoji-choix-btn : c'est maintenant le SEUL point
+   d'entrée visible vers l'icône, pas un choix parmi une grille déjà là. */
+.emoji-trigger {
+  width: 64px; height: 64px; font-size: 32px; background: var(--surface);
+  border: 2px solid var(--surface-high);
+}
+.emoji-trigger:active { transform: translate(1px, 1px); }
+
 .emoji-choix-btn {
   width: 44px; height: 44px; font-size: 22px; background: var(--surface);
-  border: 2px solid var(--surface-high); opacity: .6;
+  border: 2px solid var(--surface-high);
 }
-.emoji-choix-btn.choisi { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); }
+.emoji-choix-btn:active { background: var(--surface-active); transform: translate(1px, 1px); }
 
 /* lieu (chambre/salon) : même esprit que les boutons emoji, deux choix
    mutuellement exclusifs plutôt qu'une grille. */
