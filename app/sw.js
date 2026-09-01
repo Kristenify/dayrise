@@ -20,7 +20,7 @@
  * quel enfant tel appareil affichera, et le coût (quelques petits PNG)
  * est négligeable pour un usage à la maison.
  */
-const CACHE_NAME = "dayrise-v9";
+const CACHE_NAME = "dayrise-v10";
 const A_METTRE_EN_CACHE = [
   "./",
   "./index.html",

@@ -545,8 +545,8 @@ function planningParDefaut() {
 // l'item lui-même, pour rester à jour si la routine/aventure change.
 // Renvoie `null` pour une référence orpheline (id qui n'existe plus).
 function libelleItemPlanning(item) {
-  if (item.type === "routine") { const r = routineParId(item.id); return r ? { emoji: r.emoji, nom: r.nom } : null; }
-  if (item.type === "aventure") { const a = aventureParId(item.id); return a ? { emoji: a.emoji, nom: a.lieu } : null; }
+  if (item.type === "routine") { const r = routineParId(item.id); return r ? { emoji: r.emoji, nom: r.nom, entourage: entourageDe(r) } : null; }
+  if (item.type === "aventure") { const a = aventureParId(item.id); return a ? { emoji: a.emoji, nom: a.lieu, entourage: entourageDe(a) } : null; }
   if (item.type === "repas") { const r = REPAS.find(x => x.id === item.id); return r ? { emoji: r.emoji, nom: r.nom } : null; }
   return null;
 }
@@ -650,6 +650,42 @@ function sauverRoutinesPerso(liste) {
 function toutesLesRoutines() { return profilActif().routines().concat(chargerRoutinesPerso()); }
 
 function routineParId(id) { return toutesLesRoutines().find(r => r.id === id); }
+
+// Entourage ("qui est là ?") : catalogue léger créé par un parent — nom,
+// emoji, rôle en texte libre — sur le même principe que
+// chargerAventuresPerso()/chargerRoutinesPerso() (persisté à part, jamais
+// remis à zéro, propre à CET appareil comme le reste des catalogues
+// perso). Pas de catalogue en dur : contrairement aux routines/aventures,
+// il n'y a personne à préremplir par défaut ("Papa"/"Maman" ne sont pas
+// supposés) — un parent en crée s'il le souhaite.
+//
+// ⚠️ Volontairement DISTINCT du champ `personne` déjà présent sur les
+// aventures chez une praticienne (Pauline/Elsa/Arianne) : `personne` n'est
+// pas qu'un affichage, sa seule présence bascule "C'est parti" vers tout
+// le flux "séance praticienne" (cf. `terminerVisite()`). Une activité/
+// routine taguée avec une personne de CE catalogue (`entourageIds`, cf.
+// `entourageDe()` plus bas) ne doit donc jamais se voir attribuer de
+// `personne` — les deux notions ne se fusionnent pas, même si elles se
+// ressemblent en surface.
+function chargerEntouragePerso() {
+  try { return JSON.parse(localStorage.getItem(cle("entourage_perso")) || "[]"); } catch (e) { return []; }
+}
+function sauverEntouragePerso(liste) {
+  try { localStorage.setItem(cle("entourage_perso"), JSON.stringify(liste)); } catch (e) {}
+}
+function toutesLesPersonnes() { return chargerEntouragePerso(); }
+function personneParId(id) { return toutesLesPersonnes().find(p => p.id === id); }
+
+// Résout `entourageIds` (routine/aventure) en personnes complètes, dans
+// le même esprit que le reste de `libelleItemPlanning()` : toujours
+// dérivé du catalogue à l'affichage, jamais dupliqué dans l'item. `null`
+// si absent/vide ou si toutes les personnes référencées ont été
+// supprimées depuis (ids orphelins silencieusement ignorés).
+function entourageDe(obj) {
+  if (!obj.entourageIds || obj.entourageIds.length === 0) return null;
+  const personnes = obj.entourageIds.map(personneParId).filter(Boolean);
+  return personnes.length ? personnes : null;
+}
 
 // Pièces : monnaie gagnée en aventure, distincte des étoiles de routine.
 // Stockée à part de `cle("journee")` et JAMAIS remise à zéro au
@@ -1037,9 +1073,11 @@ function construireJournee() {
       + (i === courantIdx ? " journee-maintenant" : "")
       + (i === suivantIdx ? " journee-suivant" : "");
     const sousLigneHeure = item.heure ? `<span class="texte-journee-reveil">🕒 ${item.heure}</span>` : "";
+    const sousLigneEntourage = lib.entourage
+      ? `<span class="texte-journee-reveil">👪 ${lib.entourage.map(p => p.emoji + " " + p.nom).join(", ")}</span>` : "";
     const badge = i === courantIdx ? `<span class="badge-maintenant">MAINTENANT</span>` : "";
     ligne.innerHTML = `<span class="emoji-journee">${lib.emoji}</span>`
-      + `<span class="texte-journee"><span>${lib.nom}</span>${sousLigneHeure}</span>${badge}`;
+      + `<span class="texte-journee"><span>${lib.nom}</span>${sousLigneHeure}${sousLigneEntourage}</span>${badge}`;
     if (journeeEnEdition) {
       const controles = document.createElement("div");
       controles.className = "controles-edition-journee";
@@ -1067,7 +1105,11 @@ function construireJournee() {
   });
   conteneur.appendChild(liste);
 
-  if (journeeEnEdition) conteneur.appendChild(construireAjoutPlanning(etat));
+  if (journeeEnEdition) {
+    conteneur.appendChild(construireAjoutPlanning(etat));
+    conteneur.appendChild(construireAjoutTexteLibre());
+    construireResultatsAjoutTexte();
+  }
 
   const btnModifier = document.getElementById("btn-modifier-journee");
   btnModifier.textContent = journeeEnEdition ? "✅" : "✏️";
@@ -1174,6 +1216,207 @@ function construireAjoutPlanning(etat) {
     grille.appendChild(b);
   });
   bloc.appendChild(grille);
+  return bloc;
+}
+
+// ---------------------------------------------------------------------
+// Ajout au planning par texte libre + dictée (mode édition de "Ma
+// journée") — reconnaissance LOCALE par mots-clés, PAS d'IA : extrait une
+// heure si présente puis rapproche le reste du texte des catalogues
+// existants (routines/aventures/repas) par comparaison normalisée sur le
+// nom et `motsCles` (cf. creerNouvelleAventure/creerNouvelleRoutine).
+// Chaque fragment reconnu est PROPOSÉ, jamais ajouté automatiquement (cf.
+// confirmerAjoutTexte) — même principe que "le parent valide toujours au
+// final" déjà appliqué ailleurs (correction avant validation d'une
+// routine, code pour confirmer une arrivée...).
+// ---------------------------------------------------------------------
+
+// Minuscule + accents retirés — rapprochement texte robuste sans
+// dépendance externe (ex. "Vélo" et "vélo 15h" doivent se reconnaître).
+// Décompose (NFD, "é" → "e" + accent séparé) puis ne garde que les points
+// de code HORS de la plage des marques diacritiques combinantes
+// (U+0300–U+036F) — évite d'écrire cette plage en toutes lettres dans
+// une regex, invisible et fragile à l'édition.
+function normaliser(texte) {
+  return Array.from(texte.toLowerCase().normalize("NFD"))
+    .filter(c => c.codePointAt(0) < 0x0300 || c.codePointAt(0) > 0x036f)
+    .join("")
+    .trim();
+}
+
+// Motif "15h", "17h30", "9h05" → "HH:MM", ou `null` si absent. Seulement
+// la PREMIÈRE occurrence : un fragment ne représente qu'un seul item.
+function extraireHeure(fragment) {
+  const m = fragment.match(/(\d{1,2})\s*h\s*(\d{2})?/i);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const min = m[2] ? parseInt(m[2], 10) : 0;
+  if (h > 23 || min > 59) return null;
+  return String(h).padStart(2, "0") + ":" + String(min).padStart(2, "0");
+}
+
+// Première correspondance dont le nom — ou un des `motsCles` — apparaît
+// dans le texte du fragment. Pas de score de pertinence : un catalogue
+// personnel et court rend une simple présence suffisamment fiable pour
+// cette 1ʳᵉ version. `null` si rien ne correspond.
+function trouverCorrespondance(texte) {
+  const t = normaliser(texte);
+  if (!t) return null;
+  const candidats = [
+    ...toutesLesRoutines().map(r => ({ type: "routine", id: r.id, emoji: r.emoji, nom: r.nom, motsCles: r.motsCles })),
+    ...toutesLesAventures().map(a => ({ type: "aventure", id: a.id, emoji: a.emoji, nom: a.lieu, motsCles: a.motsCles })),
+    ...REPAS.map(r => ({ type: "repas", id: r.id, emoji: r.emoji, nom: r.nom })),
+  ];
+  return candidats.find(c => [c.nom, ...(c.motsCles || [])].some(cle => cle && t.includes(normaliser(cle)))) || null;
+}
+
+// Découpe le texte (virgules/retours à la ligne = un fragment par item),
+// extrait heure + correspondance pour chacun. Fonction PURE : n'écrit
+// rien dans `etat.planning` (cf. confirmerAjoutTexte, appelée séparément
+// par le parent, ligne par ligne, une fois les résultats affichés).
+function analyserTexteLibre(texte) {
+  return texte.split(/[,\n]/).map(f => f.trim()).filter(Boolean).map(fragment => {
+    const heure = extraireHeure(fragment);
+    const texteSansHeure = heure ? fragment.replace(/(\d{1,2})\s*h\s*(\d{2})?/i, "") : fragment;
+    return { texteOriginal: fragment, heure, correspondance: trouverCorrespondance(texteSansHeure) };
+  });
+}
+
+let texteAjoutBrut = "";
+let resultatsAjoutTexte = [];
+
+function analyserEtAfficherTexteLibre() {
+  const champ = document.getElementById("ajout-texte-libre");
+  texteAjoutBrut = champ.value;
+  resultatsAjoutTexte = analyserTexteLibre(texteAjoutBrut);
+  construireResultatsAjoutTexte();
+}
+
+function construireResultatsAjoutTexte() {
+  const conteneur = document.getElementById("resultats-ajout-texte");
+  if (!conteneur) return;
+  conteneur.innerHTML = "";
+  resultatsAjoutTexte.forEach((r, i) => {
+    const ligne = document.createElement("div");
+    ligne.className = "ligne-journee";
+    if (!r.correspondance) {
+      ligne.innerHTML = `<span class="emoji-journee">❔</span>`
+        + `<span class="texte-journee"><span>« ${r.texteOriginal} »</span><span class="texte-journee-reveil">Aucune correspondance trouvée</span></span>`;
+      conteneur.appendChild(ligne);
+      return;
+    }
+    const c = r.correspondance;
+    ligne.innerHTML = `<span class="emoji-journee">${c.emoji}</span>`
+      + `<span class="texte-journee"><span>${c.nom}</span>${r.heure ? `<span class="texte-journee-reveil">🕒 ${r.heure}</span>` : ""}</span>`;
+    const btn = document.createElement("button");
+    btn.className = "btn-mini-edition";
+    btn.textContent = "✓";
+    btn.setAttribute("aria-label", "Ajouter « " + c.nom + " » à la journée");
+    btn.onclick = () => confirmerAjoutTexte(i);
+    ligne.appendChild(btn);
+    conteneur.appendChild(ligne);
+  });
+}
+
+// Ajoute réellement l'item confirmé au planning — réutilise
+// ajouterItemPlanning()/definirHeureItemPlanning() déjà existants, sans
+// nouvelle logique d'écriture. Si la correspondance est déjà dans le
+// planning du jour (ex. "Petit-déjeuner", présent par défaut), ne
+// l'ajoute pas une 2ᵉ fois : lui donne juste l'heure extraite, sur
+// l'entrée existante.
+function confirmerAjoutTexte(i) {
+  const r = resultatsAjoutTexte[i];
+  if (!r || !r.correspondance) return;
+  const etat = chargerEtat();
+  const dejaPresent = etat.planning.some(it => it.type === r.correspondance.type && it.id === r.correspondance.id);
+  if (!dejaPresent) ajouterItemPlanning(r.correspondance.type, r.correspondance.id);
+  if (r.heure) {
+    const etatMaj = chargerEtat();
+    const pos = etatMaj.planning.findIndex(it => it.type === r.correspondance.type && it.id === r.correspondance.id);
+    if (pos !== -1) definirHeureItemPlanning(pos, r.heure);
+  }
+  resultatsAjoutTexte.splice(i, 1);
+  // `ajouterItemPlanning()`/`definirHeureItemPlanning()` ci-dessus
+  // reconstruisent tout `#journee-contenu` (donc aussi ce champ texte,
+  // ré-affiché à partir de `texteAjoutBrut`, cf. construireAjoutTexteLibre())
+  // — on retire ce fragment-là de `texteAjoutBrut` pour ne pas forcer à
+  // tout retaper/re-analyser à chaque ligne confirmée, seulement ce qui
+  // reste vraiment à traiter.
+  texteAjoutBrut = resultatsAjoutTexte.map(x => x.texteOriginal).join("\n");
+  const champ = document.getElementById("ajout-texte-libre");
+  if (champ) champ.value = texteAjoutBrut;
+  construireResultatsAjoutTexte();
+}
+
+function reconnaissanceVocaleDisponible() {
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+// Dictée (côté PARENT uniquement, jamais dans le parcours de l'enfant) :
+// ajoute au texte déjà tapé plutôt que de l'écraser. ⚠️ Contrairement à
+// la voix de l'app qui LIT les étapes (Web Speech API en sortie,
+// entièrement hors-ligne, cf. dire()), la reconnaissance vocale envoie
+// l'audio aux serveurs du navigateur (Google sur Chrome) pour être
+// transcrite — pas hors-ligne, décision assumée avec la famille (cf.
+// docs/produit/concept.md). Bouton absent si l'API n'existe pas (cf.
+// reconnaissanceVocaleDisponible(), construireAjoutTexteLibre()) — pas
+// de message d'erreur, juste rien à cet endroit.
+function demarrerDicteeAjout() {
+  const Reconnaissance = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Reconnaissance) return;
+  const reconnaissance = new Reconnaissance();
+  reconnaissance.lang = "fr-FR";
+  const btn = document.getElementById("btn-dictee-ajout");
+  if (btn) btn.classList.add("ecoute");
+  reconnaissance.onresult = (e) => {
+    const texte = e.results[0][0].transcript;
+    texteAjoutBrut = texteAjoutBrut.trim() ? texteAjoutBrut.trim() + ", " + texte : texte;
+    const champ = document.getElementById("ajout-texte-libre");
+    if (champ) champ.value = texteAjoutBrut;
+  };
+  reconnaissance.onend = () => { if (btn) btn.classList.remove("ecoute"); };
+  reconnaissance.onerror = () => { if (btn) btn.classList.remove("ecoute"); };
+  reconnaissance.start();
+}
+
+function construireAjoutTexteLibre() {
+  const bloc = document.createElement("div");
+  const label = document.createElement("div");
+  label.className = "groupe-journee-titre";
+  label.textContent = "AJOUTER PAR TEXTE";
+  bloc.appendChild(label);
+
+  const champ = document.createElement("textarea");
+  champ.id = "ajout-texte-libre";
+  champ.placeholder = "Ex : vélo 15h, goûter chez mamie 17h";
+  champ.value = texteAjoutBrut;
+  champ.oninput = (e) => { texteAjoutBrut = e.target.value; };
+  bloc.appendChild(champ);
+
+  const ligneBoutons = document.createElement("div");
+  ligneBoutons.className = "ligne-boutons-ajout-texte";
+  if (reconnaissanceVocaleDisponible()) {
+    const btnMicro = document.createElement("button");
+    btnMicro.type = "button";
+    btnMicro.id = "btn-dictee-ajout";
+    btnMicro.className = "btn-dictee";
+    btnMicro.textContent = "🎤";
+    btnMicro.setAttribute("aria-label", "Dicter le texte à ajouter");
+    btnMicro.onclick = demarrerDicteeAjout;
+    ligneBoutons.appendChild(btnMicro);
+  }
+  const btnAnalyser = document.createElement("button");
+  btnAnalyser.type = "button";
+  btnAnalyser.className = "btn-continuer";
+  btnAnalyser.textContent = "Analyser";
+  btnAnalyser.onclick = analyserEtAfficherTexteLibre;
+  ligneBoutons.appendChild(btnAnalyser);
+  bloc.appendChild(ligneBoutons);
+
+  const resultats = document.createElement("div");
+  resultats.id = "resultats-ajout-texte";
+  bloc.appendChild(resultats);
+
   return bloc;
 }
 
@@ -1918,6 +2161,11 @@ function construireEspaceParent() {
       action: () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); },
     },
     {
+      emoji: "👪", titre: "Mon entourage",
+      soustitre: "Voir qui entoure " + profilActif().prenom + ", ou ajouter une nouvelle personne",
+      action: () => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); },
+    },
+    {
       emoji: "📱", titre: "Cet appareil",
       soustitre: "Affiche " + profilActif().prenom + " — changer l'enfant de cet appareil",
       action: () => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); },
@@ -2202,13 +2450,41 @@ function construireGrilleEmojiActivite() {
     (e) => { emojiChoisiActivite = e; construireGrilleEmojiActivite(); });
 }
 
+// Choix de l'entourage ("qui est là ?"), partagé par les formulaires
+// nouvelle activité ET nouvelle routine — même esprit que
+// construireGrilleEmoji() (l'appelant possède le tableau `choisis` et
+// reconstruit après chaque clic), mais à choix multiple (chips
+// togglables) plutôt qu'un seul choix exclusif. N'affiche rien si le
+// catalogue est vide plutôt qu'une grille vide déroutante — c'est au
+// parent de créer d'abord une personne dans "Mon entourage" s'il veut
+// s'en servir ici.
+function construireChoixEntourage(conteneur, choisis) {
+  conteneur.innerHTML = "";
+  toutesLesPersonnes().forEach(p => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip-entourage" + (choisis.includes(p.id) ? " choisi" : "");
+    b.textContent = p.emoji + " " + p.nom;
+    b.onclick = () => {
+      const pos = choisis.indexOf(p.id);
+      if (pos === -1) choisis.push(p.id); else choisis.splice(pos, 1);
+      construireChoixEntourage(conteneur, choisis);
+    };
+    conteneur.appendChild(b);
+  });
+}
+
+let entourageChoisiActivite = [];
+
 function ouvrirNouvelleAventure() {
-  ["na-nom", "na-trajet", "na-arrivee", "na-etape1", "na-etape2", "na-etape3"]
+  ["na-nom", "na-trajet", "na-arrivee", "na-etape1", "na-etape2", "na-etape3", "na-mots-cles"]
     .forEach(id => { document.getElementById(id).value = ""; });
   document.getElementById("na-piece").checked = false;
   document.getElementById("na-erreur").textContent = "";
   emojiChoisiActivite = EMOJI_ACTIVITE[0];
   construireGrilleEmojiActivite();
+  entourageChoisiActivite = [];
+  construireChoixEntourage(document.getElementById("na-entourage-grille"), entourageChoisiActivite);
   afficherEcran("screen-parent-nouvelle-aventure");
 }
 
@@ -2238,6 +2514,8 @@ function creerNouvelleAventure() {
     return;
   }
 
+  const motsCles = document.getElementById("na-mots-cles").value.trim();
+
   const nouvelle = {
     id: "perso-" + Date.now(),
     lieu: nom,
@@ -2252,6 +2530,13 @@ function creerNouvelleAventure() {
     // partir en aventure avant d'être habillé/prêt.
     apres: { type: "routine", id: "partir" },
   };
+  // Champs optionnels omis (plutôt que mis à `[]`/`""`) si vides : garde
+  // une activité sans entourage/mots-clés indistinguable d'une activité
+  // créée avant l'existence de ces champs. Jamais de champ `personne`
+  // ici (cf. avertissement sur chargerEntouragePerso()) — seules les 3
+  // aventures praticienne codées en dur en ont un.
+  if (entourageChoisiActivite.length) nouvelle.entourageIds = [...entourageChoisiActivite];
+  if (motsCles) nouvelle.motsCles = motsCles.split(",").map(m => m.trim()).filter(Boolean);
 
   const perso = chargerAventuresPerso();
   perso.push(nouvelle);
@@ -2316,6 +2601,8 @@ function choisirLieuRoutine(lieu) {
   document.getElementById("nr-lieu-salon").classList.toggle("choisi", lieu === "salon");
 }
 
+let entourageChoisiRoutine = [];
+
 function ouvrirNouvelleRoutine() {
   document.getElementById("nr-nom").value = "";
   for (let i = 1; i <= 5; i++) {
@@ -2323,10 +2610,13 @@ function ouvrirNouvelleRoutine() {
     document.getElementById("nr-t" + i + "-emoji").value = "";
     document.getElementById("nr-t" + i + "-zone").value = ZONE_PAR_DEFAUT_ROUTINE;
   }
+  document.getElementById("nr-mots-cles").value = "";
   document.getElementById("nr-erreur").textContent = "";
   emojiChoisiRoutine = EMOJI_ROUTINE[0];
   construireGrilleEmojiRoutine();
   choisirLieuRoutine("chambre");
+  entourageChoisiRoutine = [];
+  construireChoixEntourage(document.getElementById("nr-entourage-grille"), entourageChoisiRoutine);
   afficherEcran("screen-parent-nouvelle-routine");
 }
 
@@ -2346,6 +2636,8 @@ function creerNouvelleRoutine() {
     return;
   }
 
+  const motsCles = document.getElementById("nr-mots-cles").value.trim();
+
   const nouvelle = {
     id: "routine-perso-" + Date.now(),
     nom,
@@ -2354,6 +2646,8 @@ function creerNouvelleRoutine() {
     felicitation: "Bravo " + profilActif().prenom + ", tu as fini : " + nom + " !",
     taches,
   };
+  if (entourageChoisiRoutine.length) nouvelle.entourageIds = [...entourageChoisiRoutine];
+  if (motsCles) nouvelle.motsCles = motsCles.split(",").map(m => m.trim()).filter(Boolean);
 
   const perso = chargerRoutinesPerso();
   perso.push(nouvelle);
@@ -2372,6 +2666,63 @@ function creerNouvelleRoutine() {
   dire("Nouvelle routine créée : " + nom + ".");
   construireRoutinesCatalogue();
   afficherEcran("screen-parent-routines-catalogue");
+}
+
+// Catalogue "Mon entourage" (accès + création, carte du hub parent) —
+// même lecture seule que le catalogue Routines (pas d'interrupteur jour
+// par jour à proposer ici non plus, cf. commentaire de
+// construireRoutinesCatalogue()) plutôt que les cartes tapables des
+// Activités.
+function construireParentEntourage() {
+  const liste = document.getElementById("parent-entourage-liste");
+  liste.innerHTML = "";
+  const personnes = toutesLesPersonnes();
+  if (personnes.length === 0) {
+    const vide = document.createElement("div");
+    vide.className = "recompenses-vide";
+    vide.textContent = "Personne dans l'entourage pour l'instant.";
+    liste.appendChild(vide);
+    return;
+  }
+  personnes.forEach(p => {
+    const ligne = document.createElement("div");
+    ligne.className = "ligne-journee";
+    ligne.innerHTML = `<span class="emoji-journee">${p.emoji}</span>`
+      + `<span class="texte-journee"><span>${p.nom}</span>${p.role ? `<span class="texte-journee-reveil">${p.role}</span>` : ""}</span>`;
+    liste.appendChild(ligne);
+  });
+}
+
+const EMOJI_PERSONNE = ["👩","🧑","👨","👵","👴","🧑‍⚕️","👩‍⚕️","🧑‍🏫","👧","👦","🦸","🐶"];
+let emojiChoisiPersonne = EMOJI_PERSONNE[0];
+
+function construireGrilleEmojiPersonne() {
+  construireGrilleEmoji(document.getElementById("np-emoji-grille"), EMOJI_PERSONNE, emojiChoisiPersonne,
+    (e) => { emojiChoisiPersonne = e; construireGrilleEmojiPersonne(); });
+}
+
+function ouvrirNouvellePersonne() {
+  document.getElementById("np-nom").value = "";
+  document.getElementById("np-role").value = "";
+  document.getElementById("np-erreur").textContent = "";
+  emojiChoisiPersonne = EMOJI_PERSONNE[0];
+  construireGrilleEmojiPersonne();
+  afficherEcran("screen-parent-nouvelle-personne");
+}
+
+function creerNouvellePersonne() {
+  const nom = document.getElementById("np-nom").value.trim();
+  if (!nom) {
+    document.getElementById("np-erreur").textContent = "Donne un nom avant de créer.";
+    return;
+  }
+  const nouvelle = { id: "personne-" + Date.now(), nom, emoji: emojiChoisiPersonne, role: document.getElementById("np-role").value.trim() };
+  const perso = chargerEntouragePerso();
+  perso.push(nouvelle);
+  sauverEntouragePerso(perso);
+  dire("Nouvelle personne ajoutée : " + nom + ".");
+  construireParentEntourage();
+  afficherEcran("screen-parent-entourage");
 }
 
 // ---------------------------------------------------------------------
@@ -3014,6 +3365,11 @@ document.getElementById("nr-lieu-salon").onclick = () => choisirLieuRoutine("sal
 document.getElementById("btn-creer-routine").onclick = creerNouvelleRoutine;
 document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); };
 
+document.getElementById("btn-nouvelle-personne").onclick = ouvrirNouvellePersonne;
+document.getElementById("btn-retour-parent-entourage").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("btn-creer-personne").onclick = creerNouvellePersonne;
+document.getElementById("btn-retour-parent-nouvelle-personne").onclick = () => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); };
+
 document.getElementById("btn-retour-parent-appareil").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 
 // Le bouton "Terminé !" du coffre ne va pas toujours au même endroit
@@ -3061,9 +3417,11 @@ document.getElementById("btn-debug-parent-historique").onclick = puisFermerDebug
 document.getElementById("btn-debug-parent-seances").onclick = puisFermerDebug(() => { construireParentSeances(); afficherEcran("screen-parent-seances"); });
 document.getElementById("btn-debug-parent-activites").onclick = puisFermerDebug(() => { construireParentActivites(); afficherEcran("screen-parent-activites"); });
 document.getElementById("btn-debug-parent-routines-catalogue").onclick = puisFermerDebug(() => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); });
+document.getElementById("btn-debug-parent-entourage").onclick = puisFermerDebug(() => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); });
 document.getElementById("btn-debug-parent-appareil").onclick = puisFermerDebug(() => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); });
 document.getElementById("btn-debug-nouvelle-activite").onclick = puisFermerDebug(ouvrirNouvelleAventure);
 document.getElementById("btn-debug-nouvelle-routine").onclick = puisFermerDebug(ouvrirNouvelleRoutine);
+document.getElementById("btn-debug-nouvelle-personne").onclick = puisFermerDebug(ouvrirNouvellePersonne);
 document.getElementById("btn-debug-code-reel").onclick = puisFermerDebug(ouvrirEspaceParent);
 
 document.getElementById("btn-debug-reset").onclick = puisFermerDebug(reinitialiserTout);
