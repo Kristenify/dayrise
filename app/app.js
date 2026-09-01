@@ -511,8 +511,20 @@ const PLANNING_DEFAUT = [
   { type: "repas", id: "diner" },
   { type: "routine", id: "soir" },
 ];
+// `heureDefaut` (REPAS/aventures) n'est copié dans `heure` qu'ICI, au
+// moment où une nouvelle journée est semée — ne touche jamais un
+// `etat.planning` déjà en cours. `heure` reste ensuite un champ
+// d'affichage libre, modifiable/effaçable par un parent (mode édition de
+// "Ma journée"), jamais relu par la logique de déblocage des routines.
 function planningParDefaut() {
-  const items = PLANNING_DEFAUT.map(ref => ({ ...ref }));
+  const items = PLANNING_DEFAUT.map(ref => {
+    const entree = { ...ref };
+    if (ref.type === "repas") {
+      const r = REPAS.find(x => x.id === ref.id);
+      if (r && r.heureDefaut) entree.heure = r.heureDefaut;
+    }
+    return entree;
+  });
   // Routines créées par un parent : absentes de PLANNING_DEFAUT (qui ne
   // connaît que le catalogue en dur), donc ajoutées ici en plus, à la
   // fin — récurrentes tous les jours comme les autres routines,
@@ -522,6 +534,7 @@ function planningParDefaut() {
   });
   aventuresDuJour().forEach(a => {
     const entree = { type: "aventure", id: a.id };
+    if (a.heureDefaut) entree.heure = a.heureDefaut;
     const pos = a.apres ? items.findIndex(it => it.type === a.apres.type && it.id === a.apres.id) : -1;
     if (pos === -1) items.push(entree); else items.splice(pos + 1, 0, entree);
   });
@@ -976,10 +989,39 @@ function demarrerAventure(id) {
 // remis en lecture seule en quittant vers le menu (cf. `construireMenu()`).
 let journeeEnEdition = false;
 
+// "HH:MM" (24h, zéro-paddé) de l'heure actuelle — respecte
+// `dateDebugForcee` comme `disponibleApresHeure` (cf. construireMenu),
+// pour rester testable au panneau debug. Uniquement pour l'AFFICHAGE du
+// repère "maintenant" ci-dessous, jamais pour du déblocage.
+function heureActuelleHHMM() {
+  const d = dateActuelle();
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+// Repère "maintenant/ensuite" pour "Ma journée" : ne bloque/débloque
+// jamais rien (cf. commentaire de `planningParDefaut()`). Parcourt
+// `etat.planning` dans son ORDRE D'AFFICHAGE — jamais retrié par heure,
+// l'ordre du planning reste la seule source de vérité, l'heure n'est
+// qu'une annotation. Un item sans `heure` est simplement absent de ce
+// calcul : une journée qui n'utilise aucune heure renvoie deux index
+// `null`, donc rien n'est mis en avant (comportement inchangé). "Courant"
+// = le dernier item avec heure ≤ maintenant rencontré en parcourant la
+// liste ; "suivant" = le premier avec heure > maintenant rencontré après.
+function reperesJournee(etat) {
+  const maintenant = heureActuelleHHMM();
+  const timed = [];
+  etat.planning.forEach((item, i) => { if (item.heure) timed.push(i); });
+  let courantIdx = null;
+  timed.forEach(i => { if (etat.planning[i].heure <= maintenant) courantIdx = i; });
+  const suivant = timed.find(i => i > (courantIdx === null ? -1 : courantIdx) && etat.planning[i].heure > maintenant);
+  return { courantIdx, suivantIdx: suivant === undefined ? null : suivant };
+}
+
 function construireJournee() {
   const etat = chargerEtat();
   const conteneur = document.getElementById("journee-contenu");
   conteneur.innerHTML = "";
+  const { courantIdx, suivantIdx } = reperesJournee(etat);
 
   const liste = document.createElement("div");
   liste.className = "liste-planning";
@@ -987,11 +1029,26 @@ function construireJournee() {
     const lib = libelleItemPlanning(item);
     if (!lib) return; // référence orpheline (id qui n'existe plus dans le catalogue) : ignorée proprement
     const ligne = document.createElement("div");
-    ligne.className = "ligne-journee";
-    ligne.innerHTML = `<span class="emoji-journee">${lib.emoji}</span><span class="texte-journee">${lib.nom}</span>`;
+    // Liseré de couleur par nature (type-routine/repas/aventure, cf.
+    // styles.css) : volontairement pas --accent/--rouge, déjà pris par
+    // "fait"/"retirer" ailleurs dans l'app — un double sens rendrait ces
+    // couleurs moins lisibles là où elles existent déjà.
+    ligne.className = "ligne-journee type-" + item.type
+      + (i === courantIdx ? " journee-maintenant" : "")
+      + (i === suivantIdx ? " journee-suivant" : "");
+    const sousLigneHeure = item.heure ? `<span class="texte-journee-reveil">🕒 ${item.heure}</span>` : "";
+    const badge = i === courantIdx ? `<span class="badge-maintenant">MAINTENANT</span>` : "";
+    ligne.innerHTML = `<span class="emoji-journee">${lib.emoji}</span>`
+      + `<span class="texte-journee"><span>${lib.nom}</span>${sousLigneHeure}</span>${badge}`;
     if (journeeEnEdition) {
       const controles = document.createElement("div");
       controles.className = "controles-edition-journee";
+      const champHeure = document.createElement("input");
+      champHeure.type = "time";
+      champHeure.className = "input-heure-journee";
+      champHeure.value = item.heure || "";
+      champHeure.setAttribute("aria-label", "Heure de « " + lib.nom + " »");
+      champHeure.onchange = (e) => definirHeureItemPlanning(i, e.target.value);
       const btnHaut = document.createElement("button");
       btnHaut.className = "btn-mini-edition"; btnHaut.textContent = "▲";
       btnHaut.disabled = i === 0;
@@ -1003,7 +1060,7 @@ function construireJournee() {
       const btnRetirer = document.createElement("button");
       btnRetirer.className = "btn-mini-edition btn-retirer"; btnRetirer.textContent = "✕";
       btnRetirer.onclick = () => retirerItemPlanning(i);
-      controles.append(btnHaut, btnBas, btnRetirer);
+      controles.append(champHeure, btnHaut, btnBas, btnRetirer);
       ligne.appendChild(controles);
     }
     liste.appendChild(ligne);
@@ -1058,6 +1115,17 @@ function deplacerItemPlanning(i, delta) {
 function retirerItemPlanning(i) {
   const etat = chargerEtat();
   etat.planning.splice(i, 1);
+  sauverEtat(etat);
+  construireJournee();
+}
+
+// Valeur vide (`<input type="time">` vidé par le parent) : `heure`
+// retiré plutôt que mis à "", pour que `item.heure` reste testable en
+// simple booléen partout ailleurs (`if (item.heure)`, cf. reperesJournee/
+// construireJournee/libelleItemPlanning).
+function definirHeureItemPlanning(i, valeur) {
+  const etat = chargerEtat();
+  if (valeur) etat.planning[i].heure = valeur; else delete etat.planning[i].heure;
   sauverEtat(etat);
   construireJournee();
 }
@@ -2842,13 +2910,13 @@ function majAffichageHeureDebug() {
 function ajusterHeureDebug(delta) {
   dateDebugForcee = new Date(dateActuelle().getTime() + delta * 3600000);
   majAffichageHeureDebug();
-  majHorloge();
+  tickHorloge();
 }
 
 function reinitialiserHeureDebug() {
   dateDebugForcee = null;
   majAffichageHeureDebug();
-  majHorloge();
+  tickHorloge();
 }
 
 function toggleDebug() {
@@ -2874,8 +2942,19 @@ function majHorloge() {
   // ne jamais laisser croire, y compris à qui teste, que c'est l'heure réelle.
   el.textContent = (dateDebugForcee !== null ? "🧪 " : "") + jour.charAt(0).toUpperCase() + jour.slice(1) + " — " + heure;
 }
-majHorloge();
-setInterval(majHorloge, 15000);
+// `majHorloge()` reste à usage unique (juste le texte de l'horloge) ;
+// c'est ce wrapper qui profite du même tick pour garder le repère
+// "maintenant/ensuite" de "Ma journée" à jour pendant qu'elle est
+// ouverte — coupé en mode édition pour ne pas effacer sous la main d'un
+// parent un `<input type="time">` en cours de saisie (cf.
+// definirHeureItemPlanning/construireJournee).
+function tickHorloge() {
+  majHorloge();
+  const ecranJournee = document.getElementById("screen-journee");
+  if (!journeeEnEdition && ecranJournee && ecranJournee.classList.contains("active")) construireJournee();
+}
+tickHorloge();
+setInterval(tickHorloge, 15000);
 
 // ---------------------------------------------------------------------
 // Câblage des boutons + démarrage
