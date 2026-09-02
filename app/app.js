@@ -474,8 +474,14 @@ function chargerAventuresPerso() {
 function sauverAventuresPerso(liste) {
   try { localStorage.setItem(cle("aventures_perso"), JSON.stringify(liste)); } catch (e) {}
 }
+// Même principe que toutesLesRoutines() ci-dessus : une activité modifiée
+// (cf. creerNouvelleAventure(), branche édition) est sauvée sous le même
+// id, codé en dur ou déjà perso, et le remplace donc ici plutôt que de
+// s'y ajouter en double.
 function toutesLesAventures() {
-  return AVENTURES_COMMUNES.concat(profilActif().aventuresPropres()).concat(chargerAventuresPerso());
+  const perso = chargerAventuresPerso();
+  const idsPerso = new Set(perso.map(a => a.id));
+  return AVENTURES_COMMUNES.concat(profilActif().aventuresPropres()).filter(a => !idsPerso.has(a.id)).concat(perso);
 }
 
 function aventureParId(id) { return toutesLesAventures().find(a => a.id === id); }
@@ -647,7 +653,19 @@ function chargerRoutinesPerso() {
 function sauverRoutinesPerso(liste) {
   try { localStorage.setItem(cle("routines_perso"), JSON.stringify(liste)); } catch (e) {}
 }
-function toutesLesRoutines() { return profilActif().routines().concat(chargerRoutinesPerso()); }
+// Une routine modifiée par un parent (cf. creerNouvelleRoutine(), branche
+// édition) est sauvée dans `routines_perso` sous le MÊME id que
+// l'originale, codée en dur ou déjà perso — elle la remplace donc ici
+// plutôt que de s'y ajouter en double (`filter` sur les ids présents côté
+// perso avant le concat). Reste vrai aussi pour une routine perso
+// modifiée plusieurs fois : `chargerRoutinesPerso()` ne peut porter
+// qu'une seule entrée par id (cf. la mise à jour "en place" au moment de
+// la sauvegarde).
+function toutesLesRoutines() {
+  const perso = chargerRoutinesPerso();
+  const idsPerso = new Set(perso.map(r => r.id));
+  return profilActif().routines().filter(r => !idsPerso.has(r.id)).concat(perso);
+}
 
 function routineParId(id) { return toutesLesRoutines().find(r => r.id === id); }
 
@@ -2428,8 +2446,25 @@ function construireParentActivites() {
     const programmee = planifiees.has(a.id);
     const carte = document.createElement("div");
     carte.className = "carte-routine" + (programmee ? " faite" : "");
-    carte.innerHTML =
-      `<div class="carte-routine-nom">${a.emoji} ${a.lieu}</div><div class="carte-routine-etat">${programmee ? "✓ aujourd'hui" : ""}</div>`;
+    const nom = document.createElement("div");
+    nom.className = "carte-routine-nom";
+    nom.textContent = a.emoji + " " + a.lieu;
+    const droite = document.createElement("div");
+    droite.className = "carte-routine-droite";
+    // Bouton dédié : éditer une activité ne doit pas se confondre avec le
+    // tap sur le reste de la carte, qui l'ajoute/la retire d'aujourd'hui
+    // (cf. basculerActivitePlanning) — d'où le stopPropagation.
+    const btnEditer = document.createElement("button");
+    btnEditer.type = "button";
+    btnEditer.className = "btn-mini-edition";
+    btnEditer.textContent = "✏️";
+    btnEditer.setAttribute("aria-label", "Modifier « " + a.lieu + " »");
+    btnEditer.onclick = (ev) => { ev.stopPropagation(); ouvrirEditionAventure(a.id); };
+    const etatDiv = document.createElement("div");
+    etatDiv.className = "carte-routine-etat";
+    etatDiv.textContent = programmee ? "✓ aujourd'hui" : "";
+    droite.append(btnEditer, etatDiv);
+    carte.append(nom, droite);
     carte.onclick = () => basculerActivitePlanning(a.id);
     liste.appendChild(carte);
   });
@@ -2489,8 +2524,17 @@ function construireChoixEntourage(conteneur, choisis) {
 }
 
 let entourageChoisiActivite = [];
+// `null` = formulaire en mode création (cf. ouvrirNouvelleAventure) ;
+// sinon id de l'activité en cours de modification (cf.
+// ouvrirEditionAventure) — même écran, mêmes champs, seule la branche
+// finale de creerNouvelleAventure() change (mise à jour en place plutôt
+// que nouvelle entrée).
+let aventureEnEditionId = null;
 
 function ouvrirNouvelleAventure() {
+  aventureEnEditionId = null;
+  document.getElementById("nouvelle-aventure-titre").textContent = "Nouvelle activité";
+  document.getElementById("btn-creer-aventure").textContent = "Créer et ajouter à aujourd'hui";
   ["na-nom", "na-trajet", "na-arrivee", "na-etape1", "na-etape2", "na-etape3", "na-mots-cles"]
     .forEach(id => { document.getElementById(id).value = ""; });
   document.getElementById("na-piece").checked = false;
@@ -2498,6 +2542,39 @@ function ouvrirNouvelleAventure() {
   emojiChoisiActivite = EMOJI_ACTIVITE[0];
   construireDeclencheurEmoji("na-emoji-trigger", emojiChoisiActivite);
   entourageChoisiActivite = [];
+  construireChoixEntourage(document.getElementById("na-entourage-grille"), entourageChoisiActivite);
+  afficherEcran("screen-parent-nouvelle-aventure");
+}
+
+// Retire le préfixe numérique ("1. ", "2. "...) ajouté par
+// creerNouvelleAventure() pour reconstruire les 3 champs d'étape
+// individuels à l'ouverture de l'édition — cf. `a.programme`.
+function sansNumeroEtape(ligne) {
+  return (ligne || "").replace(/^\d+\.\s*/, "");
+}
+
+// Pré-remplit le formulaire (partagé avec la création) avec l'activité
+// existante — codée en dur ou déjà perso, peu importe (cf.
+// toutesLesAventures()) — puis bascule creerNouvelleAventure() en mode
+// mise à jour via `aventureEnEditionId`.
+function ouvrirEditionAventure(id) {
+  const a = aventureParId(id);
+  if (!a) return;
+  aventureEnEditionId = id;
+  document.getElementById("nouvelle-aventure-titre").textContent = "Modifier l'activité";
+  document.getElementById("btn-creer-aventure").textContent = "Enregistrer les modifications";
+  document.getElementById("na-nom").value = a.lieu;
+  document.getElementById("na-trajet").value = a.texteTrajet;
+  document.getElementById("na-arrivee").value = a.texteArrivee;
+  document.getElementById("na-etape1").value = sansNumeroEtape(a.programme[0]);
+  document.getElementById("na-etape2").value = sansNumeroEtape(a.programme[1]);
+  document.getElementById("na-etape3").value = sansNumeroEtape(a.programme[2]);
+  document.getElementById("na-piece").checked = a.recompensePieces > 0;
+  document.getElementById("na-mots-cles").value = (a.motsCles || []).join(", ");
+  document.getElementById("na-erreur").textContent = "";
+  emojiChoisiActivite = a.emoji;
+  construireDeclencheurEmoji("na-emoji-trigger", emojiChoisiActivite);
+  entourageChoisiActivite = a.entourageIds ? [...a.entourageIds] : [];
   construireChoixEntourage(document.getElementById("na-entourage-grille"), entourageChoisiActivite);
   afficherEcran("screen-parent-nouvelle-aventure");
 }
@@ -2529,6 +2606,39 @@ function creerNouvelleAventure() {
   }
 
   const motsCles = document.getElementById("na-mots-cles").value.trim();
+
+  // Édition d'une activité existante : fusionne les champs du formulaire
+  // SUR l'objet d'origine (Object.assign) plutôt que d'en repartir de
+  // zéro — préserve `id`, et pour les 3 aventures praticienne codées en
+  // dur, des champs absents de ce formulaire mais essentiels ailleurs
+  // (`personne` pilote l'écran de séance au code, cf. terminerVisite() ;
+  // `apres`/`date` pilotent le placement dans le planning). Sauvée dans
+  // `aventures_perso` sous le même id, qui masque alors l'originale (cf.
+  // toutesLesAventures()).
+  if (aventureEnEditionId) {
+    const original = aventureParId(aventureEnEditionId);
+    const maj = Object.assign({}, original, {
+      lieu: nom,
+      emoji: emojiChoisiActivite,
+      texteTrajet,
+      texteArrivee,
+      programme: ["1. " + e1, "2. " + e2, "3. " + e3],
+      recompensePieces: pieceOui ? 1 : 0,
+    });
+    if (entourageChoisiActivite.length) maj.entourageIds = [...entourageChoisiActivite]; else delete maj.entourageIds;
+    if (motsCles) maj.motsCles = motsCles.split(",").map(m => m.trim()).filter(Boolean); else delete maj.motsCles;
+
+    const perso = chargerAventuresPerso();
+    const pos = perso.findIndex(x => x.id === maj.id);
+    if (pos === -1) perso.push(maj); else perso[pos] = maj;
+    sauverAventuresPerso(perso);
+
+    dire("Activité modifiée : " + nom + ".");
+    aventureEnEditionId = null;
+    construireParentActivites();
+    afficherEcran("screen-parent-activites");
+    return;
+  }
 
   const nouvelle = {
     id: "perso-" + Date.now(),
@@ -2586,6 +2696,13 @@ function construireRoutinesCatalogue() {
     ligne.className = "ligne-journee";
     ligne.innerHTML =
       `<span class="emoji-journee">${r.emoji}</span><span class="texte-journee">${r.nom}</span><span class="carte-routine-etat">${etatTexte}</span>`;
+    const btnEditer = document.createElement("button");
+    btnEditer.type = "button";
+    btnEditer.className = "btn-mini-edition";
+    btnEditer.textContent = "✏️";
+    btnEditer.setAttribute("aria-label", "Modifier « " + r.nom + " »");
+    btnEditer.onclick = () => ouvrirEditionRoutine(r.id);
+    ligne.appendChild(btnEditer);
     liste.appendChild(ligne);
   });
 }
@@ -2611,8 +2728,14 @@ function choisirLieuRoutine(lieu) {
 }
 
 let entourageChoisiRoutine = [];
+// Même principe que aventureEnEditionId ci-dessus : `null` = création,
+// sinon id de la routine en cours de modification.
+let routineEnEditionId = null;
 
 function ouvrirNouvelleRoutine() {
+  routineEnEditionId = null;
+  document.getElementById("nouvelle-routine-titre").textContent = "Nouvelle routine";
+  document.getElementById("btn-creer-routine").textContent = "Créer et ajouter à la journée";
   document.getElementById("nr-nom").value = "";
   for (let i = 1; i <= 5; i++) {
     document.getElementById("nr-t" + i + "-texte").value = "";
@@ -2629,15 +2752,68 @@ function ouvrirNouvelleRoutine() {
   afficherEcran("screen-parent-nouvelle-routine");
 }
 
+// Pré-remplit le formulaire (partagé avec la création) avec la routine
+// existante — codée en dur ou déjà perso (cf. toutesLesRoutines()) —
+// chaque tâche dans le même emplacement (1 à 5) que dans `r.taches`, pour
+// que la fusion positionnelle de creerNouvelleRoutine() retrouve la bonne
+// tâche d'origine à la sauvegarde.
+function ouvrirEditionRoutine(id) {
+  const r = routineParId(id);
+  if (!r) return;
+  routineEnEditionId = id;
+  document.getElementById("nouvelle-routine-titre").textContent = "Modifier la routine";
+  document.getElementById("btn-creer-routine").textContent = "Enregistrer les modifications";
+  document.getElementById("nr-nom").value = r.nom;
+  for (let i = 1; i <= 5; i++) {
+    const t = r.taches[i - 1];
+    document.getElementById("nr-t" + i + "-texte").value = t ? t.texte : "";
+    document.getElementById("nr-t" + i + "-emoji").value = t ? t.emoji : "";
+    document.getElementById("nr-t" + i + "-zone").value = (t && t.zone) || ZONE_PAR_DEFAUT_ROUTINE;
+  }
+  document.getElementById("nr-mots-cles").value = (r.motsCles || []).join(", ");
+  document.getElementById("nr-erreur").textContent = "";
+  emojiChoisiRoutine = r.emoji;
+  construireDeclencheurEmoji("nr-emoji-trigger", emojiChoisiRoutine);
+  choisirLieuRoutine(r.lieu || "chambre");
+  entourageChoisiRoutine = r.entourageIds ? [...r.entourageIds] : [];
+  construireChoixEntourage(document.getElementById("nr-entourage-grille"), entourageChoisiRoutine);
+  afficherEcran("screen-parent-nouvelle-routine");
+}
+
+// Zones proposées par le <select> du formulaire (cf. index.html,
+// #nr-t1-zone...) — une tâche `retire` (ex. "Enlève tes vêtements") n'a
+// PAS de zone, et "Range tes vêtements" cible "zone-panier", hors de
+// cette liste : le <select> ne peut représenter ni l'une ni l'autre
+// fidèlement. Sert de garde dans creerNouvelleRoutine() pour ne jamais
+// écraser une de ces deux valeurs avec ce que le <select> affiche par
+// défaut faute de mieux.
+const ZONES_FORMULAIRE_ROUTINE = ["zone-visage", "zone-torse", "zone-bassin", "zone-jambes", "zone-pieds", "zone-dos"];
+
 function creerNouvelleRoutine() {
   const nom = document.getElementById("nr-nom").value.trim();
+  const original = routineEnEditionId ? routineParId(routineEnEditionId) : null;
   const taches = [];
   for (let i = 1; i <= 5; i++) {
     const texte = document.getElementById("nr-t" + i + "-texte").value.trim();
     if (!texte) continue;
     const emoji = document.getElementById("nr-t" + i + "-emoji").value.trim() || "✅";
     const zone = document.getElementById("nr-t" + i + "-zone").value;
-    taches.push({ id: "t" + i, texte, emoji, zone });
+    // Fusion positionnelle (emplacement i du formulaire <- tâche i de
+    // l'originale) plutôt qu'un objet neuf : préserve les champs propres
+    // à certaines routines codées en dur, absents de ce formulaire mais
+    // essentiels ailleurs (`calque`/`retire`/`avatarGlissable` pour
+    // l'habillage, `miniJeu`/`badge`/`badgeFait`/`pileGlissable` pour le
+    // coucher, cf. ROUTINES_LEON/ROUTINES_COLETTE plus haut).
+    const origTache = original && original.taches[i - 1];
+    const tache = Object.assign({}, origTache, { texte, emoji, id: (origTache && origTache.id) || ("t" + i) });
+    // `zone` à part : seulement écrasée par le <select> si l'originale
+    // était déjà une des 6 zones qu'il propose (donc éditable à l'écran
+    // sans surprise) ou s'il n'y avait pas d'originale (tâche neuve,
+    // ajoutée au-delà de celles de la routine de départ) — sinon
+    // (absente, ou "zone-panier") la valeur du <select>, forcément
+    // approximative, est ignorée et l'originale conservée telle quelle.
+    if (!origTache || ZONES_FORMULAIRE_ROUTINE.includes(origTache.zone)) tache.zone = zone;
+    taches.push(tache);
   }
 
   if (!nom || taches.length === 0) {
@@ -2646,6 +2822,29 @@ function creerNouvelleRoutine() {
   }
 
   const motsCles = document.getElementById("nr-mots-cles").value.trim();
+
+  // Édition d'une routine existante : fusionne les champs du formulaire
+  // SUR l'objet d'origine (Object.assign), comme creerNouvelleAventure()
+  // — préserve `id`, `felicitation` (souvent personnalisée sur les
+  // routines codées en dur, pas régénérée ici) et `disponibleApresHeure`
+  // ("Aller se coucher"). Sauvée dans `routines_perso` sous le même id,
+  // qui masque alors l'originale (cf. toutesLesRoutines()).
+  if (original) {
+    const maj = Object.assign({}, original, { nom, emoji: emojiChoisiRoutine, lieu: lieuChoisiRoutine, taches });
+    if (entourageChoisiRoutine.length) maj.entourageIds = [...entourageChoisiRoutine]; else delete maj.entourageIds;
+    if (motsCles) maj.motsCles = motsCles.split(",").map(m => m.trim()).filter(Boolean); else delete maj.motsCles;
+
+    const perso = chargerRoutinesPerso();
+    const pos = perso.findIndex(x => x.id === maj.id);
+    if (pos === -1) perso.push(maj); else perso[pos] = maj;
+    sauverRoutinesPerso(perso);
+
+    dire("Routine modifiée : " + nom + ".");
+    routineEnEditionId = null;
+    construireRoutinesCatalogue();
+    afficherEcran("screen-parent-routines-catalogue");
+    return;
+  }
 
   const nouvelle = {
     id: "routine-perso-" + Date.now(),
@@ -3214,6 +3413,23 @@ function lancerConfettis(symboles) {
   });
 }
 
+// Aventure suivante dans le planning du jour — seulement si elle suit
+// IMMÉDIATEMENT l'aventure `id` dans `etat.planning`, rien entre les deux
+// (sinon un repas ou une routine s'intercale : on rentre bien à la
+// maison d'abord, pas droit à la suivante). Sert à personnaliser le
+// texte du trajet retour ci-dessous : si un parent enchaîne deux
+// activités dans le planning (ex. Pauline puis Elsa), le trajet retour
+// de la première n'est pas un vrai retour à la maison mais un aller vers
+// la seconde.
+function prochaineAventureSansEscale(id) {
+  const etat = chargerEtat();
+  const pos = etat.planning.findIndex(it => it.type === "aventure" && it.id === id);
+  if (pos === -1) return null;
+  const suivant = etat.planning[pos + 1];
+  if (!suivant || suivant.type !== "aventure") return null;
+  return aventureParId(suivant.id) || null;
+}
+
 // ---------------------------------------------------------------------
 // Trajet + arrivée — alimentés par l'aventure choisie (`aventureActuelleId`)
 // et son sens (`sensTrajet`). Pas de minuteur/barre de progression : le
@@ -3226,7 +3442,14 @@ function lancerConfettis(symboles) {
 // ---------------------------------------------------------------------
 function allerAuTrajet() {
   const a = aventureParId(aventureActuelleId);
-  const texte = sensTrajet === "retour" ? (a.texteTrajetRetour || "On rentre à la maison.") : a.texteTrajet;
+  // Retour qui enchaîne directement sur une autre activité (cf.
+  // prochaineAventureSansEscale) : reprend le texte "aller" de CETTE
+  // activité-là (déjà écrit pour annoncer qu'on roule vers elle) plutôt
+  // que le texte de retour à la maison de l'activité qu'on quitte.
+  const prochaine = sensTrajet === "retour" ? prochaineAventureSansEscale(aventureActuelleId) : null;
+  const texte = prochaine ? prochaine.texteTrajet
+    : sensTrajet === "retour" ? (a.texteTrajetRetour || "On rentre à la maison.")
+    : a.texteTrajet;
   afficherEcran("screen-trajet");
   document.getElementById("trajet-texte").textContent = texte;
   document.getElementById("scene-trajet").classList.toggle("retour", sensTrajet === "retour");
@@ -3401,7 +3624,8 @@ function allerValidationArrivee() {
   const a = aventureParId(aventureActuelleId);
   codeSaisi = "";
   modeCode = "verifier";
-  const lieu = sensTrajet === "retour" ? "la maison" : a.lieu;
+  const prochaine = sensTrajet === "retour" ? prochaineAventureSansEscale(aventureActuelleId) : null;
+  const lieu = prochaine ? prochaine.lieu : (sensTrajet === "retour" ? "la maison" : a.lieu);
   document.getElementById("validation-sous-titre").textContent =
     "Un parent entre le code pour confirmer l'arrivée : « " + lieu + " ».";
   document.getElementById("correction-wrap").classList.add("hidden");
@@ -3622,7 +3846,7 @@ document.getElementById("na-nom").addEventListener("blur", suggererTextesActivit
 document.getElementById("na-emoji-trigger").onclick = () =>
   ouvrirSelecteurEmoji(EMOJI_ACTIVITE, emojiChoisiActivite, (e) => { emojiChoisiActivite = e; construireDeclencheurEmoji("na-emoji-trigger", e); });
 document.getElementById("btn-creer-aventure").onclick = creerNouvelleAventure;
-document.getElementById("btn-retour-parent-nouvelle-aventure").onclick = () => { construireParentActivites(); afficherEcran("screen-parent-activites"); };
+document.getElementById("btn-retour-parent-nouvelle-aventure").onclick = () => { aventureEnEditionId = null; construireParentActivites(); afficherEcran("screen-parent-activites"); };
 
 document.getElementById("btn-nouvelle-activite").onclick = ouvrirNouvelleAventure;
 document.getElementById("btn-retour-parent-activites").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
@@ -3634,7 +3858,7 @@ document.getElementById("nr-emoji-trigger").onclick = () =>
 document.getElementById("nr-lieu-chambre").onclick = () => choisirLieuRoutine("chambre");
 document.getElementById("nr-lieu-salon").onclick = () => choisirLieuRoutine("salon");
 document.getElementById("btn-creer-routine").onclick = creerNouvelleRoutine;
-document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); };
+document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { routineEnEditionId = null; construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); };
 
 document.getElementById("btn-nouvelle-personne").onclick = ouvrirNouvellePersonne;
 document.getElementById("btn-retour-parent-entourage").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
