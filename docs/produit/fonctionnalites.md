@@ -170,7 +170,8 @@ synchroniser séparément) :
 - **Mon entourage** — un petit carnet des personnes autour de l'enfant,
   déjà pré-rempli avec la famille proche et les praticiennes connues
   (Papa, Mama, les grands-parents, Elsa, Pauline, Arianne...), complété
-  au besoin. Sert à associer en option des personnes à une activité ou
+  et modifié au besoin (nom, icône, rôle) — y compris les personnes déjà
+  pré-remplies. Sert à associer en option des personnes à une activité ou
   une routine sur mesure et à voir « avec qui » directement sur « Ma
   journée ».
 - **Cet appareil** — indique quel enfant cet appareil affiche (Léon ou
