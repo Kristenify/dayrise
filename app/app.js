@@ -1801,33 +1801,47 @@ function rendreAvatarGlissable(poignee, avatarWrap, etape) {
 
 // ---------------------------------------------------------------------
 // Mini-jeu : brossage de dents (tâche `miniJeu: "dents"`) — écran dédié
-// (screen-dents), pas un simple glisser-déposer comme le reste (cf.
-// TODO.md, "Pas encore designé"). 6 zones dans l'ordre où les brosser
-// (haut-gauche → haut-devant → haut-droite → bas-gauche → bas-devant →
-// bas-droite), chacune avec sa part du minuteur total (3 minutes ÷ 6 =
-// 30s/zone).
+// (screen-dents), pas un simple glisser-déposer comme le reste. Deux
+// PHASES avec chacune sa propre bouche illustrée (cf. index.html,
+// #bouche-ouverte/#bouche-fermee) et son propre jeu de zones, demandées
+// explicitement pour remplacer les 6 tuiles 🦷 abstraites d'origine :
+//   1. "ouverte" — bouche grande ouverte, dents du haut ET du bas
+//      visibles (surfaces internes/masticatoires), dit « Aaaa ».
+//      4 zones, bas d'abord : bas-gauche, bas-droite, haut-gauche,
+//      haut-droite (pas de zone "devant" : le geste passe déjà par le
+//      centre en balayant d'un côté à l'autre bouche grande ouverte).
+//   2. "fermee" — dents serrées, lèvres tirées en arrière (surfaces
+//      externes), dit « Iiii ». 3 zones : droite, devant, gauche.
+// Chaque zone dure 20s (DUREE_PAR_ZONE_DENTS), donc 7 × 20s = 2 min 20
+// au total (contre 3 min sur les 6 zones d'origine, 30s/zone).
 //
 // Volontairement AUCUNE action requise de l'enfant pendant le brossage
-// (demandé explicitement) : il doit se concentrer sur le geste réel
-// avec sa vraie brosse à dents, pas sur l'écran. Le minuteur démarre
-// tout seul à l'ouverture et avance tout seul, zone après zone
-// (`dentsEnCours`, vrai par défaut) — la seule interaction possible est
-// de le mettre en pause/reprendre (bouton dédié, cf. toggleDentsPause()),
-// jamais requise. Une fois les 6 zones épuisées, marque la tâche `dents` de la
-// routine en cours comme faite (même geste que les autres — son,
-// vibration, étoile de tâche via marquerTache()) et revient à
-// l'écran de routine.
-const ZONES_DENTS = ["haut-gauche", "haut-devant", "haut-droite", "bas-gauche", "bas-devant", "bas-droite"];
+// (inchangé) : il doit se concentrer sur le geste réel avec sa vraie
+// brosse à dents, pas sur l'écran. Le minuteur démarre tout seul à
+// l'ouverture et avance tout seul, zone après zone puis phase après
+// phase (`dentsEnCours`, vrai par défaut) — la seule interaction
+// possible est de le mettre en pause/reprendre (`toggleDentsPause()`),
+// jamais requise. Une fois les deux phases épuisées, marque la tâche
+// `dents` de la routine en cours comme faite (même geste que les
+// autres — son, vibration, étoile de tâche via marquerTache()) et
+// revient à l'écran de routine.
+const PHASES_DENTS = [
+  { id: "ouverte", zones: ["bas-gauche", "bas-droite", "haut-gauche", "haut-droite"],
+    consigne: "Ouvre grand la bouche et dis « Aaaa »." },
+  { id: "fermee", zones: ["droite", "devant", "gauche"],
+    consigne: "Ferme les dents, tire les lèvres en arrière et fais « Iiii »." },
+];
 const LIBELLES_ZONES_DENTS = {
-  "haut-gauche": "en haut, à gauche", "haut-devant": "en haut, devant", "haut-droite": "en haut, à droite",
-  "bas-gauche": "en bas, à gauche",   "bas-devant": "en bas, devant",   "bas-droite": "en bas, à droite",
+  "bas-gauche": "en bas, à gauche", "bas-droite": "en bas, à droite",
+  "haut-gauche": "en haut, à gauche", "haut-droite": "en haut, à droite",
+  "gauche": "à gauche", "devant": "devant", "droite": "à droite",
 };
-const DUREE_BROSSAGE_SEC = 180; // 3 minutes au total
-const DUREE_PAR_ZONE = DUREE_BROSSAGE_SEC / ZONES_DENTS.length;
+const DUREE_PAR_ZONE_DENTS = 20; // secondes — 7 zones × 20s = 2 min 20 au total
 
 let dentsEtapeRoutine = null; // la tâche `dents` de la routine en cours, pour marquerTache() à la fin
-let dentsZoneIndex = 0;
-let dentsTempsRestant = DUREE_PAR_ZONE;
+let dentsPhaseIndex = 0;
+let dentsZoneIndex = 0; // index DANS la phase courante (PHASES_DENTS[dentsPhaseIndex].zones)
+let dentsTempsRestant = DUREE_PAR_ZONE_DENTS;
 let dentsEnCours = true; // le minuteur avance tout seul par défaut ; false seulement si mis en pause
 let dentsMinuteurId = null;
 
@@ -1839,25 +1853,53 @@ function ouvrirMiniJeu(etape) {
   if (etape.miniJeu === "histoire") ouvrirHistoire(etape);
 }
 
+// Nombre total de zones toutes phases confondues — pour la barre de
+// progression (#dents-barre), une seule jauge continue plutôt qu'une
+// par phase.
+function totalZonesDents() { return PHASES_DENTS.reduce((n, p) => n + p.zones.length, 0); }
+// Position globale de la zone courante dans cette jauge (zones des
+// phases précédentes + position dans la phase courante).
+function indexGlobalDents() {
+  let n = 0;
+  for (let i = 0; i < dentsPhaseIndex; i++) n += PHASES_DENTS[i].zones.length;
+  return n + dentsZoneIndex;
+}
+
 function demarrerBrossageDents(etape) {
   dentsEtapeRoutine = etape;
-  dentsZoneIndex = 0;
-  dentsTempsRestant = DUREE_PAR_ZONE;
   dentsEnCours = true; // démarre tout seul, cf. commentaire plus haut
   const barre = document.getElementById("dents-barre");
-  if (barre.childElementCount !== ZONES_DENTS.length) {
+  const total = totalZonesDents();
+  if (barre.childElementCount !== total) {
     barre.innerHTML = "";
-    ZONES_DENTS.forEach(() => barre.appendChild(document.createElement("div")));
+    for (let i = 0; i < total; i++) barre.appendChild(document.createElement("div"));
   }
-  majAffichageDents();
   afficherEcran("screen-dents");
-  dire("Brosse tes dents, zone par zone. Commence " + LIBELLES_ZONES_DENTS[ZONES_DENTS[0]] + ".");
+  changerPhaseDents(0, true);
   if (dentsMinuteurId) clearInterval(dentsMinuteurId); // sécurité, ne devrait jamais rester actif
   dentsMinuteurId = setInterval(tickDents, 250);
 }
 
+// Bascule vers la phase `i` : remet zone/temps à zéro, échange la bouche
+// visible (cf. #bouche-ouverte/#bouche-fermee, index.html) et annonce la
+// consigne de la phase + la première zone en une seule phrase.
+// `premiereFois` évite de répéter la consigne de phase quand on ne fait
+// qu'avancer d'une zone à l'autre À L'INTÉRIEUR de la même phase (cf.
+// avancerZoneDents(), qui n'appelle PAS cette fonction dans ce cas).
+function changerPhaseDents(i, premiereFois) {
+  dentsPhaseIndex = i;
+  dentsZoneIndex = 0;
+  dentsTempsRestant = DUREE_PAR_ZONE_DENTS;
+  const phase = PHASES_DENTS[i];
+  document.getElementById("bouche-ouverte").classList.toggle("hidden", phase.id !== "ouverte");
+  document.getElementById("bouche-fermee").classList.toggle("hidden", phase.id !== "fermee");
+  majAffichageDents();
+  const premiereZone = LIBELLES_ZONES_DENTS[phase.zones[0]];
+  dire(phase.consigne + " Brosse " + premiereZone + ".");
+}
+
 // Seule action possible pendant le brossage — jamais requise, juste
-// disponible (ex. interruption). Ne modifie ni la zone ni le temps
+// disponible (ex. interruption). Ne modifie ni la zone/phase ni le temps
 // restant, juste si le minuteur avance.
 function toggleDentsPause() {
   dentsEnCours = !dentsEnCours;
@@ -1874,13 +1916,20 @@ function tickDents() {
 function avancerZoneDents() {
   jouerSon();
   if (navigator.vibrate) navigator.vibrate(30);
+  const phase = PHASES_DENTS[dentsPhaseIndex];
   dentsZoneIndex++;
-  if (dentsZoneIndex >= ZONES_DENTS.length) { finBrossageDents(); return; }
-  dentsTempsRestant = DUREE_PAR_ZONE;
+  if (dentsZoneIndex >= phase.zones.length) {
+    // Phase terminée : phase suivante (nouvelle bouche + consigne), ou
+    // fin du brossage si c'était la dernière.
+    if (dentsPhaseIndex + 1 >= PHASES_DENTS.length) { finBrossageDents(); return; }
+    changerPhaseDents(dentsPhaseIndex + 1, false);
+    return;
+  }
+  dentsTempsRestant = DUREE_PAR_ZONE_DENTS;
   // dentsEnCours n'est pas touché : le minuteur enchaîne sur la zone
   // suivante sans s'arrêter, sauf si l'enfant/parent l'a mis en pause.
   majAffichageDents();
-  dire("Brosse maintenant " + LIBELLES_ZONES_DENTS[ZONES_DENTS[dentsZoneIndex]] + ".");
+  dire("Brosse maintenant " + LIBELLES_ZONES_DENTS[phase.zones[dentsZoneIndex]] + ".");
 }
 
 function finBrossageDents() {
@@ -1943,25 +1992,43 @@ function formatChrono(secondes) {
   return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
 }
 
+// Ne touche que les zones de la bouche actuellement visible
+// (`.svg-bouche:not(.hidden)` — l'autre reste cachée et inchangée, cf.
+// changerPhaseDents()). La brillance progressive (`.zone-dent-remplissage`)
+// est positionnée/dimensionnée ici à partir du rectangle réel de chaque
+// dent (`getBBox()`), jamais codée en dur : fonctionne pareil pour les
+// deux bouches malgré leurs coordonnées différentes.
 function majAffichageDents() {
-  document.querySelectorAll(".zone-dent").forEach((zoneEl, i) => {
+  const phase = PHASES_DENTS[dentsPhaseIndex];
+  const svgActif = document.querySelector(".svg-bouche:not(.hidden)");
+  svgActif.querySelectorAll(".zone-dent").forEach((zoneEl) => {
+    const i = phase.zones.indexOf(zoneEl.dataset.zone);
+    const base = zoneEl.querySelector(".zone-dent-base");
     const remplissage = zoneEl.querySelector(".zone-dent-remplissage");
+    const { x, y, width, height } = base.getBBox();
+    let progression; // 0..1, part déjà "brillante" de cette dent
     if (i < dentsZoneIndex) {
       zoneEl.classList.add("faite"); zoneEl.classList.remove("active", "brossage-actif");
-      remplissage.style.height = "100%";
+      progression = 1;
     } else if (i === dentsZoneIndex) {
       zoneEl.classList.remove("faite"); zoneEl.classList.add("active");
       zoneEl.classList.toggle("brossage-actif", dentsEnCours); // anime tant que le minuteur avance, plus lié au toucher
-      remplissage.style.height = ((1 - dentsTempsRestant / DUREE_PAR_ZONE) * 100) + "%";
+      progression = 1 - dentsTempsRestant / DUREE_PAR_ZONE_DENTS;
     } else {
       zoneEl.classList.remove("faite", "active", "brossage-actif");
-      remplissage.style.height = "0%";
+      progression = 0;
     }
+    const hauteurRemplie = height * progression;
+    remplissage.setAttribute("x", x);
+    remplissage.setAttribute("width", width);
+    remplissage.setAttribute("y", y + height - hauteurRemplie);
+    remplissage.setAttribute("height", hauteurRemplie);
   });
-  document.getElementById("dents-consigne").textContent = "Brosse " + LIBELLES_ZONES_DENTS[ZONES_DENTS[dentsZoneIndex]] + ".";
+  document.getElementById("dents-consigne").textContent = "Brosse " + LIBELLES_ZONES_DENTS[phase.zones[dentsZoneIndex]] + ".";
   document.getElementById("dents-chrono").textContent = formatChrono(dentsTempsRestant);
   const barre = document.getElementById("dents-barre");
-  [...barre.children].forEach((seg, i) => seg.classList.toggle("fait", i < dentsZoneIndex));
+  const global = indexGlobalDents();
+  [...barre.children].forEach((seg, i) => seg.classList.toggle("fait", i < global));
   const btnPause = document.getElementById("btn-pause-dents");
   btnPause.textContent = dentsEnCours ? "⏸️ Pause" : "▶️ Reprendre";
 }

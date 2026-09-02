@@ -276,12 +276,59 @@
     </div>
     <div id="dents-consigne" class="texte-consigne"></div>
     <div id="dents-bouche">
-      <div class="zone-dent" data-zone="haut-gauche"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
-      <div class="zone-dent" data-zone="haut-devant"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
-      <div class="zone-dent" data-zone="haut-droite"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
-      <div class="zone-dent" data-zone="bas-gauche"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
-      <div class="zone-dent" data-zone="bas-devant"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
-      <div class="zone-dent" data-zone="bas-droite"><span class="zone-dent-emoji">🦷</span><div class="zone-dent-remplissage"></div></div>
+      <!-- Phase "ouverte" (dents du haut ET du bas visibles, surfaces
+           internes) : 4 zones, bas d'abord (cf. app.js, PHASES_DENTS).
+           Pas de zone "devant" ici — avec la bouche grande ouverte, le
+           passage du geste d'un côté à l'autre couvre déjà le centre. -->
+      <svg id="bouche-ouverte" viewBox="0 0 300 220" class="svg-bouche">
+        <path class="bouche-interieur" d="M40,110 C40,45 100,25 150,25 C200,25 260,45 260,110 C260,175 200,195 150,195 C100,195 40,175 40,110 Z"/>
+        <ellipse class="bouche-langue" cx="150" cy="150" rx="46" ry="22"/>
+        <g class="zone-dent" data-zone="haut-gauche">
+          <rect class="zone-dent-base" x="55" y="42" width="92" height="48" rx="8"/>
+          <line class="zone-dent-trait" x1="86" y1="42" x2="86" y2="90"/>
+          <line class="zone-dent-trait" x1="117" y1="42" x2="117" y2="90"/>
+          <rect class="zone-dent-remplissage"/>
+        </g>
+        <g class="zone-dent" data-zone="haut-droite">
+          <rect class="zone-dent-base" x="153" y="42" width="92" height="48" rx="8"/>
+          <line class="zone-dent-trait" x1="184" y1="42" x2="184" y2="90"/>
+          <line class="zone-dent-trait" x1="215" y1="42" x2="215" y2="90"/>
+          <rect class="zone-dent-remplissage"/>
+        </g>
+        <g class="zone-dent" data-zone="bas-gauche">
+          <rect class="zone-dent-base" x="55" y="130" width="92" height="48" rx="8"/>
+          <line class="zone-dent-trait" x1="86" y1="130" x2="86" y2="178"/>
+          <line class="zone-dent-trait" x1="117" y1="130" x2="117" y2="178"/>
+          <rect class="zone-dent-remplissage"/>
+        </g>
+        <g class="zone-dent" data-zone="bas-droite">
+          <rect class="zone-dent-base" x="153" y="130" width="92" height="48" rx="8"/>
+          <line class="zone-dent-trait" x1="184" y1="130" x2="184" y2="178"/>
+          <line class="zone-dent-trait" x1="215" y1="130" x2="215" y2="178"/>
+          <rect class="zone-dent-remplissage"/>
+        </g>
+        <path class="bouche-levre" d="M40,110 C40,45 100,25 150,25 C200,25 260,45 260,110 C260,175 200,195 150,195 C100,195 40,175 40,110 Z"/>
+      </svg>
+      <!-- Phase "fermée" (dents serrées, lèvres tirées en arrière,
+           surfaces externes) : 3 zones, droite → devant → gauche. -->
+      <svg id="bouche-fermee" viewBox="0 0 300 140" class="svg-bouche hidden">
+        <path class="bouche-levre-pleine" d="M18,70 C18,25 90,14 150,14 C210,14 282,25 282,70 C282,115 210,126 150,126 C90,126 18,115 18,70 Z"/>
+        <g class="zone-dent" data-zone="gauche">
+          <rect class="zone-dent-base" x="34" y="42" width="76" height="56" rx="8"/>
+          <line class="zone-dent-trait-h" x1="34" y1="70" x2="110" y2="70"/>
+          <rect class="zone-dent-remplissage"/>
+        </g>
+        <g class="zone-dent" data-zone="devant">
+          <rect class="zone-dent-base" x="112" y="37" width="76" height="66" rx="8"/>
+          <line class="zone-dent-trait-h" x1="112" y1="70" x2="188" y2="70"/>
+          <rect class="zone-dent-remplissage"/>
+        </g>
+        <g class="zone-dent" data-zone="droite">
+          <rect class="zone-dent-base" x="190" y="42" width="76" height="56" rx="8"/>
+          <line class="zone-dent-trait-h" x1="190" y1="70" x2="266" y2="70"/>
+          <rect class="zone-dent-remplissage"/>
+        </g>
+      </svg>
     </div>
     <div id="dents-chrono">3:00</div>
     <!-- Seule action possible pendant le brossage, jamais requise (cf.
