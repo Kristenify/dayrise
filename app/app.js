@@ -711,7 +711,16 @@ function chargerEntouragePerso() {
 function sauverEntouragePerso(liste) {
   try { localStorage.setItem(cle("entourage_perso"), JSON.stringify(liste)); } catch (e) {}
 }
-function toutesLesPersonnes() { return ENTOURAGE_COMMUNES.concat(chargerEntouragePerso()); }
+// Même principe de masquage par id que toutesLesRoutines()/
+// toutesLesAventures() : une personne modifiée (cf. creerNouvellePersonne(),
+// branche édition) est sauvée dans `entourage_perso` sous le même id que
+// l'originale, codée en dur ou déjà perso, et la remplace donc ici
+// plutôt que de s'y ajouter en double.
+function toutesLesPersonnes() {
+  const perso = chargerEntouragePerso();
+  const idsPerso = new Set(perso.map(p => p.id));
+  return ENTOURAGE_COMMUNES.filter(p => !idsPerso.has(p.id)).concat(perso);
+}
 function personneParId(id) { return toutesLesPersonnes().find(p => p.id === id); }
 
 // Résout `entourageIds` (routine/aventure) en personnes complètes, dans
@@ -2897,18 +2906,53 @@ function construireParentEntourage() {
     ligne.className = "ligne-journee";
     ligne.innerHTML = `<span class="emoji-journee">${p.emoji}</span>`
       + `<span class="texte-journee"><span>${p.nom}</span>${p.role ? `<span class="texte-journee-reveil">${p.role}</span>` : ""}</span>`;
+    const btnEditer = document.createElement("button");
+    btnEditer.type = "button";
+    btnEditer.className = "btn-mini-edition";
+    btnEditer.textContent = "✏️";
+    btnEditer.setAttribute("aria-label", "Modifier « " + p.nom + " »");
+    btnEditer.onclick = () => ouvrirEditionPersonne(p.id);
+    ligne.appendChild(btnEditer);
     liste.appendChild(ligne);
   });
 }
 
 const EMOJI_PERSONNE = ["👩","🧑","👨","👵","👴","🧑‍⚕️","👩‍⚕️","🧑‍🏫","👧","👦","🦸","🐶"];
 let emojiChoisiPersonne = EMOJI_PERSONNE[0];
+// Même principe que aventureEnEditionId/routineEnEditionId : `null` =
+// création, sinon id de la personne en cours de modification.
+let personneEnEditionId = null;
 
 function ouvrirNouvellePersonne() {
+  personneEnEditionId = null;
+  document.getElementById("nouvelle-personne-titre").textContent = "Nouvelle personne";
+  document.getElementById("btn-creer-personne").textContent = "Créer";
   document.getElementById("np-nom").value = "";
   document.getElementById("np-role").value = "";
   document.getElementById("np-erreur").textContent = "";
   emojiChoisiPersonne = EMOJI_PERSONNE[0];
+  construireDeclencheurEmoji("np-emoji-trigger", emojiChoisiPersonne);
+  afficherEcran("screen-parent-nouvelle-personne");
+}
+
+// Pré-remplit le formulaire (partagé avec la création) avec la personne
+// existante — codée en dur ou déjà perso (cf. toutesLesPersonnes()) —
+// puis bascule creerNouvellePersonne() en mode mise à jour via
+// `personneEnEditionId`. ⚠️ Ne touche jamais au champ `personne` des
+// aventures praticienne (Pauline/Elsa/Arianne) : volontairement distinct
+// de ce catalogue (cf. commentaire sur ENTOURAGE_COMMUNES plus haut) —
+// renommer "Pauline" ici ne renomme pas la praticienne dans l'écran de
+// séance.
+function ouvrirEditionPersonne(id) {
+  const p = personneParId(id);
+  if (!p) return;
+  personneEnEditionId = id;
+  document.getElementById("nouvelle-personne-titre").textContent = "Modifier la personne";
+  document.getElementById("btn-creer-personne").textContent = "Enregistrer les modifications";
+  document.getElementById("np-nom").value = p.nom;
+  document.getElementById("np-role").value = p.role || "";
+  document.getElementById("np-erreur").textContent = "";
+  emojiChoisiPersonne = p.emoji;
   construireDeclencheurEmoji("np-emoji-trigger", emojiChoisiPersonne);
   afficherEcran("screen-parent-nouvelle-personne");
 }
@@ -3182,7 +3226,28 @@ function creerNouvellePersonne() {
     document.getElementById("np-erreur").textContent = "Donne un nom avant de créer.";
     return;
   }
-  const nouvelle = { id: "personne-" + Date.now(), nom, emoji: emojiChoisiPersonne, role: document.getElementById("np-role").value.trim() };
+  const role = document.getElementById("np-role").value.trim();
+
+  // Édition d'une personne existante : fusionne les champs du formulaire
+  // SUR l'objet d'origine (même principe que creerNouvelleAventure()/
+  // creerNouvelleRoutine()) plutôt que d'en repartir de zéro — préserve
+  // `id`. Sauvée dans `entourage_perso` sous le même id, qui masque alors
+  // l'originale (cf. toutesLesPersonnes()).
+  if (personneEnEditionId) {
+    const original = personneParId(personneEnEditionId);
+    const maj = Object.assign({}, original, { nom, emoji: emojiChoisiPersonne, role });
+    const perso = chargerEntouragePerso();
+    const pos = perso.findIndex(x => x.id === maj.id);
+    if (pos === -1) perso.push(maj); else perso[pos] = maj;
+    sauverEntouragePerso(perso);
+    dire("Personne modifiée : " + nom + ".");
+    personneEnEditionId = null;
+    construireParentEntourage();
+    afficherEcran("screen-parent-entourage");
+    return;
+  }
+
+  const nouvelle = { id: "personne-" + Date.now(), nom, emoji: emojiChoisiPersonne, role };
   const perso = chargerEntouragePerso();
   perso.push(nouvelle);
   sauverEntouragePerso(perso);
@@ -3865,7 +3930,7 @@ document.getElementById("btn-retour-parent-entourage").onclick = () => { constru
 document.getElementById("np-emoji-trigger").onclick = () =>
   ouvrirSelecteurEmoji(EMOJI_PERSONNE, emojiChoisiPersonne, (e) => { emojiChoisiPersonne = e; construireDeclencheurEmoji("np-emoji-trigger", e); });
 document.getElementById("btn-creer-personne").onclick = creerNouvellePersonne;
-document.getElementById("btn-retour-parent-nouvelle-personne").onclick = () => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); };
+document.getElementById("btn-retour-parent-nouvelle-personne").onclick = () => { personneEnEditionId = null; construireParentEntourage(); afficherEcran("screen-parent-entourage"); };
 
 // Sélecteur d'emoji partagé (cf. ouvrirSelecteurEmoji) : recherche live à
 // chaque frappe, fermeture par le ✕ sans rien choisir (emojiPickerOnChoix
