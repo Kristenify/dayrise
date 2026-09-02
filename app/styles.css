@@ -208,6 +208,7 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 .carte-routine-nom { font-size: 19px; font-weight: 700; }
 .carte-routine-etat { font-size: 22px; }
+.carte-routine-droite { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .carte-routine.faite { background: rgba(240,149,47,.14); border-color: var(--accent); box-shadow: none; opacity: .85; }
 .carte-routine.verrouillee { opacity: .45; box-shadow: none; }
 /* attire l'attention sur la routine à faire avant de partir, sans
