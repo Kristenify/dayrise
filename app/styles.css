@@ -20,6 +20,14 @@
   --type-routine: #6FA8DC;
   --type-repas: #93C47D;
   --type-aventure: #C58AF9;
+  /* Mini-jeu brossage de dents (cf. #bouche-ouverte/#bouche-fermee) —
+     tokens dédiés plutôt que réutiliser --skin/--rouge, pour ajuster
+     l'illustration sans toucher au reste de l'avatar. */
+  --bouche-levre: #C97064;
+  --bouche-interieur: #7A2E2E;
+  --dent: #F5F0E6;
+  --dent-trait: #C9BFA8;
+  --dent-brillance: rgba(240, 149, 47, .55);
   --text: #E8EDF7;
   --text-soft: #C3CEE6;
   --text-mute: #A9B6D4;
@@ -403,36 +411,36 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 
 #dents-consigne { margin-top: 4px; }
 
-/* grille 3x2 : rangée du haut = dents du haut, rangée du bas = dents du
-   bas ; colonnes gauche/devant/droite dans le même ordre qu'on les
-   brosse (cf. ZONES_DENTS, app.js). */
-#dents-bouche {
-  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr);
-  gap: 10px; height: 230px; margin: 10px 0;
-}
-.zone-dent {
-  position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
-  background: var(--surface); border: 3px solid var(--surface-high);
-}
-.zone-dent-emoji { position: relative; z-index: 1; font-size: 40px; opacity: .5; transition: opacity .2s ease; }
-/* remplissage progressif pendant qu'on garde le doigt dessus (même
-   principe que #btn-reset-test::after) : une zone déjà faite reste
-   pleine (100%), la zone en cours se remplit avec dentsTempsRestant,
-   les suivantes restent vides. */
-.zone-dent-remplissage {
-  position: absolute; inset: auto 0 0 0; height: 0%; background: rgba(240,149,47,.4);
-  transition: height .1s linear;
-}
-.zone-dent.active { border-color: var(--accent-edge); border-width: 4px; }
-.zone-dent.active .zone-dent-emoji { opacity: 1; }
-.zone-dent.faite { border-color: var(--accent); }
-.zone-dent.faite .zone-dent-emoji { opacity: 1; }
+/* Deux bouches superposées (une seule visible à la fois, cf.
+   changerPhaseDents() dans app.js) plutôt qu'une grille abstraite —
+   demandé explicitement : une vraie bouche illustrée, ouverte (dents du
+   haut ET du bas, phase "aaaa") puis fermée (dents serrées, lèvres
+   tirées en arrière, phase "iiii"). */
+#dents-bouche { display: flex; align-items: center; justify-content: center; height: 230px; margin: 10px 0; }
+.svg-bouche { width: 100%; max-width: 340px; height: 100%; overflow: visible; }
+
+.bouche-interieur, .bouche-langue, .bouche-levre, .bouche-levre-pleine { pointer-events: none; }
+.bouche-interieur { fill: var(--bouche-interieur); }
+.bouche-langue { fill: var(--bouche-levre); opacity: .55; }
+.bouche-levre { fill: none; stroke: var(--bouche-levre); stroke-width: 10; }
+.bouche-levre-pleine { fill: var(--bouche-levre); }
+
+.zone-dent-base { fill: var(--dent); stroke: var(--dent-trait); stroke-width: 2; transition: fill .2s ease; }
+.zone-dent-trait, .zone-dent-trait-h { stroke: var(--dent-trait); stroke-width: 1.5; opacity: .6; pointer-events: none; }
+/* Brillance progressive pendant qu'on brosse (même principe que l'ancien
+   remplissage bas→haut) : positionnée/dimensionnée par JS à partir du
+   rectangle de la dent (getBBox()), jamais codée en dur ici — commune
+   aux deux bouches malgré leurs coordonnées différentes. */
+.zone-dent-remplissage { fill: var(--dent-brillance); pointer-events: none; }
+.zone-dent.active .zone-dent-base { stroke: var(--accent-edge); stroke-width: 4; }
+.zone-dent.faite .zone-dent-base { stroke: var(--accent); }
 /* petit tremblement pendant qu'on brosse activement — retour visuel
-   immédiat que le geste "compte", sans avoir à détecter un vrai
-   mouvement de va-et-vient (pas nécessaire : garder le doigt dessus
-   suffit, cf. app.js). */
-.zone-dent.brossage-actif .zone-dent-emoji { animation: brosserDent .25s ease-in-out infinite; }
-@keyframes brosserDent { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+   immédiat que le geste "compte". transform-box: fill-box nécessaire
+   pour qu'un pourcentage ("center") se calcule sur la boîte du <g> lui-
+   même, pas sur tout le viewBox du SVG (comportement par défaut, très
+   différent du HTML). */
+.zone-dent.brossage-actif { transform-box: fill-box; transform-origin: center; animation: brosserDent .25s ease-in-out infinite; }
+@keyframes brosserDent { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
 
 #dents-chrono {
   text-align: center; font-size: 32px; font-weight: 800; font-family: monospace;
