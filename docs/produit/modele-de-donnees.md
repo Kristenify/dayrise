@@ -47,6 +47,14 @@ aventure porte : `lieu`, les textes du trajet et de l'arrivée, le
 savoir si elle apparaît dans les sorties du jour — une aventure sans
 date, comme "chez Pauline", n'apparaît jamais toute seule, cf. TODO.md).
 
+Créer une activité (espace parent) ne l'ajoute qu'au **catalogue** —
+jamais à un planning précis, ni aujourd'hui ni un jour futur. La placer
+sur un jour donné est une action séparée, volontaire, depuis "AJOUTER À
+LA JOURNÉE" sur ce jour-là (aujourd'hui ou à venir). Une routine, elle,
+reste ajoutée à aujourd'hui dès sa création : structurellement
+récurrente par nature (contrairement à une activité), elle apparaît de
+toute façon tous les jours suivants sans action supplémentaire.
+
 ## Pièce (aspect données) — monnaie distincte de l'étoile
 
 - Une aventure peut rapporter des **pièces** au lieu d'une étoile de
@@ -69,6 +77,17 @@ principe déjà appliqué à l'aventure/la pièce). Un champ optionnel `heure`
 ("HH:MM") peut s'y ajouter : purement un repère d'affichage pour le
 regroupement "maintenant/ensuite", jamais lu par la logique de déblocage
 des routines — deux mécanismes volontairement séparés (cf. `concept.md`).
+
+**Planning à venir** — `etat.planning` reste strictement "aujourd'hui" ;
+un carnet séparé (`cle("planning_futur")`, map `{ "YYYY-M-D":
+[items...] }`, même forme d'item) porte les jours **futurs** qu'un
+parent a préparés à l'avance depuis l'espace parent ("Planning des
+prochains jours", les 7 jours suivants). Une date n'y entre qu'à sa
+première vraie modification — l'avoir seulement consultée ne fige rien
+contre les routines récurrentes ajoutées ensuite. Quand ce jour-là
+devient "aujourd'hui" (changement de date détecté au chargement de
+l'état), son entrée est retirée du carnet et sert de graine à la
+nouvelle journée, à la place du squelette générique.
 
 ## Entourage / Personne (aspect données)
 
