@@ -660,7 +660,7 @@ function sauverEtat(etat) {
 }
 
 // Planning à venir — carnet de jours FUTURS que l'espace parent permet
-// de préparer à l'avance (cf. construireParentPlanningFutur()), distinct
+// de préparer à l'avance (cf. construireParentPlanningJournees()), distinct
 // de `etat.planning` (aujourd'hui, en direct). Map `{ "YYYY-M-D":
 // [items...] }`, même forme d'item que `etat.planning`. Une date n'y
 // apparaît qu'à la première vraie modification (cf.
@@ -1124,16 +1124,16 @@ function demarrerAventure(id) {
 // remis en lecture seule en quittant vers le menu (cf. `construireMenu()`).
 let journeeEnEdition = false;
 
-// Planning à venir (cf. construireParentPlanningFutur() plus bas) :
+// Planning à venir (cf. construireParentPlanningJournees() plus bas) :
 // `null` = "Ma journée" pointe sur aujourd'hui, `etat.planning` en
 // direct — sinon une clé "YYYY-M-D" et l'écran devient "Planning du
 // [date]", pointé sur `cle("planning_futur")[planningCibleDate]`.
 // Variable de module, jamais persistée : chaque point d'entrée qui
-// affiche explicitement AUJOURD'HUI (construireMenu(), le bouton
-// "Afficher ma journée", la carte "Planning du jour" de l'espace
-// parent, le raccourci debug correspondant) la remet à `null` avant de
-// construire l'écran — les appels internes à "Ma journée" (édition,
-// mutateurs, tick d'horloge) ne la touchent jamais, ils continuent
+// affiche explicitement AUJOURD'HUI (construireMenu(), la ligne
+// "Aujourd'hui" de "Planning des journées", le bouton "Afficher ma
+// journée" du menu, le raccourci debug correspondant) la remet à `null`
+// avant de construire l'écran — les appels internes à "Ma journée"
+// (édition, mutateurs, tick d'horloge) ne la touchent jamais, ils continuent
 // d'afficher la cible déjà en cours.
 let planningCibleDate = null;
 function planningCibleEstAujourdhui() { return planningCibleDate === null; }
@@ -1563,41 +1563,56 @@ function construireAjoutTexteLibre() {
 }
 
 // ---------------------------------------------------------------------
-// Planning des prochains jours (espace parent) — index des JOURS_PLANNING_FUTUR
-// prochains jours (demain d'abord : aujourd'hui a déjà son propre point
-// d'entrée, "Planning du jour"), chacun tapable pour l'ouvrir dans "Ma
-// journée" (devenue "Planning du [date]", cf. construireJournee()) —
-// même écran, mêmes outils (heures, entourage, catalogue, texte libre),
-// juste pointés ailleurs que sur aujourd'hui via `planningCibleDate`.
-// Calcul sur l'heure réelle (`new Date()`), jamais `dateActuelle()` —
-// cohérent avec `cleJour()`, qui ignore déjà délibérément l'heure forcée
-// du panneau debug (cf. son commentaire).
+// Planning des journées (espace parent) — UNE liste, aujourd'hui d'abord
+// puis les JOURS_PLANNING_FUTUR prochains jours (demandé explicitement :
+// deux boutons séparés pour "aujourd'hui" et "les jours suivants" dans
+// l'espace parent gênait plus qu'autre chose). Chaque ligne ouvre "Ma
+// journée" (devenue "Planning du [date]" pour un jour futur, cf.
+// construireJournee()) — même écran, mêmes outils (heures, entourage,
+// catalogue, texte libre), juste pointés ailleurs qu'aujourd'hui via
+// `planningCibleDate`. Calcul sur l'heure réelle (`new Date()`), jamais
+// `dateActuelle()` — cohérent avec `cleJour()`, qui ignore déjà
+// délibérément l'heure forcée du panneau debug (cf. son commentaire).
 // ---------------------------------------------------------------------
 const JOURS_PLANNING_FUTUR = 7;
 
-function construireParentPlanningFutur() {
-  const liste = document.getElementById("parent-planning-futur-liste");
+function construireParentPlanningJournees() {
+  const liste = document.getElementById("parent-planning-journees-liste");
   liste.innerHTML = "";
+  // Petit constructeur de carte partagé plutôt que dupliqué entre la
+  // ligne "Aujourd'hui" (cas particulier : ni "personnalisé" ni "par
+  // défaut", juste "en cours") et la boucle des jours futurs.
+  const ajouterCarte = (nom, etatTexte, accentuee, onClick) => {
+    const carte = document.createElement("div");
+    carte.className = "carte-routine" + (accentuee ? " faite" : "");
+    const nomDiv = document.createElement("div");
+    nomDiv.className = "carte-routine-nom";
+    nomDiv.textContent = nom;
+    const droite = document.createElement("div");
+    droite.className = "carte-routine-droite";
+    const etatDiv = document.createElement("div");
+    etatDiv.className = "carte-routine-etat";
+    etatDiv.textContent = etatTexte;
+    droite.appendChild(etatDiv);
+    carte.append(nomDiv, droite);
+    carte.onclick = onClick;
+    liste.appendChild(carte);
+  };
+
+  ajouterCarte("Aujourd'hui", "En cours", true, () => {
+    planningCibleDate = null;
+    journeeEnEdition = true;
+    construireJournee();
+    afficherEcran("screen-journee");
+  });
+
   const futur = chargerPlanningFutur();
   const aujourdhui = new Date();
   for (let i = 1; i <= JOURS_PLANNING_FUTUR; i++) {
     const d = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), aujourdhui.getDate() + i);
     const dateKey = cleJourPour(d);
     const personnalise = Array.isArray(futur[dateKey]);
-    const carte = document.createElement("div");
-    carte.className = "carte-routine" + (personnalise ? " faite" : "");
-    const nom = document.createElement("div");
-    nom.className = "carte-routine-nom";
-    nom.textContent = dateLisible(dateKey);
-    const droite = document.createElement("div");
-    droite.className = "carte-routine-droite";
-    const etatDiv = document.createElement("div");
-    etatDiv.className = "carte-routine-etat";
-    etatDiv.textContent = personnalise ? "Planning personnalisé" : "Planning par défaut";
-    droite.appendChild(etatDiv);
-    carte.append(nom, droite);
-    carte.onclick = () => ouvrirJourneeFuture(dateKey);
-    liste.appendChild(carte);
+    ajouterCarte(dateLisible(dateKey), personnalise ? "Planning personnalisé" : "Planning par défaut", personnalise, () => ouvrirJourneeFuture(dateKey));
   }
 }
 
@@ -2386,14 +2401,9 @@ function construireEspaceParent() {
       action: () => { construireParentRoutines(); afficherEcran("screen-parent-routines"); },
     },
     {
-      emoji: "🗓️", titre: "Planning du jour",
-      soustitre: "Réordonner, retirer ou ajouter les activités d'aujourd'hui",
-      action: () => { planningCibleDate = null; journeeEnEdition = true; construireJournee(); afficherEcran("screen-journee"); },
-    },
-    {
-      emoji: "📆", titre: "Planning des prochains jours",
-      soustitre: "Préparer à l'avance ce qui est prévu la semaine prochaine",
-      action: () => { construireParentPlanningFutur(); afficherEcran("screen-parent-planning-futur"); },
+      emoji: "🗓️", titre: "Planning des journées",
+      soustitre: "Aujourd'hui et les prochains jours — réordonner, ajouter, planifier à l'avance",
+      action: () => { construireParentPlanningJournees(); afficherEcran("screen-parent-planning-journees"); },
     },
     {
       emoji: "📅", titre: "Historique des journées",
@@ -4140,7 +4150,7 @@ document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { 
 
 document.getElementById("btn-nouvelle-personne").onclick = ouvrirNouvellePersonne;
 document.getElementById("btn-retour-parent-entourage").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
-document.getElementById("btn-retour-parent-planning-futur").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("btn-retour-parent-planning-journees").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 document.getElementById("np-emoji-trigger").onclick = () =>
   ouvrirSelecteurEmoji(EMOJI_PERSONNE, emojiChoisiPersonne, (e) => { emojiChoisiPersonne = e; construireDeclencheurEmoji("np-emoji-trigger", e); });
 document.getElementById("btn-creer-personne").onclick = creerNouvellePersonne;
@@ -4201,7 +4211,7 @@ document.getElementById("btn-debug-parent-seances").onclick = puisFermerDebug(()
 document.getElementById("btn-debug-parent-activites").onclick = puisFermerDebug(() => { construireParentActivites(); afficherEcran("screen-parent-activites"); });
 document.getElementById("btn-debug-parent-routines-catalogue").onclick = puisFermerDebug(() => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); });
 document.getElementById("btn-debug-parent-entourage").onclick = puisFermerDebug(() => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); });
-document.getElementById("btn-debug-parent-planning-futur").onclick = puisFermerDebug(() => { construireParentPlanningFutur(); afficherEcran("screen-parent-planning-futur"); });
+document.getElementById("btn-debug-parent-planning-journees").onclick = puisFermerDebug(() => { construireParentPlanningJournees(); afficherEcran("screen-parent-planning-journees"); });
 document.getElementById("btn-debug-parent-appareil").onclick = puisFermerDebug(() => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); });
 document.getElementById("btn-debug-nouvelle-activite").onclick = puisFermerDebug(ouvrirNouvelleAventure);
 document.getElementById("btn-debug-nouvelle-routine").onclick = puisFermerDebug(ouvrirNouvelleRoutine);
