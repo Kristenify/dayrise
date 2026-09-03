@@ -485,7 +485,11 @@ function toutesLesAventures() {
 }
 
 function aventureParId(id) { return toutesLesAventures().find(a => a.id === id); }
-function aventuresDuJour() { return toutesLesAventures().filter(a => a.date === cleJour()); }
+// Généralisée pour semer le planning d'une date future (cf.
+// planningParDefaut(dateKey) plus bas) — comportement inchangé pour
+// aujourd'hui, aventuresDuJour() n'est qu'un raccourci sur la date du jour.
+function aventuresPourDate(dateKey) { return toutesLesAventures().filter(a => a.date === dateKey); }
+function aventuresDuJour() { return aventuresPourDate(cleJour()); }
 // Une aventure est accessible aujourd'hui dans "Partir à l'aventure" si
 // et seulement si elle est dans le planning du jour (`etat.planning`) —
 // pas directement via son champ `date`, qui ne sert qu'à l'y insérer une
@@ -522,7 +526,12 @@ const PLANNING_DEFAUT = [
 // `etat.planning` déjà en cours. `heure` reste ensuite un champ
 // d'affichage libre, modifiable/effaçable par un parent (mode édition de
 // "Ma journée"), jamais relu par la logique de déblocage des routines.
-function planningParDefaut() {
+// `dateKey` optionnel ("YYYY-M-D") : sème le planning par défaut d'une
+// date PRÉCISE plutôt que forcément aujourd'hui — utilisé par
+// `chargerPlanningCible()` pour une date du planning à venir pas encore
+// personnalisée. Comportement inchangé sans argument (= cleJour()).
+function planningParDefaut(dateKey) {
+  const cible = dateKey || cleJour();
   const items = PLANNING_DEFAUT.map(ref => {
     const entree = { ...ref };
     if (ref.type === "repas") {
@@ -538,7 +547,7 @@ function planningParDefaut() {
   chargerRoutinesPerso().forEach(r => {
     if (!items.some(it => it.type === "routine" && it.id === r.id)) items.push({ type: "routine", id: r.id });
   });
-  aventuresDuJour().forEach(a => {
+  aventuresPourDate(cible).forEach(a => {
     const entree = { type: "aventure", id: a.id };
     if (a.heureDefaut) entree.heure = a.heureDefaut;
     const pos = a.apres ? items.findIndex(it => it.type === a.apres.type && it.id === a.apres.id) : -1;
@@ -560,14 +569,21 @@ function libelleItemPlanning(item) {
 // ---------------------------------------------------------------------
 // Persistance (reset automatique chaque matin)
 // ---------------------------------------------------------------------
-function cleJour() {
-  const d = new Date();
-  return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
-}
-function etatParDefaut() {
+// Toujours l'HEURE RÉELLE (`new Date()`, jamais `dateActuelle()`) —
+// délibéré : contrairement à l'affichage (heure/repère "maintenant" sur
+// "Ma journée", déblocage horaire d'une routine), le jour lui-même
+// n'est jamais simulable au panneau debug, pour ne jamais risquer
+// d'écraser/archiver un vrai état de journée pendant un test.
+function cleJourPour(d) { return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+function cleJour() { return cleJourPour(new Date()); }
+// `planningSeed` optionnel : contenu d'un jour préparé à l'avance (cf.
+// `consommerPlanningFuturPourAujourdhui()`, dans `chargerEtat()`), pour
+// ne pas ré-écraser un planning déjà personnalisé par un parent avec le
+// squelette générique dès que ce jour devient "aujourd'hui".
+function etatParDefaut(planningSeed) {
   const routines = {};
   toutesLesRoutines().forEach(r => { routines[r.id] = { fait: [], valide: false }; });
-  return { jour: cleJour(), routines, etoiles: 0, journeeFaite: false, reveilFait: false, reveil: { bienDormi: null, humeur: null }, planning: planningParDefaut(), seances: [] };
+  return { jour: cleJour(), routines, etoiles: 0, journeeFaite: false, reveilFait: false, reveil: { bienDormi: null, humeur: null }, planning: planningSeed || planningParDefaut(), seances: [] };
 }
 // Répare un état du jour dont la forme est incomplète (ex. un champ
 // ajouté par une mise à jour de l'app depuis la dernière sauvegarde de
@@ -635,12 +651,43 @@ function chargerEtat() {
     etat = null;
   }
 
-  etat = etatRepare(etat) || etatParDefaut();
+  etat = etatRepare(etat) || etatParDefaut(consommerPlanningFuturPourAujourdhui());
   sauverEtat(etat);
   return etat;
 }
 function sauverEtat(etat) {
   try { localStorage.setItem(cle("journee"), JSON.stringify(etat)); } catch (e) {}
+}
+
+// Planning à venir — carnet de jours FUTURS que l'espace parent permet
+// de préparer à l'avance (cf. construireParentPlanningJournees()), distinct
+// de `etat.planning` (aujourd'hui, en direct). Map `{ "YYYY-M-D":
+// [items...] }`, même forme d'item que `etat.planning`. Une date n'y
+// apparaît qu'à la première vraie modification (cf.
+// `chargerPlanningCible()`/`sauverPlanningCible()`) — l'avoir seulement
+// ouverte ne fige rien. Chargement tolérant, même principe que
+// `chargerAventuresPerso()`.
+function chargerPlanningFutur() {
+  try { return JSON.parse(localStorage.getItem(cle("planning_futur")) || "{}"); } catch (e) { return {}; }
+}
+function sauverPlanningFutur(map) {
+  try { localStorage.setItem(cle("planning_futur"), JSON.stringify(map)); } catch (e) {}
+}
+// Appelée UNIQUEMENT depuis `chargerEtat()`, sur la branche "vrai
+// changement de jour" (jamais sur la réparation same-day d'`etatRepare()`
+// — donc jamais de double consommation en rechargeant plusieurs fois la
+// même journée). Si le jour qui commence avait été préparé à l'avance,
+// le retire du carnet à venir (il devient "aujourd'hui", les
+// modifications suivantes passent par `etat.planning` normalement, pas
+// par ce carnet) et sert de graine à `etatParDefaut()`.
+function consommerPlanningFuturPourAujourdhui() {
+  const futur = chargerPlanningFutur();
+  const c = cleJour();
+  if (!Array.isArray(futur[c])) return undefined;
+  const seed = futur[c];
+  delete futur[c];
+  sauverPlanningFutur(futur);
+  return seed;
 }
 // Routines créées par un parent (cf. creerNouvelleRoutine()) — même
 // principe que chargerAventuresPerso()/toutesLesAventures() : persistées
@@ -907,6 +954,11 @@ function construireMenu() {
   // le mode édition de "Ma journée" ne survit pas à un retour au menu —
   // le code parent protège l'entrée en édition, pas juste un aller simple.
   journeeEnEdition = false;
+  // Filet de sécurité : un retour au menu affiche forcément "aujourd'hui"
+  // ensuite, jamais un jour futur resté ciblé (cf. planningCibleDate,
+  // "Ma journée" plus bas) — au cas où un point d'entrée l'aurait laissé
+  // sur une date passée.
+  planningCibleDate = null;
 
   // Déclenché par "Aller se coucher" spécifiquement, pas par le fait que
   // toutes les routines du jour soient validées : Léon peut très bien
@@ -1072,6 +1124,41 @@ function demarrerAventure(id) {
 // remis en lecture seule en quittant vers le menu (cf. `construireMenu()`).
 let journeeEnEdition = false;
 
+// Planning à venir (cf. construireParentPlanningJournees() plus bas) :
+// `null` = "Ma journée" pointe sur aujourd'hui, `etat.planning` en
+// direct — sinon une clé "YYYY-M-D" et l'écran devient "Planning du
+// [date]", pointé sur `cle("planning_futur")[planningCibleDate]`.
+// Variable de module, jamais persistée : chaque point d'entrée qui
+// affiche explicitement AUJOURD'HUI (construireMenu(), la ligne
+// "Aujourd'hui" de "Planning des journées", le bouton "Afficher ma
+// journée" du menu, le raccourci debug correspondant) la remet à `null`
+// avant de construire l'écran — les appels internes à "Ma journée"
+// (édition, mutateurs, tick d'horloge) ne la touchent jamais, ils continuent
+// d'afficher la cible déjà en cours.
+let planningCibleDate = null;
+function planningCibleEstAujourdhui() { return planningCibleDate === null; }
+// Retourne toujours le tableau nu (même contrat que chargerEtat().planning
+// avant ce changement) — une date future jamais encore personnalisée est
+// simplement son planning par défaut, pas encore écrit dans
+// cle("planning_futur") (cf. sauverPlanningCible()).
+function chargerPlanningCible() {
+  if (planningCibleEstAujourdhui()) return chargerEtat().planning;
+  const futur = chargerPlanningFutur();
+  return Array.isArray(futur[planningCibleDate]) ? futur[planningCibleDate] : planningParDefaut(planningCibleDate);
+}
+function sauverPlanningCible(liste) {
+  if (planningCibleEstAujourdhui()) { const etat = chargerEtat(); etat.planning = liste; sauverEtat(etat); return; }
+  const futur = chargerPlanningFutur();
+  futur[planningCibleDate] = liste;
+  sauverPlanningFutur(futur);
+}
+// "Mercredi 3 septembre" — même formatage que majHorloge(), capitalisé.
+function dateLisible(dateKey) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const texte = new Date(y, m - 1, d).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return texte.charAt(0).toUpperCase() + texte.slice(1);
+}
+
 // "HH:MM" (24h, zéro-paddé) de l'heure actuelle — respecte
 // `dateDebugForcee` comme `disponibleApresHeure` (cf. construireMenu),
 // pour rester testable au panneau debug. Uniquement pour l'AFFICHAGE du
@@ -1082,33 +1169,41 @@ function heureActuelleHHMM() {
 }
 
 // Repère "maintenant/ensuite" pour "Ma journée" : ne bloque/débloque
-// jamais rien (cf. commentaire de `planningParDefaut()`). Parcourt
-// `etat.planning` dans son ORDRE D'AFFICHAGE — jamais retrié par heure,
-// l'ordre du planning reste la seule source de vérité, l'heure n'est
-// qu'une annotation. Un item sans `heure` est simplement absent de ce
-// calcul : une journée qui n'utilise aucune heure renvoie deux index
-// `null`, donc rien n'est mis en avant (comportement inchangé). "Courant"
-// = le dernier item avec heure ≤ maintenant rencontré en parcourant la
-// liste ; "suivant" = le premier avec heure > maintenant rencontré après.
-function reperesJournee(etat) {
+// jamais rien (cf. commentaire de `planningParDefaut()`). N'a de sens
+// que pour AUJOURD'HUI (une date future n'a pas d'"heure actuelle" à
+// comparer) — retourne directement les deux index à `null` sinon, qui
+// est déjà exactement ce que le rendu sait afficher pour une journée
+// sans heure : aucun branchement supplémentaire nécessaire pour faire
+// disparaître le repère en mode planning à venir.
+// Parcourt `planning` dans son ORDRE D'AFFICHAGE — jamais retrié par
+// heure, l'ordre du planning reste la seule source de vérité, l'heure
+// n'est qu'une annotation. Un item sans `heure` est simplement absent de
+// ce calcul. "Courant" = le dernier item avec heure ≤ maintenant
+// rencontré en parcourant la liste ; "suivant" = le premier avec
+// heure > maintenant rencontré après.
+function reperesJournee(planning) {
+  if (!planningCibleEstAujourdhui()) return { courantIdx: null, suivantIdx: null };
   const maintenant = heureActuelleHHMM();
   const timed = [];
-  etat.planning.forEach((item, i) => { if (item.heure) timed.push(i); });
+  planning.forEach((item, i) => { if (item.heure) timed.push(i); });
   let courantIdx = null;
-  timed.forEach(i => { if (etat.planning[i].heure <= maintenant) courantIdx = i; });
-  const suivant = timed.find(i => i > (courantIdx === null ? -1 : courantIdx) && etat.planning[i].heure > maintenant);
+  timed.forEach(i => { if (planning[i].heure <= maintenant) courantIdx = i; });
+  const suivant = timed.find(i => i > (courantIdx === null ? -1 : courantIdx) && planning[i].heure > maintenant);
   return { courantIdx, suivantIdx: suivant === undefined ? null : suivant };
 }
 
 function construireJournee() {
-  const etat = chargerEtat();
+  const planning = chargerPlanningCible();
   const conteneur = document.getElementById("journee-contenu");
   conteneur.innerHTML = "";
-  const { courantIdx, suivantIdx } = reperesJournee(etat);
+  const { courantIdx, suivantIdx } = reperesJournee(planning);
+
+  document.getElementById("titre-journee").textContent =
+    planningCibleEstAujourdhui() ? "Ma journée" : "Planning du " + dateLisible(planningCibleDate);
 
   const liste = document.createElement("div");
   liste.className = "liste-planning";
-  etat.planning.forEach((item, i) => {
+  planning.forEach((item, i) => {
     const lib = libelleItemPlanning(item);
     if (!lib) return; // référence orpheline (id qui n'existe plus dans le catalogue) : ignorée proprement
     const ligne = document.createElement("div");
@@ -1140,7 +1235,7 @@ function construireJournee() {
       btnHaut.onclick = () => deplacerItemPlanning(i, -1);
       const btnBas = document.createElement("button");
       btnBas.className = "btn-mini-edition"; btnBas.textContent = "▼";
-      btnBas.disabled = i === etat.planning.length - 1;
+      btnBas.disabled = i === planning.length - 1;
       btnBas.onclick = () => deplacerItemPlanning(i, 1);
       const btnRetirer = document.createElement("button");
       btnRetirer.className = "btn-mini-edition btn-retirer"; btnRetirer.textContent = "✕";
@@ -1153,7 +1248,7 @@ function construireJournee() {
   conteneur.appendChild(liste);
 
   if (journeeEnEdition) {
-    conteneur.appendChild(construireAjoutPlanning(etat));
+    conteneur.appendChild(construireAjoutPlanning(planning));
     conteneur.appendChild(construireAjoutTexteLibre());
     construireResultatsAjoutTexte();
   }
@@ -1191,20 +1286,20 @@ function basculerEditionJournee() {
 }
 
 function deplacerItemPlanning(i, delta) {
-  const etat = chargerEtat();
+  const planning = chargerPlanningCible();
   const j = i + delta;
-  if (j < 0 || j >= etat.planning.length) return;
-  const tmp = etat.planning[i];
-  etat.planning[i] = etat.planning[j];
-  etat.planning[j] = tmp;
-  sauverEtat(etat);
+  if (j < 0 || j >= planning.length) return;
+  const tmp = planning[i];
+  planning[i] = planning[j];
+  planning[j] = tmp;
+  sauverPlanningCible(planning);
   construireJournee();
 }
 
 function retirerItemPlanning(i) {
-  const etat = chargerEtat();
-  etat.planning.splice(i, 1);
-  sauverEtat(etat);
+  const planning = chargerPlanningCible();
+  planning.splice(i, 1);
+  sauverPlanningCible(planning);
   construireJournee();
 }
 
@@ -1213,16 +1308,16 @@ function retirerItemPlanning(i) {
 // simple booléen partout ailleurs (`if (item.heure)`, cf. reperesJournee/
 // construireJournee/libelleItemPlanning).
 function definirHeureItemPlanning(i, valeur) {
-  const etat = chargerEtat();
-  if (valeur) etat.planning[i].heure = valeur; else delete etat.planning[i].heure;
-  sauverEtat(etat);
+  const planning = chargerPlanningCible();
+  if (valeur) planning[i].heure = valeur; else delete planning[i].heure;
+  sauverPlanningCible(planning);
   construireJournee();
 }
 
 function ajouterItemPlanning(type, id) {
-  const etat = chargerEtat();
-  etat.planning.push({ type, id });
-  sauverEtat(etat);
+  const planning = chargerPlanningCible();
+  planning.push({ type, id });
+  sauverPlanningCible(planning);
   construireJournee();
 }
 
@@ -1231,14 +1326,14 @@ function ajouterItemPlanning(type, id) {
 // par exemple —, repas) et n'est pas déjà dans le planning. Inclut les
 // activités créées par un parent (cf. `toutesLesAventures()`) au même
 // titre que celles du catalogue en dur.
-function construireAjoutPlanning(etat) {
+function construireAjoutPlanning(planning) {
   const bloc = document.createElement("div");
   const label = document.createElement("div");
   label.className = "groupe-journee-titre";
   label.textContent = "AJOUTER À LA JOURNÉE";
   bloc.appendChild(label);
 
-  const dejaLa = new Set(etat.planning.map(it => it.type + ":" + it.id));
+  const dejaLa = new Set(planning.map(it => it.type + ":" + it.id));
   const candidats = [
     ...toutesLesRoutines().map(r => ({ type: "routine", id: r.id, emoji: r.emoji, nom: r.nom })),
     ...toutesLesAventures().map(a => ({ type: "aventure", id: a.id, emoji: a.emoji, nom: a.lieu })),
@@ -1374,12 +1469,12 @@ function construireResultatsAjoutTexte() {
 function confirmerAjoutTexte(i) {
   const r = resultatsAjoutTexte[i];
   if (!r || !r.correspondance) return;
-  const etat = chargerEtat();
-  const dejaPresent = etat.planning.some(it => it.type === r.correspondance.type && it.id === r.correspondance.id);
+  const planning = chargerPlanningCible();
+  const dejaPresent = planning.some(it => it.type === r.correspondance.type && it.id === r.correspondance.id);
   if (!dejaPresent) ajouterItemPlanning(r.correspondance.type, r.correspondance.id);
   if (r.heure) {
-    const etatMaj = chargerEtat();
-    const pos = etatMaj.planning.findIndex(it => it.type === r.correspondance.type && it.id === r.correspondance.id);
+    const planningMaj = chargerPlanningCible();
+    const pos = planningMaj.findIndex(it => it.type === r.correspondance.type && it.id === r.correspondance.id);
     if (pos !== -1) definirHeureItemPlanning(pos, r.heure);
   }
   resultatsAjoutTexte.splice(i, 1);
@@ -1465,6 +1560,67 @@ function construireAjoutTexteLibre() {
   bloc.appendChild(resultats);
 
   return bloc;
+}
+
+// ---------------------------------------------------------------------
+// Planning des journées (espace parent) — UNE liste, aujourd'hui d'abord
+// puis les JOURS_PLANNING_FUTUR prochains jours (demandé explicitement :
+// deux boutons séparés pour "aujourd'hui" et "les jours suivants" dans
+// l'espace parent gênait plus qu'autre chose). Chaque ligne ouvre "Ma
+// journée" (devenue "Planning du [date]" pour un jour futur, cf.
+// construireJournee()) — même écran, mêmes outils (heures, entourage,
+// catalogue, texte libre), juste pointés ailleurs qu'aujourd'hui via
+// `planningCibleDate`. Calcul sur l'heure réelle (`new Date()`), jamais
+// `dateActuelle()` — cohérent avec `cleJour()`, qui ignore déjà
+// délibérément l'heure forcée du panneau debug (cf. son commentaire).
+// ---------------------------------------------------------------------
+const JOURS_PLANNING_FUTUR = 7;
+
+function construireParentPlanningJournees() {
+  const liste = document.getElementById("parent-planning-journees-liste");
+  liste.innerHTML = "";
+  // Petit constructeur de carte partagé plutôt que dupliqué entre la
+  // ligne "Aujourd'hui" (cas particulier : ni "personnalisé" ni "par
+  // défaut", juste "en cours") et la boucle des jours futurs.
+  const ajouterCarte = (nom, etatTexte, accentuee, onClick) => {
+    const carte = document.createElement("div");
+    carte.className = "carte-routine" + (accentuee ? " faite" : "");
+    const nomDiv = document.createElement("div");
+    nomDiv.className = "carte-routine-nom";
+    nomDiv.textContent = nom;
+    const droite = document.createElement("div");
+    droite.className = "carte-routine-droite";
+    const etatDiv = document.createElement("div");
+    etatDiv.className = "carte-routine-etat";
+    etatDiv.textContent = etatTexte;
+    droite.appendChild(etatDiv);
+    carte.append(nomDiv, droite);
+    carte.onclick = onClick;
+    liste.appendChild(carte);
+  };
+
+  ajouterCarte("Aujourd'hui", "En cours", true, () => {
+    planningCibleDate = null;
+    journeeEnEdition = true;
+    construireJournee();
+    afficherEcran("screen-journee");
+  });
+
+  const futur = chargerPlanningFutur();
+  const aujourdhui = new Date();
+  for (let i = 1; i <= JOURS_PLANNING_FUTUR; i++) {
+    const d = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), aujourdhui.getDate() + i);
+    const dateKey = cleJourPour(d);
+    const personnalise = Array.isArray(futur[dateKey]);
+    ajouterCarte(dateLisible(dateKey), personnalise ? "Planning personnalisé" : "Planning par défaut", personnalise, () => ouvrirJourneeFuture(dateKey));
+  }
+}
+
+function ouvrirJourneeFuture(dateKey) {
+  planningCibleDate = dateKey;
+  journeeEnEdition = true;
+  construireJournee();
+  afficherEcran("screen-journee");
 }
 
 // Écran "Mes récompenses" : les étoiles gagnées aujourd'hui et les
@@ -2245,9 +2401,9 @@ function construireEspaceParent() {
       action: () => { construireParentRoutines(); afficherEcran("screen-parent-routines"); },
     },
     {
-      emoji: "🗓️", titre: "Planning du jour",
-      soustitre: "Réordonner, retirer ou ajouter les activités d'aujourd'hui",
-      action: () => { journeeEnEdition = true; construireJournee(); afficherEcran("screen-journee"); },
+      emoji: "🗓️", titre: "Planning des journées",
+      soustitre: "Aujourd'hui et les prochains jours — réordonner, ajouter, planifier à l'avance",
+      action: () => { construireParentPlanningJournees(); afficherEcran("screen-parent-planning-journees"); },
     },
     {
       emoji: "📅", titre: "Historique des journées",
@@ -2716,6 +2872,14 @@ function creerNouvelleAventure() {
     return;
   }
 
+  // Créer une activité ne l'ajoute qu'au CATALOGUE (demandé
+  // explicitement) — jamais au planning d'un jour précis, aujourd'hui ou
+  // futur : `apres` n'a donc plus lieu d'être ici, il ne servait qu'à
+  // positionner cette injection immédiate (seules les aventures à `date`
+  // fixe, ex. "Le magasin de bricolage", l'utilisent encore, cf.
+  // `planningParDefaut()`). C'est "AJOUTER À LA JOURNÉE" (déjà existant,
+  // sur n'importe quelle journée, aujourd'hui ou à venir) qui place
+  // ensuite une activité du catalogue sur un jour précis.
   const nouvelle = {
     id: "perso-" + Date.now(),
     lieu: nom,
@@ -2725,10 +2889,6 @@ function creerNouvelleAventure() {
     programme: ["1. " + e1, "2. " + e2, "3. " + e3],
     recompensePieces: pieceOui ? 1 : 0,
     texteTrajetRetour: "On a fini, on rentre à la maison.",
-    // Comme "Le magasin de bricolage" : après "Se préparer à partir",
-    // pas juste après le petit-déj — l'enfant ne peut de toute façon pas
-    // partir en aventure avant d'être habillé/prêt.
-    apres: { type: "routine", id: "partir" },
   };
   // Champs optionnels omis (plutôt que mis à `[]`/`""`) si vides : garde
   // une activité sans entourage/mots-clés indistinguable d'une activité
@@ -2741,10 +2901,6 @@ function creerNouvelleAventure() {
   const perso = chargerAventuresPerso();
   perso.push(nouvelle);
   sauverAventuresPerso(perso);
-
-  const etat = chargerEtat();
-  etat.planning.push({ type: "aventure", id: nouvelle.id });
-  sauverEtat(etat);
 
   dire("Nouvelle activité créée : " + nom + ".");
   construireParentActivites();
@@ -3961,7 +4117,7 @@ document.getElementById("btn-retour-validation").onclick = () => afficherEcran(e
 document.getElementById("btn-depart").onclick = allerVersDepart;
 document.getElementById("btn-retour-menu").onclick = construireMenu;
 
-document.getElementById("btn-journee").onclick = () => { construireJournee(); afficherEcran("screen-journee"); };
+document.getElementById("btn-journee").onclick = () => { planningCibleDate = null; construireJournee(); afficherEcran("screen-journee"); };
 document.getElementById("btn-retour-menu-journee").onclick = construireMenu;
 document.getElementById("btn-modifier-journee").onclick = basculerEditionJournee;
 
@@ -3994,6 +4150,7 @@ document.getElementById("btn-retour-parent-nouvelle-routine").onclick = () => { 
 
 document.getElementById("btn-nouvelle-personne").onclick = ouvrirNouvellePersonne;
 document.getElementById("btn-retour-parent-entourage").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("btn-retour-parent-planning-journees").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
 document.getElementById("np-emoji-trigger").onclick = () =>
   ouvrirSelecteurEmoji(EMOJI_PERSONNE, emojiChoisiPersonne, (e) => { emojiChoisiPersonne = e; construireDeclencheurEmoji("np-emoji-trigger", e); });
 document.getElementById("btn-creer-personne").onclick = creerNouvellePersonne;
@@ -4043,7 +4200,7 @@ document.getElementById("btn-debug-humeur").onclick = puisFermerDebug(() => etap
 
 document.getElementById("btn-debug-menu").onclick = puisFermerDebug(construireMenu);
 document.getElementById("btn-debug-missions").onclick = puisFermerDebug(() => { construireMissions(); afficherEcran("screen-missions"); });
-document.getElementById("btn-debug-journee").onclick = puisFermerDebug(() => { construireJournee(); afficherEcran("screen-journee"); });
+document.getElementById("btn-debug-journee").onclick = puisFermerDebug(() => { planningCibleDate = null; construireJournee(); afficherEcran("screen-journee"); });
 document.getElementById("btn-debug-recompenses").onclick = puisFermerDebug(() => { construireRecompenses(); afficherEcran("screen-recompenses"); });
 document.getElementById("btn-debug-coffre").onclick = puisFermerDebug(allerFinDeJournee);
 
@@ -4054,6 +4211,7 @@ document.getElementById("btn-debug-parent-seances").onclick = puisFermerDebug(()
 document.getElementById("btn-debug-parent-activites").onclick = puisFermerDebug(() => { construireParentActivites(); afficherEcran("screen-parent-activites"); });
 document.getElementById("btn-debug-parent-routines-catalogue").onclick = puisFermerDebug(() => { construireRoutinesCatalogue(); afficherEcran("screen-parent-routines-catalogue"); });
 document.getElementById("btn-debug-parent-entourage").onclick = puisFermerDebug(() => { construireParentEntourage(); afficherEcran("screen-parent-entourage"); });
+document.getElementById("btn-debug-parent-planning-journees").onclick = puisFermerDebug(() => { construireParentPlanningJournees(); afficherEcran("screen-parent-planning-journees"); });
 document.getElementById("btn-debug-parent-appareil").onclick = puisFermerDebug(() => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); });
 document.getElementById("btn-debug-nouvelle-activite").onclick = puisFermerDebug(ouvrirNouvelleAventure);
 document.getElementById("btn-debug-nouvelle-routine").onclick = puisFermerDebug(ouvrirNouvelleRoutine);
