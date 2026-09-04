@@ -1,23 +1,25 @@
 """
 Générateur de l'avatar (paper-doll) — c'est CE script qui a produit les
-sprites réellement déployés dans app/assets/avatar/ (leon-*.png, copiés
-depuis sa sortie leon_calque_*.png ; malgré le nom du fichier, ce n'est
-plus "juste" une exploration de preview pour Léon). Colette a sa propre
-déclinaison de palette/contour ci-dessous (CHILDREN["colette"]) mais ses
-fichiers n'étaient pas encore copiés dans app/assets/avatar/ — cf.
-app/README.md pour l'état courant de qui est réellement branché.
+sprites réellement déployés dans app/assets/avatar/ (avatar-*-*.png,
+copiés depuis sa sortie <name>_calque_*.png ; malgré le nom du fichier, ce
+n'est plus "juste" une exploration de preview). Chaque entrée de CHILDREN
+ci-dessous est l'un des avatars proposés à la première configuration (cf.
+AVATARS_DISPONIBLES dans app/app.js) — prénom/apparence choisis par le
+parent à la création d'un profil, jamais fixés ici.
 
 Dans l'esprit du handoff `docs/design-handoff/` :
   - grille de sprite alignée sur 32 px, personnage en pied
   - contour foncé réservé aux personnages (jamais sur le décor)
-  - deux déclinaisons de contraste : Colette (doux) / Léon (élevé, contour
-    plus épais) — cf. "réglages sensoriels propres à chaque enfant"
+  - deux déclinaisons de contraste (doux / élevé, contour plus épais) —
+    cf. "réglages sensoriels propres à chaque enfant"
   - paper-doll : le corps de base + des calques de vêtements superposables
     (une image par calque, empilées par app.js selon la tâche faite).
 
-Colette a une robe (draw_robe) en plus du pantalon de Léon : une seule
-pièce évasée (trapèze), pas juste le pantalon recolorié — cf. ROUTINES
-côté profil Colette dans app/app.js, tâche "robe".
+Deux silhouettes : une robe (draw_robe, une seule pièce évasée en
+trapèze, pas juste le pantalon recolorié) pour "avatar-c"/"avatar-d", un
+pantalon pour "avatar-a"/"avatar-b" — cf. `silhouette` sur chaque entrée
+d'AVATARS_DISPONIBLES dans app/app.js, qui pilote le gabarit de routines
+amorcé à la création d'un profil (routinesDemarrage()).
 
 Usage :
     /usr/local/bin/python3 scripts/generate_sprites_detailed_preview.py
@@ -36,8 +38,8 @@ os.makedirs(OUT, exist_ok=True)
 W, H = 36, 56
 SCALE = 8
 
-OUTLINE_SOFT = (74, 68, 55, 255)     # ink.soft — Colette
-OUTLINE_HIGH = (14, 20, 36, 255)     # leon.outline — Léon, contour plus dur
+OUTLINE_SOFT = (74, 68, 55, 255)     # ink.soft — contour doux
+OUTLINE_HIGH = (14, 20, 36, 255)     # ink.high — contour plus dur/épais
 
 EYE = (34, 30, 40, 255)
 SPARKLE = (255, 255, 255, 220)
@@ -209,7 +211,8 @@ def draw_robe(robe, outline_color, thickness):
     # jambes séparées comme draw_pants — sinon ça reste visuellement un
     # pantalon recolorié. Manches courtes plus hautes que celles du haut
     # porté dessous (draw_shirt) : un peu de "haut" dépasse à l'épaule,
-    # comme pull/shirt se distinguent déjà chez Léon (cf. draw_pull).
+    # comme pull/shirt se distinguent déjà sur la silhouette pantalon
+    # (cf. draw_pull).
     hi = lighten(robe, 0.25)
     shadow = darken(robe, 0.75)
     ourlet = darken(robe, 0.62)
@@ -307,40 +310,77 @@ def composite(*layers):
 # Deux déclinaisons enfant (palette + épaisseur de contour du handoff)
 # ---------------------------------------------------------------------------
 CHILDREN = {
-    "colette": {
-        "skin": (244, 201, 160, 255),
-        "hair": (176, 88, 53, 255),
+    "avatar-a": {
+        "skin": (222, 178, 140, 255),
+        "hair": (74, 54, 42, 255),
         "messy": False,
-        "pyjama": (247, 210, 221, 255),
-        "calecon": (200, 138, 160, 255),
-        "shirt": (200, 138, 160, 255),
-        "pull": (168, 100, 130, 255),
-        "pants": (146, 168, 190, 255),
-        "robe": (214, 122, 148, 255),
-        "sock": (250, 240, 240, 255),
-        "sock_stripe": (200, 138, 160, 255),
-        "shoe": (255, 255, 255, 255),
-        "sole": (168, 138, 144, 255),
-        "coat": (247, 184, 203, 255),
-        "coat_trim": (250, 240, 240, 255),
+        "pyjama": (100, 149, 168, 255),
+        "calecon": (140, 168, 150, 255),
+        "shirt": (58, 130, 138, 255),
+        "pull": (46, 90, 96, 255),
+        "pants": (52, 62, 88, 255),
+        "sock": (238, 238, 230, 255),
+        "sock_stripe": (58, 130, 138, 255),
+        "shoe": (238, 238, 230, 255),
+        "sole": (60, 50, 44, 255),
+        "coat": (46, 90, 96, 255),
+        "coat_trim": (52, 62, 88, 255),
         "outline": OUTLINE_SOFT,
         "thickness": 1,
     },
-    "leon": {
-        "skin": (216, 163, 122, 255),
-        "hair": (43, 35, 33, 255),
+    "avatar-b": {
+        "skin": (190, 132, 92, 255),
+        "hair": (168, 76, 48, 255),
         "messy": True,
-        "pyjama": (76, 96, 158, 255),
-        "calecon": (91, 168, 105, 255),
-        "shirt": (240, 149, 47, 255),
-        "pull": (154, 68, 58, 255),
-        "pants": (30, 39, 64, 255),
-        "sock": (232, 237, 247, 255),
-        "sock_stripe": (240, 149, 47, 255),
-        "shoe": (232, 237, 247, 255),
-        "sole": (14, 20, 36, 255),
-        "coat": (201, 118, 34, 255),
-        "coat_trim": (30, 39, 64, 255),
+        "pyjama": (150, 108, 168, 255),
+        "calecon": (120, 150, 110, 255),
+        "shirt": (142, 96, 168, 255),
+        "pull": (94, 60, 116, 255),
+        "pants": (52, 92, 60, 255),
+        "sock": (232, 230, 240, 255),
+        "sock_stripe": (142, 96, 168, 255),
+        "shoe": (232, 230, 240, 255),
+        "sole": (20, 20, 28, 255),
+        "coat": (94, 60, 116, 255),
+        "coat_trim": (52, 92, 60, 255),
+        "outline": OUTLINE_HIGH,
+        "thickness": 2,
+    },
+    "avatar-c": {
+        "skin": (120, 82, 58, 255),
+        "hair": (24, 22, 22, 255),
+        "messy": False,
+        "pyjama": (214, 178, 90, 255),
+        "calecon": (198, 168, 120, 255),
+        "shirt": (214, 178, 90, 255),
+        "pull": (168, 132, 58, 255),
+        "pants": (198, 168, 120, 255),
+        "robe": (198, 150, 60, 255),
+        "sock": (245, 240, 225, 255),
+        "sock_stripe": (198, 150, 60, 255),
+        "shoe": (245, 240, 225, 255),
+        "sole": (90, 70, 40, 255),
+        "coat": (168, 132, 58, 255),
+        "coat_trim": (245, 240, 225, 255),
+        "outline": OUTLINE_SOFT,
+        "thickness": 1,
+    },
+    "avatar-d": {
+        "skin": (238, 200, 168, 255),
+        "hair": (224, 186, 90, 255),
+        "messy": True,
+        "pyjama": (224, 140, 150, 255),
+        "calecon": (200, 150, 160, 255),
+        "shirt": (224, 140, 150, 255),
+        "pull": (168, 96, 106, 255),
+        "pants": (150, 168, 190, 255),
+        "robe": (64, 156, 158, 255),
+        "sock": (250, 245, 245, 255),
+        "sock_stripe": (64, 156, 158, 255),
+        "shoe": (250, 245, 245, 255),
+        "sole": (60, 90, 92, 255),
+        "coat": (168, 96, 106, 255),
+        "coat_trim": (250, 245, 245, 255),
         "outline": OUTLINE_HIGH,
         "thickness": 2,
     },

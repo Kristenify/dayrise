@@ -129,8 +129,8 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 @keyframes rebondBas { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(7px); } }
 /* Poignée invisible superposée à l'avatar (#avatar-poignee dans
    index.html, remplie par app.js) : mêmes dimensions/position que
-   .avatar-wrap pour capter le geste exactement là où l'enfant voit
-   Léon — les calques de l'avatar ont pointer-events:none. */
+   .avatar-wrap pour capter le geste exactement là où l'enfant voit son
+   avatar — les calques de l'avatar ont pointer-events:none. */
 .poignee-glissable {
   position: absolute; left: 50%; bottom: 14px; width: 122px; height: 190px; transform: translateX(-50%);
   cursor: grab; touch-action: none;
@@ -296,7 +296,7 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 #btn-espace-parent:active { opacity: 1; transform: translate(1px, 1px); }
 
-/* Mode debug (tests, jamais vu par Léon — cf. modeDebugActif() dans
+/* Mode debug (tests, jamais vu par l'enfant — cf. modeDebugActif() dans
    app.js) : même famille visuelle que les deux boutons ci-dessus, mais
    volontairement décalé pour ne pas les chevaucher. */
 #btn-debug {
@@ -532,9 +532,10 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   position: absolute; inset: 0;
   background: url("assets/scenes/fenetre-voiture.jpg") center / cover;
 }
-/* L'enfant (Léon ou Colette, cf. PROFILS dans app.js) vu de l'intérieur,
-   tête de profil au premier plan devant la fenêtre — silhouette plutôt
-   qu'un sprite détaillé : à contre-jour devant la vitre, un aplat sombre
+/* L'enfant (profil actif, cf. tousLesProfils() dans app.js) vu de
+   l'intérieur, tête de profil au premier plan devant la fenêtre —
+   silhouette plutôt qu'un sprite détaillé : à contre-jour devant la
+   vitre, un aplat sombre
    suffit et évite de dessiner un visage de profil par enfant. Un seul
    élément partagé, pas une variante par profil : une silhouette à
    contre-jour n'a pas besoin de distinguer les deux. */
@@ -556,7 +557,7 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 }
 .sprite-simple { font-size: 56px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .sprite-simple span { font-size: 14px; font-weight: 700; color: var(--text-mute); }
-/* Léon en vrai sprite (pas un emoji) sur l'écran d'arrivée : `.avatar-wrap`
+/* L'enfant en vrai sprite (pas un emoji) sur l'écran d'arrivée : `.avatar-wrap`
    est pensé pour un décor en `position:relative` de pleine hauteur
    (#scene / #scene-menu) — ici il vit dans un `.sprite-simple` flex, donc
    on retire le positionnement absolu et on réduit la taille en
@@ -659,7 +660,7 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
   0%, 100% { filter: drop-shadow(0 0 0 transparent) brightness(1); }
   40% { filter: drop-shadow(0 0 14px var(--accent)) brightness(1.6); }
 }
-/* Portrait de Léon sur la pièce : recadrage simple (pas de nouvel
+/* Portrait de l'enfant sur la pièce : recadrage simple (pas de nouvel
    asset) du sprite avatar existant sur la zone du visage, via un
    positionnement approximatif plutôt qu'un détourage précis. Petit et
    teinté dans le ton de la pièce (façon profil gravé, type tête sur une
@@ -684,7 +685,20 @@ html { font-size: clamp(16px, 1.6vw + 12px, 19px); }
 .carte-parent.verrouillee { cursor: default; }
 
 /* ---------- Formulaires parent (nouvelle activité / nouvelle routine) ---------- */
-#nouvelle-aventure-contenu, #nouvelle-routine-contenu, #nouvelle-personne-contenu, #seance-note-contenu { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 8px; }
+#nouvelle-aventure-contenu, #nouvelle-routine-contenu, #nouvelle-personne-contenu, #seance-note-contenu, #premiere-configuration-contenu { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-bottom: 8px; }
+
+/* Grille de choix d'avatar (première configuration / "+ Nouvel enfant"),
+   même esprit que .etoile-note-btn (bouton "éteint" tant que non choisi) —
+   la vignette (sprite de base) porte le choix, pas un texte à côté. */
+.pc-avatars-grille { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.pc-avatar-carte {
+  background: var(--surface); border: 2px solid var(--surface-high);
+  padding: 6px; display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 1; opacity: .55;
+}
+.pc-avatar-carte img { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+.pc-avatar-carte.choisi { opacity: 1; border-color: var(--accent); background: rgba(240,149,47,.14); }
+.pc-avatar-carte:active { transform: translate(1px, 1px); }
 .champ-parent { display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 700; color: var(--text-soft); }
 .champ-parent input[type="text"] {
   font: inherit; font-size: 17px; font-weight: 600; color: var(--text);
