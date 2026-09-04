@@ -1,9 +1,9 @@
 /*
- * Prototype de parcours — Léon ET Colette : menu de la journée → routines
- * indépendantes ("S'habiller", "Se préparer à partir") → félicitations →
- * validation parent (code + relecture/correction) → étoile + jauge de
- * journée → retour au menu → récompense de fin de journée une fois
- * toutes les routines validées.
+ * Prototype de parcours — un ou plusieurs enfants : menu de la journée →
+ * routines indépendantes ("S'habiller", "Se préparer à partir") →
+ * félicitations → validation parent (code + relecture/correction) →
+ * étoile + jauge de journée → retour au menu → récompense de fin de
+ * journée une fois toutes les routines validées.
  *
  * Modèle : voir docs/produit/modele-de-donnees.md — une Routine a une
  * liste ordonnée de Tâches (relation mère-fille). `etat.routines[id].fait`
@@ -17,25 +17,25 @@
  * pièce (cf. `chargerPieces`/`ajouterPieces` et
  * docs/produit/modele-de-donnees.md).
  *
- * Profils (PROFILS, plus bas) : CHAQUE ENFANT UTILISE SON PROPRE APPAREIL
- * — ce n'est PAS un sélecteur dans une même app partagée (Colette aura sa
- * tablette, distincte de celle de Léon). `profilActif()` détermine "quel
- * enfant est CET appareil" une bonne fois pour toutes (query param
- * `?enfant=`, retenu ensuite dans `localStorage` sur cet appareil, cf.
- * `resoudreProfilActif()`) — pas un choix qui revient à chaque session.
+ * Profils (PROFILS/tousLesProfils(), plus bas) : CHAQUE ENFANT UTILISE
+ * SON PROPRE APPAREIL — ce n'est PAS un sélecteur dans une même app
+ * partagée. Un profil est créé une fois sur l'appareil qui lui est dédié,
+ * via l'écran de première configuration (prénom, avatar, code parent —
+ * cf. `demarrerPremiereConfiguration()`), puis `profilActif()` détermine
+ * "quel enfant est CET appareil" une bonne fois pour toutes (retenu dans
+ * `localStorage` sur cet appareil, query param `?enfant=` possible pour
+ * un profil déjà créé) — pas un choix qui revient à chaque session.
  * Toutes les clés `localStorage` propres à un enfant (journée, étoiles,
  * pièces, historique, routines/aventures perso) sont préfixées par
  * `profilActif().prefixe` (cf. `cle()`) ; celles de l'appareil/famille
  * (code parent, mode debug) restent partagées, cf. `codeParentActuel()`/
- * `modeDebugActif()`. Léon garde exactement ses clés `leon_...`
- * d'aujourd'hui (zéro migration, zéro risque sur sa tablette réelle) ;
- * Colette obtient les mêmes clés préfixées `colette_`. Voir
- * `docs/produit/modele-de-donnees.md` pour le détail de ce qui est
- * commun (REPAS, PLANNING_DEFAUT, moteur générique) vs propre à un enfant
- * (ROUTINES, vêtements/avatar, aventures avec une praticienne précise).
+ * `modeDebugActif()`. Voir `docs/produit/modele-de-donnees.md` pour le
+ * détail de ce qui est commun (REPAS, PLANNING_DEFAUT, moteur générique)
+ * vs propre à un enfant (routines, vêtements/avatar, aventures avec une
+ * praticienne précise).
  *
  * Code parent : partagé par appareil (pas par enfant — mêmes parents des
- * deux côtés), 1234 par défaut tant qu'aucun n'a été enregistré.
+ * deux côtés), choisi à la première configuration.
  */
 
 // ---------------------------------------------------------------------
@@ -47,7 +47,7 @@
 // appareil/navigateur via `dayrise_debug` (localStorage) — partagé par
 // appareil, pas par enfant (un appareil de test reste en debug quel que
 // soit le profil affiché dessus, cf. `resoudreProfilActif()` plus bas).
-// N'affecte jamais les tablettes réelles de Léon/Colette : elles ne
+// N'affecte jamais les tablettes réelles des enfants : elles ne
 // chargent que l'URL GitHub Pages publiée, jamais un localhost (cf.
 // app/README.md). Ajoute un bouton 🧪 (cf. index.html, symétrique de
 // ⚙️/↺) qui ouvre un panneau listant tous les écrans, chacun atteint via
@@ -94,11 +94,7 @@ function dateActuelle() {
 // deux côtés, pas une raison d'avoir deux codes à retenir.
 function codeParentActuel() {
   try {
-    // `leon_code_parent` : ancienne clé (avant le support multi-profil),
-    // lue en secours pour ne pas réinitialiser silencieusement le code
-    // qu'Alexandra a peut-être déjà changé sur la tablette de Léon —
-    // jamais réécrite (sauverCodeParent() n'écrit plus que la nouvelle clé).
-    return localStorage.getItem("dayrise_code_parent") || localStorage.getItem("leon_code_parent") || "1234";
+    return localStorage.getItem("dayrise_code_parent") || "1234";
   } catch (e) { return "1234"; }
 }
 function sauverCodeParent(code) {
@@ -106,85 +102,243 @@ function sauverCodeParent(code) {
 }
 
 // ---------------------------------------------------------------------
-// Profils (Léon, Colette, ...) — CHAQUE ENFANT SUR SON PROPRE APPAREIL,
-// PAS un sélecteur dans une même app partagée. `resoudreProfilActif()`
-// détermine une bonne fois pour toutes "quel enfant est cet appareil" :
-// query param `?enfant=id` (une fois, comme `?debug=1`), retenu ensuite
-// dans `localStorage` SUR CET APPAREIL (`dayrise_enfant`). Par défaut
-// (aucun choix jamais fait) : "leon" — pour que la tablette de Léon,
-// déjà en usage réel, continue de fonctionner sans aucune configuration
-// après cette mise à jour. Un parent peut aussi changer le profil d'un
-// appareil depuis l'espace parent (cf. `construireParentAppareil()`) —
-// utile si un appareil est un jour réattribué, ou pour ajouter un 3ᵉ
-// enfant plus tard (il suffit d'une nouvelle entrée dans PROFILS).
+// Profils — CHAQUE ENFANT SUR SON PROPRE APPAREIL, PAS un sélecteur dans
+// une même app partagée. Un déploiement neuf n'a AUCUN profil : le tout
+// premier lancement affiche l'écran de première configuration (prénom,
+// avatar, code parent — cf. `demarrerPremiereConfiguration()` plus bas,
+// déclenché depuis `demarrer()` si `tousLesProfils()` est vide), qui crée
+// le profil dans `profils_perso`. `PROFILS` reste le socle "en dur" —
+// vide ici, mais une entrée peut y être ajoutée à la main (même forme
+// qu'un profil créé par l'app, avec en plus des accesseurs `routines()`/
+// `aventuresPropres()` vers des catalogues dédiés) pour un déploiement qui
+// voudrait figer un profil au code plutôt que le configurer depuis l'app.
 //
-// `prefixe` retrouve exactement les clés `localStorage` déjà utilisées
-// par le prototype Léon-seul (`leon_journee`, `leon_pieces`, ...) : zéro
-// migration, zéro risque de perte sur sa tablette réelle. Colette obtient
-// les mêmes clés préfixées `colette_`.
-const PROFILS = {
-  leon: {
-    id: "leon",
-    prefixe: "leon",
-    prenom: "Léon",
-    routines: () => ROUTINES_LEON,
-    aventuresPropres: () => AVENTURES_LEON,
-    chambre: "assets/scenes/chambre-leon.jpg",
-    dodo: "assets/avatar/leon-dodo.png",
-    sprites: {
-      base: "assets/avatar/leon-base.png",
-      calques: [
-        { calque: "calque-calecon",     fichier: "assets/avatar/leon-calecon.png" },
-        { calque: "calque-haut",        fichier: "assets/avatar/leon-haut.png" },
-        { calque: "calque-pantalon",    fichier: "assets/avatar/leon-pantalon.png" },
-        { calque: "calque-chaussettes", fichier: "assets/avatar/leon-chaussettes.png" },
-        { calque: "calque-chaussures",  fichier: "assets/avatar/leon-chaussures.png" },
-        { calque: "calque-manteau",     fichier: "assets/avatar/leon-manteau.png" },
-      ],
-    },
-  },
-  colette: {
-    id: "colette",
-    prefixe: "colette",
-    prenom: "Colette",
-    routines: () => ROUTINES_COLETTE,
-    aventuresPropres: () => AVENTURES_COLETTE,
-    chambre: "assets/scenes/chambre-colette.jpg",
-    dodo: "assets/avatar/colette-dodo.png",
-    sprites: {
-      base: "assets/avatar/colette-base.png",
-      calques: [
-        { calque: "calque-culotte",     fichier: "assets/avatar/colette-culotte.png" },
-        { calque: "calque-haut",        fichier: "assets/avatar/colette-haut.png" },
-        { calque: "calque-robe",        fichier: "assets/avatar/colette-robe.png" },
-        { calque: "calque-chaussettes", fichier: "assets/avatar/colette-chaussettes.png" },
-        { calque: "calque-chaussures",  fichier: "assets/avatar/colette-chaussures.png" },
-        { calque: "calque-manteau",     fichier: "assets/avatar/colette-manteau.png" },
-      ],
-    },
-  },
-};
+// `prefixe` (= `id` pour un profil créé depuis l'app) retrouve les clés
+// `localStorage` propres à cet enfant (`<prefixe>_journee`,
+// `<prefixe>_pieces`, ...) — cf. `cle()`.
+const PROFILS = {};
+
+// Profils créés depuis l'app (écran de première configuration, ou "+
+// Nouvel enfant" dans "Cet appareil") — même pattern que
+// routines_perso/aventures_perso/entourage_perso plus bas : persistés à
+// part, jamais remis à zéro, fusionnés avec PROFILS via
+// `tousLesProfils()`. Purement des données (JSON) : contrairement à une
+// entrée PROFILS en dur, pas d'accesseurs `routines()`/`aventuresPropres()`
+// — ces profils n'ont aucun catalogue de base, tout vit dans leurs propres
+// `routines_perso`/`aventures_perso` (cf. `toutesLesRoutines()`/
+// `toutesLesAventures()`, qui traitent un profil sans accesseur comme un
+// catalogue de base vide).
+function chargerProfilsPerso() {
+  try { return JSON.parse(localStorage.getItem("dayrise_profils_perso") || "[]"); } catch (e) { return []; }
+}
+function sauverProfilsPerso(liste) {
+  try { localStorage.setItem("dayrise_profils_perso", JSON.stringify(liste)); } catch (e) {}
+}
+// Même principe de masquage par id que toutesLesRoutines() : un profil
+// perso remplace une éventuelle entrée PROFILS du même id plutôt que de
+// s'y ajouter en double.
+function tousLesProfils() {
+  const perso = chargerProfilsPerso();
+  const idsPerso = new Set(perso.map(p => p.id));
+  const table = {};
+  Object.values(PROFILS).filter(p => !idsPerso.has(p.id)).forEach(p => { table[p.id] = p; });
+  perso.forEach(p => { table[p.id] = p; });
+  return table;
+}
 
 (function initProfilActif() {
   try {
     const params = new URLSearchParams(location.search);
-    if (params.has("enfant") && PROFILS[params.get("enfant")]) {
+    if (params.has("enfant") && tousLesProfils()[params.get("enfant")]) {
       localStorage.setItem("dayrise_enfant", params.get("enfant"));
     }
   } catch (e) {}
 })();
+// `null` tant qu'aucun profil n'existe/n'est choisi sur cet appareil — cf.
+// `demarrer()`, qui affiche alors la première configuration plutôt que
+// d'appeler `chargerEtat()`/`profilActif()` (qui supposent un profil réel).
 function profilActifId() {
   try {
     const stocke = localStorage.getItem("dayrise_enfant");
-    if (stocke && PROFILS[stocke]) return stocke;
+    if (stocke && tousLesProfils()[stocke]) return stocke;
   } catch (e) {}
-  return "leon";
+  return null;
 }
-function profilActif() { return PROFILS[profilActifId()]; }
+function profilActif() { return tousLesProfils()[profilActifId()] || null; }
 // Préfixe une clé localStorage propre à l'enfant actif (journée, étoiles,
 // historique, code, routines/aventures perso...) — jamais pour une clé
-// partagée par appareil (code parent, debug), cf. plus haut.
+// partagée par appareil (code parent, debug), cf. plus haut. Suppose un
+// profil actif réel (jamais appelée avant la première configuration).
 function cle(nomBase) { return profilActif().prefixe + "_" + nomBase; }
+
+// ---------------------------------------------------------------------
+// Avatars proposés à la première configuration — mêmes calques qu'un
+// profil codé en dur (base + calques, cf. `sprites` plus haut), générés
+// par scripts/generate_sprites_detailed_preview.py (voir CHILDREN dans ce
+// script pour les 4 combinaisons peau/cheveux ci-dessous, 2 par
+// silhouette). `silhouette` ("pantalon"/"robe") pilote uniquement le
+// gabarit de routines amorcé à la création (cf. `routinesDemarrage()`
+// plus bas) — un parent peut ensuite ajouter les deux jeux de vêtements à
+// une même routine si besoin, cf. l'espace parent.
+const AVATARS_DISPONIBLES = [
+  {
+    id: "avatar-a",
+    silhouette: "pantalon",
+    dodo: "assets/avatar/avatar-a-dodo.png",
+    sprites: {
+      base: "assets/avatar/avatar-a-base.png",
+      calques: [
+        { calque: "calque-calecon",     fichier: "assets/avatar/avatar-a-calecon.png" },
+        { calque: "calque-haut",        fichier: "assets/avatar/avatar-a-haut.png" },
+        { calque: "calque-pantalon",    fichier: "assets/avatar/avatar-a-pantalon.png" },
+        { calque: "calque-chaussettes", fichier: "assets/avatar/avatar-a-chaussettes.png" },
+        { calque: "calque-chaussures",  fichier: "assets/avatar/avatar-a-chaussures.png" },
+        { calque: "calque-manteau",     fichier: "assets/avatar/avatar-a-manteau.png" },
+      ],
+    },
+  },
+  {
+    id: "avatar-b",
+    silhouette: "pantalon",
+    dodo: "assets/avatar/avatar-b-dodo.png",
+    sprites: {
+      base: "assets/avatar/avatar-b-base.png",
+      calques: [
+        { calque: "calque-calecon",     fichier: "assets/avatar/avatar-b-calecon.png" },
+        { calque: "calque-haut",        fichier: "assets/avatar/avatar-b-haut.png" },
+        { calque: "calque-pantalon",    fichier: "assets/avatar/avatar-b-pantalon.png" },
+        { calque: "calque-chaussettes", fichier: "assets/avatar/avatar-b-chaussettes.png" },
+        { calque: "calque-chaussures",  fichier: "assets/avatar/avatar-b-chaussures.png" },
+        { calque: "calque-manteau",     fichier: "assets/avatar/avatar-b-manteau.png" },
+      ],
+    },
+  },
+  {
+    id: "avatar-c",
+    silhouette: "robe",
+    dodo: "assets/avatar/avatar-c-dodo.png",
+    sprites: {
+      base: "assets/avatar/avatar-c-base.png",
+      calques: [
+        { calque: "calque-culotte",     fichier: "assets/avatar/avatar-c-culotte.png" },
+        { calque: "calque-haut",        fichier: "assets/avatar/avatar-c-haut.png" },
+        { calque: "calque-robe",        fichier: "assets/avatar/avatar-c-robe.png" },
+        { calque: "calque-chaussettes", fichier: "assets/avatar/avatar-c-chaussettes.png" },
+        { calque: "calque-chaussures",  fichier: "assets/avatar/avatar-c-chaussures.png" },
+        { calque: "calque-manteau",     fichier: "assets/avatar/avatar-c-manteau.png" },
+      ],
+    },
+  },
+  {
+    id: "avatar-d",
+    silhouette: "robe",
+    dodo: "assets/avatar/avatar-d-dodo.png",
+    sprites: {
+      base: "assets/avatar/avatar-d-base.png",
+      calques: [
+        { calque: "calque-culotte",     fichier: "assets/avatar/avatar-d-culotte.png" },
+        { calque: "calque-haut",        fichier: "assets/avatar/avatar-d-haut.png" },
+        { calque: "calque-robe",        fichier: "assets/avatar/avatar-d-robe.png" },
+        { calque: "calque-chaussettes", fichier: "assets/avatar/avatar-d-chaussettes.png" },
+        { calque: "calque-chaussures",  fichier: "assets/avatar/avatar-d-chaussures.png" },
+        { calque: "calque-manteau",     fichier: "assets/avatar/avatar-d-manteau.png" },
+      ],
+    },
+  },
+];
+
+// ---------------------------------------------------------------------
+// Première configuration — écran affiché quand cet appareil n'a encore
+// AUCUN profil (cf. `demarrer()`, tout en bas du fichier), ou rouvert
+// depuis "Cet appareil" ("+ Nouvel enfant") pour ajouter un profil
+// supplémentaire sur un appareil déjà configuré. Prénom + avatar ici,
+// code parent juste après (réutilise le pavé numérique existant, cf.
+// `demarrerCodeInitial()`) — la création réelle du profil n'a lieu
+// qu'une fois le code confirmé deux fois, cf. `finaliserPremiereConfiguration()`.
+let configInitiale = { prenom: "", avatarId: null };
+// true seulement quand cet écran est rouvert depuis un appareil déjà
+// configuré (bouton retour utile) ; false au tout premier lancement
+// (aucun profil, donc aucun écran où revenir — bouton retour caché).
+let premiereConfigEstAjout = false;
+
+function ouvrirPremiereConfiguration(estAjout) {
+  premiereConfigEstAjout = !!estAjout;
+  configInitiale = { prenom: "", avatarId: AVATARS_DISPONIBLES[0].id };
+  document.getElementById("pc-prenom").value = "";
+  document.getElementById("pc-erreur").textContent = "";
+  document.getElementById("btn-retour-premiere-configuration").classList.toggle("hidden", !premiereConfigEstAjout);
+  construireGrilleAvatarsInitiale();
+  afficherEcran("screen-premiere-configuration");
+}
+
+function construireGrilleAvatarsInitiale() {
+  const grille = document.getElementById("pc-avatars-grille");
+  grille.innerHTML = "";
+  AVATARS_DISPONIBLES.forEach(a => {
+    const carte = document.createElement("button");
+    carte.type = "button";
+    carte.className = "pc-avatar-carte" + (a.id === configInitiale.avatarId ? " choisi" : "");
+    carte.setAttribute("aria-label", "Choisir cet avatar");
+    carte.innerHTML = `<img src="${a.sprites.base}" alt="">`;
+    carte.onclick = () => { configInitiale.avatarId = a.id; construireGrilleAvatarsInitiale(); };
+    grille.appendChild(carte);
+  });
+}
+
+function validerPremiereConfiguration() {
+  const prenom = document.getElementById("pc-prenom").value.trim();
+  if (!prenom) {
+    document.getElementById("pc-erreur").textContent = "Donne un prénom avant de continuer.";
+    return;
+  }
+  if (!configInitiale.avatarId) {
+    document.getElementById("pc-erreur").textContent = "Choisis un avatar avant de continuer.";
+    return;
+  }
+  configInitiale.prenom = prenom;
+  demarrerCodeInitial();
+}
+
+// Même pavé numérique que la vérification/le changement de code (cf.
+// construireClavier()/majCasesCode() plus bas) — seul modeCode change ce
+// qui se passe une fois les deux saisies confirmées identiques (cf.
+// validerCode()).
+function demarrerCodeInitial() {
+  ecranAvantValidation = "screen-premiere-configuration";
+  codeSaisi = "";
+  modeCode = "initial1";
+  premierNouveauCode = "";
+  document.getElementById("validation-sous-titre").textContent = "Choisis un code parent à 4 chiffres.";
+  document.getElementById("correction-wrap").classList.add("hidden");
+  document.getElementById("pavecode-wrap").classList.remove("hidden");
+  document.getElementById("pavecode-erreur").textContent = "";
+  construireClavier(document.getElementById("pavecode-clavier"), appuyerTouche);
+  majCasesCode(document.getElementById("pavecode-cases"), codeSaisi);
+  afficherEcran("screen-validation");
+}
+
+// Code confirmé deux fois (cf. validerCode(), branche "initial2") : crée
+// réellement le profil — jusqu'ici rien n'était encore écrit à part le
+// prénom/avatar en mémoire (`configInitiale`). Ordre important : le
+// profil doit exister dans `profils_perso` ET `dayrise_enfant` doit déjà
+// pointer dessus avant d'amorcer routines_perso, puisque
+// `sauverRoutinesPerso()` passe par `cle()` -> `profilActif()`.
+function finaliserPremiereConfiguration() {
+  const avatar = AVATARS_DISPONIBLES.find(a => a.id === configInitiale.avatarId) || AVATARS_DISPONIBLES[0];
+  const id = "enfant-" + Date.now();
+  const profil = { id, prefixe: id, prenom: configInitiale.prenom, dodo: avatar.dodo, sprites: avatar.sprites };
+
+  const perso = chargerProfilsPerso();
+  perso.push(profil);
+  sauverProfilsPerso(perso);
+  try { localStorage.setItem("dayrise_enfant", id); } catch (e) {}
+
+  sauverRoutinesPerso(routinesDemarrage(profil.prenom, avatar.silhouette).map(r =>
+    (r.id === "shabiller" || r.id === "partir") ? Object.assign({ chainee: true }, r) : r
+  ));
+
+  location.reload();
+}
 
 // `calque` = data-calque (ou tableau de data-calque) à révéler sur le
 // sprite ; `retire: true` les CACHE au lieu de les révéler (routine du
@@ -198,145 +352,108 @@ function cle(nomBase) { return profilActif().prefixe + "_" + nomBase; }
 // `emoji` (par routine) : utilisé par l'écran "Ma journée"
 // (`construireJournee()`) pour repérer chaque routine d'un coup d'œil.
 //
-// Une routine par enfant (ROUTINES_LEON / ROUTINES_COLETTE) plutôt qu'un
-// seul catalogue partagé : même PRINCIPE (mêmes `id`/`nom`/nombre de
-// routines, dans le même ordre — "par défaut, elles doivent être
-// identiques") mais des TÂCHES propres à chaque enfant, notamment pour
-// les vêtements (Colette a une culotte/un haut/une robe, pas un
-// caleçon/pantalon) — cf. docs/produit/modele-de-donnees.md. Le moteur
-// (synchroniserRoutineEcran, marquerTache, rendreGlissable...) reste
-// entièrement générique et partagé : il ne lit jamais "shabiller" ou
-// "calecon" en dur, seulement la structure Routine/Tâche. Un parent peut
-// diverger encore plus au fil du temps (ex. ajouter/retirer une tâche
-// chez l'un sans toucher l'autre) sans rien casser côté moteur.
-const ROUTINES_LEON = [
-  {
-    id: "shabiller",
-    nom: "S'habiller",
-    emoji: "👕",
-    lieu: "chambre",
-    felicitation: "Bravo Léon, tu t'es habillé tout seul !",
-    taches: [
-      { id: "calecon",     texte: "Mets ton caleçon.",     emoji: "🩲", zone: "zone-bassin", calque: "calque-calecon" },
-      { id: "tshirt",      texte: "Mets ton t-shirt.",     emoji: "👕", zone: "zone-torse",  calque: "calque-haut" },
-      { id: "pantalon",    texte: "Mets ton pantalon.",    emoji: "👖", zone: "zone-jambes", calque: "calque-pantalon" },
-      { id: "chaussettes", texte: "Mets tes chaussettes.", emoji: "🧦", zone: "zone-pieds",  calque: "calque-chaussettes" },
-    ],
-  },
-  {
-    id: "partir",
-    nom: "Se préparer à partir",
-    emoji: "🚪",
-    lieu: "salon",
-    felicitation: "Bravo Léon, tu es prêt à partir !",
-    // Manteau et sac retirés le temps de l'été (pas besoin de manteau,
-    // on part avec juste les chaussures) — gardés ici en commentaire
-    // pour les remettre facilement à la mauvaise saison :
-    // { id: "manteau", texte: "Mets ton manteau.", emoji: "🧥", zone: "zone-torse", calque: "calque-manteau" },
-    // { id: "sac",     texte: "Prends ton sac.",   emoji: "🎒", zone: "zone-dos",   badge: "dos" },
-    taches: [
-      { id: "chaussures", texte: "Mets tes chaussures.", emoji: "👟", zone: "zone-pieds", calque: "calque-chaussures" },
-    ],
-  },
-  {
-    id: "soir",
-    nom: "Aller se coucher",
-    emoji: "🌙",
-    lieu: "chambre",
-    felicitation: "Bravo Léon, tu es prêt à dormir !",
-    // Volontairement PAS chaînée après "S'habiller"/"Se préparer à
-    // partir" (contrairement aux autres routines, cf. construireMenu()) :
-    // le coucher n'a rien à voir avec le fait d'être habillé pour sortir,
-    // et les enchaîner créait un vrai risque — si un parent relance
-    // "S'habiller" en soirée (cf. espace parent), "Aller se coucher" se
-    // serait retrouvée verrouillée juste avant le coucher. À la place,
-    // débloquée par l'heure : avant `disponibleApresHeure`, elle reste
-    // inaccessible (pour éviter l'autre risque inverse — un enfant qui
-    // irait se déshabiller pour "aller se coucher" en pleine journée sans
-    // avoir rien fait d'autre), après, elle l'est, indépendamment de
-    // l'état des autres routines.
-    disponibleApresHeure: 18,
-    taches: [
-      // `avatarGlissable: true` (au lieu de `zone`) : contrairement aux
-      // autres tâches, ce n'est pas l'icône de la liste qu'on glisse vers
-      // l'avatar, mais l'avatar (habillé) lui-même qu'on tire hors de la
-      // scène — plus logique pour DÉshabiller que d'amener une carte
-      // jusqu'à lui (cf. rendreAvatarGlissable, plus bas).
-      { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👕",
-        calque: ["calque-haut", "calque-pantalon", "calque-chaussettes", "calque-chaussures", "calque-manteau"],
-        retire: true, avatarGlissable: true },
-      // `pileGlissable: true` : contrairement aux autres tâches, ce n'est
-      // pas l'icône de la liste qui se glisse vers `zone` mais la pile de
-      // vêtements qui apparaît dans la scène une fois "enlever" fait (cf.
-      // #pile-vetements, synchroniserRoutineEcran()) — matérialise les
-      // habits qui viennent de tomber, plutôt que de les faire disparaître
-      // pour de bon avant même cette tâche.
-      { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-panier", pileGlissable: true },
-      // `miniJeu: "dents"` (au lieu de `zone`) : cette tâche s'ouvre en
-      // tapant sa ligne (cf. ouvrirMiniJeu()) plutôt qu'en y glissant
-      // l'icône — lance l'écran dédié `screen-dents` (minuteur +
-      // 6 zones). `badge`/`badgeFait` restent : le ✨ sur le visage de
-      // l'avatar continue de refléter que les dents sont faites, une
-      // fois le mini-jeu terminé (marquerTache() y est appelé pareil).
-      { id: "dents",    texte: "Brosse-toi les dents.",                   emoji: "🪥", miniJeu: "dents", badge: "visage", badgeFait: "✨" },
-      // `miniJeu: "histoire"` (au lieu de `zone`), même principe que
-      // "dents" ci-dessus : ouvre l'écran dédié `screen-histoire`
-      // (image + texte) en tapant la ligne, plutôt qu'un glisser-déposer
-      // — pas de geste à faire, juste un moment calme sur le canapé.
-      { id: "histoire", texte: "On lit l'histoire.",                      emoji: "📖", miniJeu: "histoire" },
-      { id: "coucher",  texte: "Je vais me coucher.",                     emoji: "😴", zone: "zone-pieds" },
-    ],
-  },
-];
-
-// Colette : mêmes `id`/`nom`/`emoji`/`lieu`, même nombre de routines, même
-// ordre — seules les tâches de "S'habiller" et le vocabulaire genré
-// changent (culotte/haut/robe au lieu de caleçon/t-shirt/pantalon ; les
-// calques associés pointent vers assets/avatar/colette-*.png via
-// PROFILS.colette.sprites, pas vers ceux de Léon). "Se préparer à partir"
-// est réellement identique (les chaussures ne dépendent pas du genre).
-const ROUTINES_COLETTE = [
-  {
-    id: "shabiller",
-    nom: "S'habiller",
-    emoji: "👕",
-    lieu: "chambre",
-    felicitation: "Bravo Colette, tu t'es habillée toute seule !",
-    taches: [
-      { id: "culotte",     texte: "Mets ta culotte.",      emoji: "🩲", zone: "zone-bassin", calque: "calque-culotte" },
-      { id: "haut",        texte: "Mets ton haut.",        emoji: "👚", zone: "zone-torse",  calque: "calque-haut" },
-      { id: "robe",        texte: "Mets ta robe.",         emoji: "👗", zone: "zone-jambes", calque: "calque-robe" },
-      { id: "chaussettes", texte: "Mets tes chaussettes.", emoji: "🧦", zone: "zone-pieds",  calque: "calque-chaussettes" },
-    ],
-  },
-  {
-    id: "partir",
-    nom: "Se préparer à partir",
-    emoji: "🚪",
-    lieu: "salon",
-    felicitation: "Bravo Colette, tu es prête à partir !",
-    taches: [
-      { id: "chaussures", texte: "Mets tes chaussures.", emoji: "👟", zone: "zone-pieds", calque: "calque-chaussures" },
-    ],
-  },
-  {
-    id: "soir",
-    nom: "Aller se coucher",
-    emoji: "🌙",
-    lieu: "chambre",
-    felicitation: "Bravo Colette, tu es prête à dormir !",
-    disponibleApresHeure: 18,
-    taches: [
-      { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👗",
-        calque: ["calque-haut", "calque-robe", "calque-chaussettes", "calque-chaussures", "calque-manteau"],
-        retire: true, avatarGlissable: true },
-      { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-panier", pileGlissable: true },
-      { id: "dents",    texte: "Brosse-toi les dents.",                   emoji: "🪥", miniJeu: "dents", badge: "visage", badgeFait: "✨" },
-      { id: "histoire", texte: "On lit l'histoire.",                      emoji: "📖", miniJeu: "histoire" },
-      { id: "coucher",  texte: "Je vais me coucher.",                     emoji: "😴", zone: "zone-pieds" },
-    ],
-  },
-];
+// Gabarit de démarrage : un déploiement neuf n'a AUCUNE routine en dur —
+// `routinesDemarrage(prenom, silhouette)` sert uniquement à AMORCER
+// `routines_perso` du profil qu'on vient de créer (cf.
+// `finaliserPremiereConfiguration()`), avec les mêmes `id`/`nom`/nombre de
+// routines que le reste de l'app attend déjà ("shabiller"/"partir"/"soir",
+// cf. PLANNING_DEFAUT plus bas) mais un contenu neutre, immédiatement
+// modifiable comme n'importe quelle routine perso — aucune n'est figée.
+// `silhouette` ("pantalon"/"robe", choisie avec l'avatar) ne pilote que
+// les vêtements du bas de "S'habiller" et les calques déshabillés le
+// soir ; le reste du moteur (synchroniserRoutineEcran, marquerTache,
+// rendreGlissable...) reste entièrement générique et partagé : il ne lit
+// jamais "shabiller" ou "calecon" en dur, seulement la structure
+// Routine/Tâche.
+function routinesDemarrage(prenom, silhouette) {
+  const enRobe = silhouette === "robe";
+  const dessous = enRobe
+    ? { id: "culotte",  texte: "Mets ta culotte.",  emoji: "🩲", zone: "zone-bassin", calque: "calque-culotte" }
+    : { id: "calecon",  texte: "Mets ton caleçon.", emoji: "🩲", zone: "zone-bassin", calque: "calque-calecon" };
+  const bas = enRobe
+    ? { id: "robe",     texte: "Mets ta robe.",     emoji: "👗", zone: "zone-jambes", calque: "calque-robe" }
+    : { id: "pantalon", texte: "Mets ton pantalon.", emoji: "👖", zone: "zone-jambes", calque: "calque-pantalon" };
+  const calquesHabits = enRobe
+    ? ["calque-haut", "calque-robe", "calque-chaussettes", "calque-chaussures", "calque-manteau"]
+    : ["calque-haut", "calque-pantalon", "calque-chaussettes", "calque-chaussures", "calque-manteau"];
+  return [
+    {
+      id: "shabiller",
+      nom: "S'habiller",
+      emoji: "👕",
+      lieu: "chambre",
+      felicitation: "Bravo " + prenom + ", tu t'es habillé·e tout seul·e !",
+      taches: [
+        dessous,
+        { id: "haut",        texte: "Mets ton haut.",        emoji: "👚", zone: "zone-torse",  calque: "calque-haut" },
+        bas,
+        { id: "chaussettes", texte: "Mets tes chaussettes.", emoji: "🧦", zone: "zone-pieds",  calque: "calque-chaussettes" },
+      ],
+    },
+    {
+      id: "partir",
+      nom: "Se préparer à partir",
+      emoji: "🚪",
+      lieu: "salon",
+      felicitation: "Bravo " + prenom + ", tu es prêt·e à partir !",
+      // Manteau et sac volontairement absents du gabarit de départ (pas
+      // toujours utiles selon la saison) — un parent peut ajouter une
+      // tâche "Mets ton manteau" (calque "calque-manteau") ou "Prends ton
+      // sac" (badge "dos") depuis l'espace parent (modifier la routine).
+      taches: [
+        { id: "chaussures", texte: "Mets tes chaussures.", emoji: "👟", zone: "zone-pieds", calque: "calque-chaussures" },
+      ],
+    },
+    {
+      id: "soir",
+      nom: "Aller se coucher",
+      emoji: "🌙",
+      lieu: "chambre",
+      felicitation: "Bravo " + prenom + ", tu es prêt·e à dormir !",
+      // Volontairement PAS chaînée après "S'habiller"/"Se préparer à
+      // partir" (contrairement aux autres routines, cf. construireMenu()) :
+      // le coucher n'a rien à voir avec le fait d'être habillé pour sortir,
+      // et les enchaîner créait un vrai risque — si un parent relance
+      // "S'habiller" en soirée (cf. espace parent), "Aller se coucher" se
+      // serait retrouvée verrouillée juste avant le coucher. À la place,
+      // débloquée par l'heure : avant `disponibleApresHeure`, elle reste
+      // inaccessible (pour éviter l'autre risque inverse — un enfant qui
+      // irait se déshabiller pour "aller se coucher" en pleine journée sans
+      // avoir rien fait d'autre), après, elle l'est, indépendamment de
+      // l'état des autres routines.
+      disponibleApresHeure: 18,
+      taches: [
+        // `avatarGlissable: true` (au lieu de `zone`) : contrairement aux
+        // autres tâches, ce n'est pas l'icône de la liste qu'on glisse vers
+        // l'avatar, mais l'avatar (habillé) lui-même qu'on tire hors de la
+        // scène — plus logique pour DÉshabiller que d'amener une carte
+        // jusqu'à lui (cf. rendreAvatarGlissable, plus bas).
+        { id: "enlever",  texte: "Enlève tes vêtements.", emoji: "👕",
+          calque: calquesHabits, retire: true, avatarGlissable: true },
+        // `pileGlissable: true` : contrairement aux autres tâches, ce n'est
+        // pas l'icône de la liste qui se glisse vers `zone` mais la pile de
+        // vêtements qui apparaît dans la scène une fois "enlever" fait (cf.
+        // #pile-vetements, synchroniserRoutineEcran()) — matérialise les
+        // habits qui viennent de tomber, plutôt que de les faire disparaître
+        // pour de bon avant même cette tâche.
+        { id: "ranger",   texte: "Range tes vêtements ou mets-les au sale.", emoji: "🧺", zone: "zone-panier", pileGlissable: true },
+        // `miniJeu: "dents"` (au lieu de `zone`) : cette tâche s'ouvre en
+        // tapant sa ligne (cf. ouvrirMiniJeu()) plutôt qu'en y glissant
+        // l'icône — lance l'écran dédié `screen-dents` (minuteur +
+        // 6 zones). `badge`/`badgeFait` restent : le ✨ sur le visage de
+        // l'avatar continue de refléter que les dents sont faites, une
+        // fois le mini-jeu terminé (marquerTache() y est appelé pareil).
+        { id: "dents",    texte: "Brosse-toi les dents.",                   emoji: "🪥", miniJeu: "dents", badge: "visage", badgeFait: "✨" },
+        // `miniJeu: "histoire"` (au lieu de `zone`), même principe que
+        // "dents" ci-dessus : ouvre l'écran dédié `screen-histoire`
+        // (image + texte) en tapant la ligne, plutôt qu'un glisser-déposer
+        // — pas de geste à faire, juste un moment calme sur le canapé.
+        { id: "histoire", texte: "On lit l'histoire.",                      emoji: "📖", miniJeu: "histoire" },
+        { id: "coucher",  texte: "Je vais me coucher.",                     emoji: "😴", zone: "zone-pieds" },
+      ],
+    },
+  ];
+}
 
 // Repas : purement informatifs pour l'écran "Ma journée"
 // (`construireJournee()`) — pas des routines (pas de tâches, pas
@@ -349,19 +466,20 @@ const REPAS = [
   { id: "diner",     nom: "Dîner",          emoji: "🌙🍽️" },
 ];
 
-// Aventures : sorties, sur le même principe que le trajet/arrivée
-// initialement codés pour Pauline (route en voiture -> programme annoncé
-// à l'arrivée -> "C'est parti"). `date` (même format que `cleJour()`,
-// ex. "2026-8-27") sert de filtre pour `aventuresDuJour()` — une
-// aventure sans date (Pauline, récurrente) n'apparaît jamais toute
+// Aventures : sorties, sur le même principe que le trajet/arrivée d'une
+// visite chez une praticienne (route en voiture -> programme annoncé à
+// l'arrivée -> "C'est parti"). `date` (même format que `cleJour()`, ex.
+// "2026-8-27") sert de filtre pour `aventuresDuJour()` — une aventure
+// sans date (ex. une praticienne récurrente) n'apparaît jamais toute
 // seule dans les sorties du jour, elle attend d'être reprogrammée
 // explicitement le moment venu.
 // `personne` (emoji + nom) affiche un 2ᵉ sprite à l'arrivée quand
 // l'aventure se passe chez quelqu'un ; absent pour une sortie sans
 // praticien (magasin, école...).
 // `recompensePieces` : 0 = pas de récompense propre à cette aventure
-// (le cas de Pauline aujourd'hui). > 0 = une pièce sort du coffre à la
-// fin (monnaie distincte des étoiles de routine, cf. `ajouterPieces`).
+// (le cas d'une visite chez une praticienne, typiquement). > 0 = une
+// pièce sort du coffre à la fin (monnaie distincte des étoiles de
+// routine, cf. `ajouterPieces`).
 // `texteTrajetRetour` : texte du trajet retour (vers la maison), une
 // fois l'aventure terminée ("C'est parti" déclenche ce retour, pas la
 // récompense directement, cf. `terminerAventure`) — texte par défaut si
@@ -371,14 +489,14 @@ const REPAS = [
 // autre item ("routine"/"repas"/"aventure"). Absent = ajoutée en fin de
 // journée.
 //
-// Trois catalogues plutôt qu'un seul, pour maximiser ce qui est en commun
-// SANS forcer une praticienne partagée entre les deux enfants :
-// - AVENTURES_COMMUNES : identique pour tous les profils (l'école).
-// - AVENTURES_LEON / AVENTURES_COLETTE : propres à un enfant (chacun a sa
-//   psychomotricienne — Elsa pour Léon, Arianne pour Colette — même
-//   Pauline, l'orthophoniste, reste spécifique à Léon). Même structure de
-//   données que Pauline/le magasin de bricolage : rien de nouveau côté
-//   moteur, juste de nouvelles entrées, cf. `toutesLesAventures()`.
+// AVENTURES_COMMUNES : catalogue de départ, identique pour tous les
+// profils (juste l'école, à titre d'exemple). Un profil n'a par ailleurs
+// AUCUNE aventure propre en dur (cf. `aventuresPropres()`, absent d'un
+// profil créé depuis l'app — `toutesLesAventures()` traite ça comme un
+// catalogue vide) : une visite chez une praticienne, comme toute autre
+// sortie propre à une famille, s'ajoute depuis l'espace parent ("+
+// Nouvelle activité") plutôt que d'être codée en dur — même structure de
+// données, rien de nouveau côté moteur.
 const AVENTURES_COMMUNES = [
   {
     id: "ecole",
@@ -389,67 +507,6 @@ const AVENTURES_COMMUNES = [
     programme: ["1. On dit au revoir", "2. On passe une bonne journée", "3. Un parent vient nous chercher"],
     recompensePieces: 0,
     texteTrajetRetour: "L'école est finie, on rentre à la maison.",
-  },
-];
-
-const AVENTURES_LEON = [
-  {
-    id: "pauline",
-    lieu: "Chez Pauline",
-    emoji: "🚗",
-    texteTrajet: "On roule vers chez Pauline. Tu n'as rien à faire, tu peux regarder dehors.",
-    personne: { emoji: "👩‍⚕️", nom: "Pauline" },
-    texteArrivee: "Pauline est là. Orthophoniste, une demi-heure, comme la dernière fois.",
-    programme: ["1. On entre et on s'assoit", "2. On travaille avec Pauline", "3. On repart"],
-    recompensePieces: 0,
-    texteTrajetRetour: "La séance est finie, on rentre à la maison.",
-  },
-  {
-    id: "elsa",
-    lieu: "Chez Elsa",
-    emoji: "🤸",
-    texteTrajet: "On roule vers chez Elsa. Tu n'as rien à faire, tu peux regarder dehors.",
-    personne: { emoji: "🧑‍⚕️", nom: "Elsa" },
-    texteArrivee: "Elsa est là. Psychomotricienne, comme la dernière fois.",
-    programme: ["1. On entre et on s'assoit", "2. On travaille avec Elsa", "3. On repart"],
-    recompensePieces: 0,
-    texteTrajetRetour: "La séance est finie, on rentre à la maison.",
-  },
-  {
-    id: "bricolage",
-    date: "2026-8-28",
-    // Après le petit-déjeuner, mais aussi (et surtout) après "Se préparer
-    // à partir" : les deux routines requises pour partir en aventure
-    // (`ROUTINES_REQUISES_DEPART`) doivent de toute façon être validées
-    // avant que l'enfant puisse même ouvrir l'écran des sorties — les
-    // placer avant dans le planning évite un ordre affiché qui
-    // contredirait ce que le jeu impose réellement.
-    apres: { type: "routine", id: "partir" },
-    lieu: "Le magasin de bricolage",
-    emoji: "🧰",
-    texteTrajet: "On roule vers le magasin de bricolage.",
-    texteArrivee: "On est arrivés au magasin de bricolage.",
-    programme: [
-      "1. On entre et on reste avec papa/maman",
-      "2. On cherche ce qu'il faut pour le bricolage",
-      "3. On repart",
-    ],
-    recompensePieces: 1,
-    texteTrajetRetour: "On a fini, on rentre à la maison.",
-  },
-];
-
-const AVENTURES_COLETTE = [
-  {
-    id: "arianne",
-    lieu: "Chez Arianne",
-    emoji: "🤸",
-    texteTrajet: "On roule vers chez Arianne. Tu n'as rien à faire, tu peux regarder dehors.",
-    personne: { emoji: "🧑‍⚕️", nom: "Arianne" },
-    texteArrivee: "Arianne est là. Psychomotricienne, comme la dernière fois.",
-    programme: ["1. On entre et on s'assoit", "2. On travaille avec Arianne", "3. On repart"],
-    recompensePieces: 0,
-    texteTrajetRetour: "La séance est finie, on rentre à la maison.",
   },
 ];
 
@@ -481,7 +538,11 @@ function sauverAventuresPerso(liste) {
 function toutesLesAventures() {
   const perso = chargerAventuresPerso();
   const idsPerso = new Set(perso.map(a => a.id));
-  return AVENTURES_COMMUNES.concat(profilActif().aventuresPropres()).filter(a => !idsPerso.has(a.id)).concat(perso);
+  // `aventuresPropres` : absent d'un profil créé depuis l'app (cf.
+  // tousLesProfils() plus haut) — traité comme "aucune aventure propre en
+  // dur", pas une erreur.
+  const propres = profilActif().aventuresPropres ? profilActif().aventuresPropres() : [];
+  return AVENTURES_COMMUNES.concat(propres).filter(a => !idsPerso.has(a.id)).concat(perso);
 }
 
 function aventureParId(id) { return toutesLesAventures().find(a => a.id === id); }
@@ -589,7 +650,7 @@ function etatParDefaut(planningSeed) {
 // ajouté par une mise à jour de l'app depuis la dernière sauvegarde de
 // la tablette) EN PLACE, plutôt que de tout jeter. Avant (`etatValide()`,
 // tout-ou-rien), le moindre champ manquant faisait repartir d'un état
-// neuf — Léon a perdu une vraie progression de sa journée comme ça
+// neuf — un enfant a perdu une vraie progression de sa journée comme ça
 // (cf. discussion produit, ajout de `planning`). Ne répare que si le
 // JOUR correspond : un changement de date reste un vrai nouveau départ
 // (l'ancien état est alors archivé, pas réparé — cf. `archiverJournee()`
@@ -612,9 +673,9 @@ function etatRepare(etat) {
   return etat;
 }
 
-// Historique des journées passées (`cle("historique")`, ex. `leon_historique`
-// pour Léon) — jamais remis à zéro, contrairement à `cle("journee")`.
-// Demandé explicitement une fois l'usage réel commencé avec Léon :
+// Historique des journées passées (`cle("historique")`, ex.
+// `<prefixe>_historique`) — jamais remis à zéro, contrairement à
+// `cle("journee")`. Demandé explicitement une fois l'usage réel commencé :
 // jusqu'ici, une journée terminée était perdue dès que la suivante
 // commençait. Archivée ici, juste avant d'être écrasée par une nouvelle
 // journée (cf. `chargerEtat()`) — pas à chaque reset de test
@@ -711,47 +772,37 @@ function sauverRoutinesPerso(liste) {
 function toutesLesRoutines() {
   const perso = chargerRoutinesPerso();
   const idsPerso = new Set(perso.map(r => r.id));
-  return profilActif().routines().filter(r => !idsPerso.has(r.id)).concat(perso);
+  // `routines` : absent d'un profil créé depuis l'app (cf. tousLesProfils()
+  // plus haut) — tout son catalogue vit alors dans routines_perso (amorcé
+  // par routinesDemarrage() à la création, cf.
+  // finaliserPremiereConfiguration()), traité ici comme un socle en dur
+  // vide plutôt qu'une erreur.
+  const base = profilActif().routines ? profilActif().routines() : [];
+  return base.filter(r => !idsPerso.has(r.id)).concat(perso);
 }
 
 function routineParId(id) { return toutesLesRoutines().find(r => r.id === id); }
 
 // Entourage ("qui est là ?") : catalogue léger — nom, emoji, rôle en
-// texte libre. `ENTOURAGE_COMMUNES` (demandé explicitement, famille
-// proche + les praticiennes déjà connues + les enfants eux-mêmes pour
-// les tagger comme fratrie) est identique sur les deux appareils, sur le
-// même principe que `AVENTURES_COMMUNES` ; un parent peut en ajouter
-// d'autres, persistées à part (`chargerEntouragePerso`/
-// `sauverEntouragePerso`, même principe que les catalogues perso
-// Activités/Routines) et propres à CET appareil, jamais remises à zéro.
-// Emoji de Pauline/Elsa/Arianne alignés sur leur `personne` déjà utilisée
-// dans les aventures praticienne (mêmes emoji, cf. AVENTURES_LEON/
-// AVENTURES_COLETTE plus haut) — pour rester la même personne reconnue
-// d'un écran à l'autre.
+// texte libre. `ENTOURAGE_COMMUNES` est le socle en dur, identique sur
+// tous les appareils, sur le même principe que `AVENTURES_COMMUNES` —
+// vide par défaut (aucune famille/praticien(ne) n'est universelle) ; un
+// parent ajoute les siens depuis l'espace parent ("+ Nouvelle personne"),
+// persistés à part (`chargerEntouragePerso`/`sauverEntouragePerso`, même
+// principe que les catalogues perso Activités/Routines) et propres à CET
+// appareil, jamais remis à zéro.
 //
 // ⚠️ Volontairement DISTINCT du champ `personne` déjà présent sur les
-// aventures chez une praticienne (Pauline/Elsa/Arianne) : `personne` n'est
-// pas qu'un affichage, sa seule présence bascule "C'est parti" vers tout
-// le flux "séance praticienne" (cf. `terminerVisite()`). Une activité/
-// routine taguée avec une personne de CE catalogue (`entourageIds`, cf.
-// `entourageDe()` plus bas) ne doit donc jamais se voir attribuer de
-// `personne` — les deux notions ne se fusionnent pas, même si elles se
-// ressemblent en surface (Pauline/Elsa/Arianne existent dans LES DEUX
-// catalogues, avec des rôles différents et non substituables).
-const ENTOURAGE_COMMUNES = [
-  { id: "papa", nom: "Papa", emoji: "👨", role: "" },
-  { id: "mama", nom: "Mama", emoji: "👩", role: "" },
-  { id: "papi", nom: "Papi", emoji: "👴", role: "" },
-  { id: "grandpa", nom: "GrandPa", emoji: "👴", role: "" },
-  { id: "mai", nom: "Maï", emoji: "👵", role: "" },
-  { id: "elsa", nom: "Elsa", emoji: "🧑‍⚕️", role: "Psychomotricienne" },
-  { id: "pauline", nom: "Pauline", emoji: "👩‍⚕️", role: "Orthophoniste" },
-  { id: "leon", nom: "Léon", emoji: "👦", role: "" },
-  { id: "colette", nom: "Colette", emoji: "👧", role: "" },
-  { id: "arianne", nom: "Arianne", emoji: "🧑‍⚕️", role: "Psychomotricienne" },
-  { id: "anaig", nom: "Anaïg", emoji: "👩", role: "" },
-  { id: "helene", nom: "Hélène", emoji: "👩", role: "" },
-];
+// aventures chez une praticienne : `personne` n'est pas qu'un affichage,
+// sa seule présence bascule "C'est parti" vers tout le flux "séance
+// praticienne" (cf. `terminerVisite()`). Une activité/routine taguée avec
+// une personne de CE catalogue (`entourageIds`, cf. `entourageDe()` plus
+// bas) ne doit donc jamais se voir attribuer de `personne` — les deux
+// notions ne se fusionnent pas, même si elles se ressemblent en surface
+// (une praticienne peut exister dans LES DEUX catalogues à la fois, avec
+// des rôles différents et non substituables — cf. `ouvrirEditionPersonne()`
+// plus bas).
+const ENTOURAGE_COMMUNES = [];
 function chargerEntouragePerso() {
   try { return JSON.parse(localStorage.getItem(cle("entourage_perso")) || "[]"); } catch (e) { return []; }
 }
@@ -802,8 +853,8 @@ function sauverPieces(n) {
 // pièces ne se remettent pas à zéro comme les étoiles, et rien dans
 // l'app ne doit pouvoir les retirer du compte, cf. plus haut ("dépensée
 // ... dans la vraie vie", pas une transaction dans l'app). Fonctionne
-// déjà pour Colette (clé propre à son profil via `cle()`) sans variante
-// parallèle, pour garder la même garantie des deux côtés.
+// pareil pour n'importe quel profil (clé propre via `cle()`) sans
+// variante parallèle, pour garder la même garantie partout.
 function ajouterPieces(n) {
   const total = chargerPieces() + Math.max(0, n);
   sauverPieces(total);
@@ -859,12 +910,12 @@ function afficherEcran(id) {
 // Avatar : construit les calques <img> depuis le profil actif, une seule
 // fois au démarrage (cf. appliquerProfilAuDom(), appelée depuis demarrer())
 // — seule leur VISIBILITÉ change ensuite à chaque rendu, cf.
-// synchroniserAvatar() juste après. index.html ne contient plus la liste
-// de calques en dur (spécifique à Léon) dans ses 3 emplacements
-// (#avatar-wrap-menu, #avatar-wrap, #avatar-wrap-arrivee) : un seul point
-// de vérité ici, alimenté par `profilActif().sprites`, plutôt que de
-// dupliquer 2x la même liste de balises `<img>` dans le HTML (Léon/
-// Colette) alors qu'un seul profil est actif par appareil (cf. PROFILS).
+// synchroniserAvatar() juste après. index.html ne contient pas de liste
+// de calques en dur dans ses 3 emplacements (#avatar-wrap-menu,
+// #avatar-wrap, #avatar-wrap-arrivee) : un seul point de vérité ici,
+// alimenté par `profilActif().sprites`, plutôt que de dupliquer la liste
+// de balises `<img>` par profil possible dans le HTML, alors qu'un seul
+// profil est actif par appareil (cf. tousLesProfils()).
 // Insère toujours AVANT les `.badge-zone` (dos/visage), qui restent en
 // dur dans index.html et doivent rester par-dessus les vêtements.
 function construireCalquesAvatar(idConteneur) {
@@ -890,8 +941,8 @@ function construireCalquesAvatar(idConteneur) {
 
 // Applique le profil actif aux quelques endroits du DOM qui affichent son
 // prénom ou son avatar en dur dans index.html (le reste — routines,
-// textes parlés... — vient déjà des catalogues par profil, cf. PROFILS/
-// ROUTINES_LEON/ROUTINES_COLETTE plus haut). Appelé une seule fois au
+// textes parlés... — vient déjà des catalogues par profil, cf.
+// tousLesProfils()/toutesLesRoutines() plus haut). Appelé une seule fois au
 // démarrage (cf. demarrer()) : le profil actif ne change pas en cours de
 // session (cf. resoudreProfilActif()) — changer d'appareil, pas d'onglet.
 function appliquerProfilAuDom() {
@@ -961,7 +1012,7 @@ function construireMenu() {
   planningCibleDate = null;
 
   // Déclenché par "Aller se coucher" spécifiquement, pas par le fait que
-  // toutes les routines du jour soient validées : Léon peut très bien
+  // toutes les routines du jour soient validées : un enfant peut très bien
   // n'avoir rien fait d'autre de la journée et aller directement se
   // coucher, ce doit quand même clôturer la journée.
   if (etat.routines.soir.valide && !etat.journeeFaite) {
@@ -997,11 +1048,14 @@ function construireMenu() {
   // sort volontairement de ce chaînage : ni bloquée par les précédentes,
   // ni prise en compte pour bloquer une éventuelle suivante — débloquée
   // par l'heure plutôt que par les autres routines (cf. sa définition
-  // dans ROUTINES_LEON/ROUTINES_COLETTE pour le pourquoi).
+  // dans routinesDemarrage() pour le pourquoi).
   //
-  // De même, seules les routines du catalogue par défaut du profil actif
-  // (`profilActif().routines()`) s'enchaînent entre elles : une routine
-  // créée par un parent (chargerRoutinesPerso) est toujours disponible,
+  // De même, seules les routines marquées `chainee: true` s'enchaînent
+  // entre elles — posé sur "shabiller"/"partir" au moment où
+  // finaliserPremiereConfiguration() les sème dans routines_perso (préservé
+  // ensuite si un parent les modifie, cf. creerNouvelleRoutine() qui
+  // fusionne sur l'objet d'origine). Une routine ajoutée après coup par un
+  // parent (via "+ Nouvelle routine") ne l'a jamais : toujours disponible,
   // ni bloquée par les précédentes ni prise en compte pour bloquer une
   // suivante — sinon un petit-déjeuner ajouté par un parent se
   // retrouverait verrouillé derrière "S'habiller"/"Se préparer à partir"
@@ -1026,7 +1080,7 @@ function construireMenu() {
       return;
     }
 
-    const chainee = profilActif().routines().some(rr => rr.id === r.id);
+    const chainee = !!r.chainee;
     const verrouillee = chainee && !toutPrecedentValide;
     const debloquee = !verrouillee && !etatR.valide;
     // "verrouillee" ne s'applique qu'à une routine PAS ENCORE validée —
@@ -1071,7 +1125,7 @@ const ROUTINES_REQUISES_DEPART = ["shabiller", "partir"];
 // l'attention dessus sans forcer le geste.
 function allerVersDepart() {
   const etat = chargerEtat();
-  const manquantes = profilActif().routines().filter(r => ROUTINES_REQUISES_DEPART.includes(r.id) && !etat.routines[r.id].valide);
+  const manquantes = toutesLesRoutines().filter(r => ROUTINES_REQUISES_DEPART.includes(r.id) && !etat.routines[r.id].valide);
   if (manquantes.length === 0) {
     dire("On part à l'aventure !");
     construireMissions();
@@ -1322,8 +1376,9 @@ function ajouterItemPlanning(type, id) {
 }
 
 // Catalogue d'ajout : tout ce qui existe (routines, aventures — pas
-// seulement celles du jour, un parent peut vouloir reprogrammer Pauline
-// par exemple —, repas) et n'est pas déjà dans le planning. Inclut les
+// seulement celles du jour, un parent peut vouloir reprogrammer une
+// activité récurrente par exemple —, repas) et n'est pas déjà dans le
+// planning. Inclut les
 // activités créées par un parent (cf. `toutesLesAventures()`) au même
 // titre que celles du catalogue en dur.
 function construireAjoutPlanning(planning) {
@@ -1700,10 +1755,13 @@ function synchroniserRoutineEcran() {
   const scene = document.getElementById("scene");
   scene.classList.toggle("scene-salon", routine.lieu === "salon");
   // Chambre du profil actif en fond quand la routine s'y déroule
-  // (habillage, coucher) — même image que PROFILS.*.chambre. Pas de
-  // décor pour "salon" : on efface l'image pour retrouver le dégradé
-  // placeholder de #scene.scene-salon.
-  scene.style.backgroundImage = routine.lieu === "chambre" ? "url('" + profilActif().chambre + "')" : "";
+  // (habillage, coucher) — même image que profilActif().chambre, un champ
+  // optionnel (absent pour un profil créé depuis l'app, cf.
+  // tousLesProfils() : pas de photo de chambre dédiée, seulement le
+  // dégradé). Pas de décor pour "salon" (ni pour "chambre" sans photo) :
+  // on efface l'image pour retrouver le dégradé placeholder de
+  // #scene.scene-salon.
+  scene.style.backgroundImage = (routine.lieu === "chambre" && profilActif().chambre) ? "url('" + profilActif().chambre + "')" : "";
   // Panier de linge : présent en permanence pendant "Aller se coucher",
   // pas seulement pendant la tâche "ranger" — sert de repère fixe avant
   // même que les vêtements ne tombent (cf. #panier-linge, index.html).
@@ -1877,7 +1935,7 @@ function rendreGlissable(el, etape) {
 // tes vêtements", qui a sa propre zone-dos).
 //
 // Retour de terrain (session précédente) : cloner tout #avatar-wrap et
-// le cacher pendant le geste faisait disparaître Léon entier de la
+// le cacher pendant le geste faisait disparaître l'enfant entier de la
 // scène, pas juste ses habits — pas intuitif ("enlève TES vêtements",
 // pas "pars"). Ici seuls les calques visibles concernés sont clonés
 // (donc juste le t-shirt/pantalon/etc.) ; le reste de l'avatar (corps,
@@ -2216,7 +2274,9 @@ let apresCodeValide = null;
 // connaître spécifiquement d'où on vient.
 let ecranAvantValidation = null;
 // "verifier" (code existant, cas normal) | "nouveau1"/"nouveau2" (les
-// deux saisies successives d'un nouveau code, cf. demarrerChangementCode()).
+// deux saisies successives d'un nouveau code, cf. demarrerChangementCode())
+// | "initial1"/"initial2" (même mécanique, pour le tout premier code
+// parent d'un profil qu'on vient de créer, cf. demarrerCodeInitial()).
 let modeCode = "verifier";
 let premierNouveauCode = "";
 // Bouton de la correction (#btn-valider-routine) : sert à la fois à
@@ -2289,30 +2349,38 @@ function validerCode() {
     return;
   }
 
-  // Changement de code (cf. demarrerChangementCode()) : deux saisies
-  // identiques de suite avant d'être enregistré, comme un changement de
-  // mot de passe classique — évite d'enregistrer une faute de frappe.
-  if (modeCode === "nouveau1") {
+  // Changement de code (cf. demarrerChangementCode()) ou tout premier code
+  // parent d'un profil qu'on vient de créer (cf. demarrerCodeInitial()) :
+  // deux saisies identiques de suite avant d'être enregistré, comme un
+  // changement de mot de passe classique — évite d'enregistrer une faute
+  // de frappe. Même mécanique pour les deux, seule la suite change une
+  // fois enregistré (cf. plus bas).
+  if (modeCode === "nouveau1" || modeCode === "initial1") {
     premierNouveauCode = codeSaisi;
     codeSaisi = "";
-    modeCode = "nouveau2";
+    modeCode = modeCode === "initial1" ? "initial2" : "nouveau2";
     document.getElementById("validation-sous-titre").textContent = "Retape le même code pour confirmer.";
     majCasesCode(cases, codeSaisi);
     return;
   }
-  // modeCode === "nouveau2"
+  // modeCode === "nouveau2" ou "initial2"
   if (codeSaisi === premierNouveauCode) {
+    const premiereConfig = modeCode === "initial2";
     sauverCodeParent(premierNouveauCode);
     document.getElementById("pavecode-wrap").classList.add("hidden");
-    dire("Nouveau code enregistré.");
     modeCode = "verifier";
-    construireEspaceParent();
-    afficherEcran("screen-parent");
+    if (premiereConfig) {
+      finaliserPremiereConfiguration();
+    } else {
+      dire("Nouveau code enregistré.");
+      construireEspaceParent();
+      afficherEcran("screen-parent");
+    }
   } else {
     document.getElementById("pavecode-erreur").textContent = "Les deux codes ne correspondent pas. On recommence.";
     codeSaisi = "";
     premierNouveauCode = "";
-    modeCode = "nouveau1";
+    modeCode = modeCode === "initial2" ? "initial1" : "nouveau1";
     document.getElementById("validation-sous-titre").textContent = "Entre le nouveau code à 4 chiffres.";
     majCasesCode(cases, codeSaisi);
   }
@@ -2451,25 +2519,32 @@ function construireEspaceParent() {
   });
 }
 
-// "Cet appareil" : quel profil (PROFILS) cet appareil affiche — PAS un
-// sélecteur destiné à l'enfant (cf. resoudreProfilActif()/PROFILS plus
-// haut, et le TODO "gestion des profils" qui a motivé cet écran) :
-// Colette a sa propre tablette, distincte de celle de Léon. Sert à
-// configurer un appareil une bonne fois pour toutes (au lieu de
-// mémoriser la syntaxe `?enfant=...` dans l'URL), ou à en réattribuer un
-// (remplacement, ajout d'un 3ᵉ enfant plus tard — il suffira d'une
+// "Cet appareil" : quel profil (tousLesProfils()) cet appareil affiche —
+// PAS un sélecteur destiné à l'enfant (cf. profilActifId() plus haut, et
+// le TODO "gestion des profils" qui a motivé cet écran) : chaque enfant a
+// sa propre tablette. Sert à configurer un appareil une bonne fois pour
+// toutes (au lieu de mémoriser la syntaxe `?enfant=...` dans l'URL), ou à
+// en réattribuer un (remplacement, ajout d'un 2ᵉ enfant plus tard — il suffira d'une
 // nouvelle entrée dans PROFILS pour qu'elle apparaisse ici automatiquement).
 function construireParentAppareil() {
   const actif = profilActifId();
   const liste = document.getElementById("parent-appareil-liste");
   liste.innerHTML = "";
-  Object.values(PROFILS).forEach(p => {
+  Object.values(tousLesProfils()).forEach(p => {
     const carte = document.createElement("div");
     carte.className = "carte-routine" + (p.id === actif ? " faite" : "");
     carte.innerHTML = `<div class="carte-routine-nom">${p.prenom}</div><div class="carte-routine-etat">${p.id === actif ? "✓ actif" : ""}</div>`;
     if (p.id !== actif) carte.onclick = () => changerProfilAppareil(p.id);
     liste.appendChild(carte);
   });
+}
+
+// Réutilise le même écran/formulaire que la toute première configuration
+// (cf. ouvrirPremiereConfiguration()) — seul `premiereConfigEstAjout`
+// change, pour afficher un bouton retour puisqu'il y a ici un espace
+// parent où revenir.
+function ouvrirNouveauProfilDepuisAppareil() {
+  ouvrirPremiereConfiguration(true);
 }
 
 // Change le profil de CET appareil (pas juste la session en cours) puis
@@ -2769,7 +2844,7 @@ function ouvrirNouvelleAventure() {
   document.getElementById("btn-creer-aventure").textContent = "Créer et ajouter à aujourd'hui";
   ["na-nom", "na-trajet", "na-arrivee", "na-etape1", "na-etape2", "na-etape3", "na-mots-cles"]
     .forEach(id => { document.getElementById(id).value = ""; });
-  document.getElementById("na-piece").checked = false;
+  document.getElementById("na-piece").checked = true;
   document.getElementById("na-erreur").textContent = "";
   emojiChoisiActivite = EMOJI_ACTIVITE[0];
   construireDeclencheurEmoji("na-emoji-trigger", emojiChoisiActivite);
@@ -3035,7 +3110,7 @@ function creerNouvelleRoutine() {
     // à certaines routines codées en dur, absents de ce formulaire mais
     // essentiels ailleurs (`calque`/`retire`/`avatarGlissable` pour
     // l'habillage, `miniJeu`/`badge`/`badgeFait`/`pileGlissable` pour le
-    // coucher, cf. ROUTINES_LEON/ROUTINES_COLETTE plus haut).
+    // coucher, cf. routinesDemarrage() plus haut).
     const origTache = original && original.taches[i - 1];
     const tache = Object.assign({}, origTache, { texte, emoji, id: (origTache && origTache.id) || ("t" + i) });
     // `zone` à part : seulement écrasée par le <select> si l'originale
@@ -3162,10 +3237,9 @@ function ouvrirNouvellePersonne() {
 // existante — codée en dur ou déjà perso (cf. toutesLesPersonnes()) —
 // puis bascule creerNouvellePersonne() en mode mise à jour via
 // `personneEnEditionId`. ⚠️ Ne touche jamais au champ `personne` des
-// aventures praticienne (Pauline/Elsa/Arianne) : volontairement distinct
-// de ce catalogue (cf. commentaire sur ENTOURAGE_COMMUNES plus haut) —
-// renommer "Pauline" ici ne renomme pas la praticienne dans l'écran de
-// séance.
+// aventures praticienne : volontairement distinct de ce catalogue (cf.
+// commentaire sur ENTOURAGE_COMMUNES plus haut) — renommer une praticienne
+// ici ne la renomme pas dans l'écran de séance.
 function ouvrirEditionPersonne(id) {
   const p = personneParId(id);
   if (!p) return;
@@ -3531,7 +3605,7 @@ function dortEncore() {
 // encore passée, cf. `demarrer`).
 //
 // Une fois l'heure passée, ce même écran devient tapable (cf. wiring de
-// `#screen-dodo` plus bas) : un tap de Léon lance le rituel du réveil
+// `#screen-dodo` plus bas) : un tap de l'enfant lance le rituel du réveil
 // (`ouvrirReveil`) plutôt qu'un retour direct au menu. `reveilFait` (sur
 // `etat`, réparé comme `journeeFaite` dans `etatRepare`) retient que le
 // rituel a eu lieu pour ne pas le rejouer à chaque rechargement du reste
@@ -3706,9 +3780,9 @@ function lancerConfettis(symboles) {
 // (sinon un repas ou une routine s'intercale : on rentre bien à la
 // maison d'abord, pas droit à la suivante). Sert à personnaliser le
 // texte du trajet retour ci-dessous : si un parent enchaîne deux
-// activités dans le planning (ex. Pauline puis Elsa), le trajet retour
-// de la première n'est pas un vrai retour à la maison mais un aller vers
-// la seconde.
+// activités dans le planning (ex. deux visites à la suite), le trajet
+// retour de la première n'est pas un vrai retour à la maison mais un
+// aller vers la seconde.
 function prochaineAventureSansEscale(id) {
   const etat = chargerEtat();
   const pos = etat.planning.findIndex(it => it.type === "aventure" && it.id === id);
@@ -3723,10 +3797,11 @@ function prochaineAventureSansEscale(id) {
 // et son sens (`sensTrajet`). Pas de minuteur/barre de progression : le
 // trajet est un simple temps d'attente, et c'est un parent qui confirme
 // "On est arrivés" (bouton -> code, cf. allerValidationArrivee) — pas
-// l'enfant tout seul, et pas une horloge. Pauline reste accessible via ce
-// même mécanisme mais n'est jamais programmée automatiquement (pas de
-// `date`, cf. TODO.md) ; pour le moment seules les aventures listées
-// dans `aventuresDuJour()` sont atteignables depuis l'écran des sorties.
+// l'enfant tout seul, et pas une horloge. Une aventure sans `date` (ex.
+// une praticienne récurrente) reste accessible via ce même mécanisme mais
+// n'est jamais programmée automatiquement ; pour le moment seules les
+// aventures listées dans `aventuresDuJour()` sont atteignables depuis
+// l'écran des sorties.
 // ---------------------------------------------------------------------
 function allerAuTrajet() {
   const a = aventureParId(aventureActuelleId);
@@ -3774,7 +3849,7 @@ function allerAArrivee() {
 
 // "C'est parti" (côté arrivée) : deux cas bien différents derrière le
 // même bouton (#btn-cest-parti). Pour une aventure "praticienne" (a un
-// champ `personne` — Pauline, Elsa, Arianne), l'enfant ne pilote plus
+// champ `personne`), l'enfant ne pilote plus
 // rien à partir d'ici : c'est LA PRATICIENNE qui doit valider avec le
 // code pour démarrer la séance (cf. `demarrerSeanceCode()`), garder
 // l'appareil le temps de la séance, puis le revalider avec le code pour
@@ -3926,10 +4001,10 @@ function allerValidationArrivee() {
 }
 
 // Fin d'une aventure (une fois l'arrivée à la maison confirmée). Sans
-// récompense propre (Pauline aujourd'hui) : retour direct au menu. Avec
-// récompense (`recompensePieces` > 0) : la pièce sort du coffre, même
-// écran/même geste que la récompense de fin de journée (cf.
-// `ouvrirCoffre`).
+// récompense propre (une visite chez une praticienne, typiquement) :
+// retour direct au menu. Avec récompense (`recompensePieces` > 0) : la
+// pièce sort du coffre, même écran/même geste que la récompense de fin de
+// journée (cf. `ouvrirCoffre`).
 function terminerAventure(a) {
   aventureActuelleId = null;
   if (a.recompensePieces > 0) {
@@ -4164,6 +4239,13 @@ document.getElementById("emoji-picker-recherche").addEventListener("input", (e) 
 document.getElementById("btn-emoji-picker-fermer").onclick = fermerSelecteurEmoji;
 
 document.getElementById("btn-retour-parent-appareil").onclick = () => { construireEspaceParent(); afficherEcran("screen-parent"); };
+document.getElementById("btn-nouvel-enfant").onclick = ouvrirNouveauProfilDepuisAppareil;
+
+// Caché au tout premier lancement (rien où revenir, cf.
+// ouvrirPremiereConfiguration()) ; visible depuis "Cet appareil" -> "+
+// Nouvel enfant".
+document.getElementById("btn-retour-premiere-configuration").onclick = () => { construireParentAppareil(); afficherEcran("screen-parent-appareil"); };
+document.getElementById("btn-continuer-premiere-configuration").onclick = validerPremiereConfiguration;
 
 // Le bouton "Terminé !" du coffre ne va pas toujours au même endroit
 // (fin de journée vs retour d'aventure) : `coffreRetour` est fixé par
@@ -4241,6 +4323,13 @@ if ("serviceWorker" in navigator) {
 // pour un enfant seul devant la tablette — dernier recours seulement,
 // `chargerEtat()` répare déjà les cas courants sans perdre la journée.
 (function demarrer() {
+  // Avant même le filet de sécurité ci-dessous : cet appareil n'a encore
+  // aucun profil actif (premier lancement, ou profil jamais choisi) —
+  // tout le reste (appliquerProfilAuDom(), chargerEtat()...) suppose un
+  // profil réel et plante sinon. Écran de première configuration plutôt
+  // que le filet de sécurité générique, qui présuppose lui aussi un
+  // profil (cf. son propre appel à `cle()` dans le catch plus bas).
+  if (!profilActifId()) { ouvrirPremiereConfiguration(false); return; }
   try {
     // Avant toute chose : calques d'avatar + prénom du profil actif dans
     // le DOM (cf. appliquerProfilAuDom()) — les écrans qui suivent
